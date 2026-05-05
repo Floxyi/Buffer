@@ -82,6 +82,7 @@ class ClipboardWatcher: ObservableObject {
         
         // Get current frontmost app as source
         let sourceApp = currentSourceApplicationInfo()
+        guard !SettingsManager.shared.shouldExcludeCapture(from: sourceApp) else { return }
         
         // Check for single image file from Finder BEFORE text check
         // (Finder always writes both NSFilenamesPboardType + .string, so we must intercept first)

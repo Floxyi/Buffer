@@ -98,18 +98,28 @@ class StatusBarController {
     
     @objc private func showSettings() {
         if let controller = settingsWindowController, let window = controller.window {
+            window.center()
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+
         let hostingController = NSHostingController(rootView: SettingsView())
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Settings"
         window.styleMask = [.titled, .closable]
-        window.center()
+        window.setContentSize(NSSize(width: 428, height: 640))
+        window.isReleasedWhenClosed = false
+
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
         controller.showWindow(nil)
+
+        DispatchQueue.main.async {
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+        }
+
         NSApp.activate(ignoringOtherApps: true)
     }
     

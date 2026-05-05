@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 /// Settings view for configuring Buffer preferences
 struct SettingsView: View {
@@ -100,6 +102,53 @@ struct SettingsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 12) {
+                Text("Excluded Apps")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+
+                if settings.excludedApps.isEmpty {
+                    HStack(spacing: 10) {
+                        Image(systemName: "shield")
+                            .foregroundColor(.secondary)
+                        Text("No excluded apps yet.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(NSColor.controlBackgroundColor))
+                    )
+                } else {
+                    ScrollView {
+                        excludedAppsList
+                    }
+                    .frame(height: 192, alignment: .top)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(NSColor.controlBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                    )
+                }
+
+                HStack {
+                    Button(action: pickExcludedApp) {
+                        Label("Add App…", systemImage: "plus")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer()
+                }
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
                 Text("History Size")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.secondary)
@@ -173,6 +222,66 @@ struct SettingsView: View {
             isRecording = false
         })
     }
+
+    private func pickExcludedApp() {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.allowsMultipleSelection = false
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = true
+            panel.resolvesAliases = true
+            panel.treatsFilePackagesAsDirectories = false
+            panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+            panel.prompt = "Add"
+            panel.message = "Select an app whose copied content Buffer should ignore."
+            let pickerDelegate = AppBundleOpenPanelDelegate()
+            panel.delegate = pickerDelegate
+
+            panel.beginSheetModal(for: window) { response in
+                guard response == .OK, let url = panel.url else { return }
+                guard let app = ExcludedApp(url: url) else { return }
+                settings.addExcludedApp(app)
+            }
+        }
+    }
+
+    private var excludedAppsList: some View {
+        VStack(spacing: 0) {
+            ForEach(settings.excludedApps) { app in
+                ExcludedAppRow(app: app) {
+                    settings.removeExcludedApp(app)
+                }
+
+                if app.id != settings.excludedApps.last?.id {
+                    Divider()
+                        .padding(.leading, 50)
+                }
+            }
+        }
+    }
+}
+
+private final class AppBundleOpenPanelDelegate: NSObject, NSOpenSavePanelDelegate {
+    func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            return false
+        }
+
+        if isDirectory.boolValue {
+            if url.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                return true
+            }
+
+            return !url.hasDirectoryPath || url.pathExtension.isEmpty
+        }
+
+        return false
+    }
 }
 
 /// Records keyboard shortcuts when active
@@ -242,6 +351,58 @@ class KeyRecorderView: NSView {
     }
 }
 
+private struct ExcludedAppRow: View {
+    let app: ExcludedApp
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: app.bundlePath))
+                .resizable()
+                .frame(width: 28, height: 28)
+                .cornerRadius(6)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(app.name)
+                    .font(.system(size: 13, weight: .medium))
+
+                Text(app.bundleIdentifier ?? app.bundlePath)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            Button(action: onRemove) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+            .help("Remove app")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+}
+
+private extension ExcludedApp {
+    init?(url: URL) {
+        let bundle = Bundle(url: url)
+        let bundlePath = url.path
+        let bundleIdentifier = bundle?.bundleIdentifier
+        let displayName =
+            bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ??
+            bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String ??
+            url.deletingPathExtension().lastPathComponent
+
+        guard !displayName.isEmpty else { return nil }
+        self.init(name: displayName, bundleIdentifier: bundleIdentifier, bundlePath: bundlePath)
+    }
+}
+
 /// ViewModel wrapper for SettingsManager to avoid crashes
 class SettingsViewModel: ObservableObject {
     private static let defaultHotkeyModifiers = HotkeyModifiers(shift: true, command: true, option: false, control: false)
@@ -251,6 +412,7 @@ class SettingsViewModel: ObservableObject {
     @Published var hotkeyKeyCode: UInt16
     @Published var launchAtLogin: Bool
     @Published var historyLimit: HistoryLimit
+    @Published var excludedApps: [ExcludedApp]
     
     private let defaults = UserDefaults.standard
     private let hotkeyModifiersKey = "hotkeyModifiers"
@@ -274,6 +436,8 @@ class SettingsViewModel: ObservableObject {
         // Load history limit
         let rawLimit = defaults.integer(forKey: "historyLimit")
         self.historyLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
+
+        self.excludedApps = SettingsManager.shared.excludedApps
     }
     
     func save() {
@@ -284,6 +448,7 @@ class SettingsViewModel: ObservableObject {
         SettingsManager.shared.hotkeyModifiers = hotkeyModifiers
         SettingsManager.shared.hotkeyKeyCode = hotkeyKeyCode
         SettingsManager.shared.historyLimit = historyLimit
+        SettingsManager.shared.excludedApps = excludedApps
         SettingsManager.shared.save()
         
         NotificationCenter.default.post(name: .bufferHotkeyChanged, object: nil)
@@ -293,6 +458,18 @@ class SettingsViewModel: ObservableObject {
     func restoreDefaultHotkey() {
         hotkeyModifiers = Self.defaultHotkeyModifiers
         hotkeyKeyCode = Self.defaultHotkeyKeyCode
+        save()
+    }
+
+    func addExcludedApp(_ app: ExcludedApp) {
+        guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
+        excludedApps.append(app)
+        excludedApps.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        save()
+    }
+
+    func removeExcludedApp(_ app: ExcludedApp) {
+        excludedApps.removeAll { $0.id == app.id }
         save()
     }
 }

@@ -2,6 +2,28 @@ import Foundation
 import ServiceManagement
 import Combine
 
+struct ExcludedApp: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let bundleIdentifier: String?
+    let bundlePath: String
+
+    init(name: String, bundleIdentifier: String?, bundlePath: String) {
+        self.name = name
+        self.bundleIdentifier = bundleIdentifier
+        self.bundlePath = bundlePath
+        self.id = bundleIdentifier ?? bundlePath
+    }
+
+    func matches(_ application: SourceApplicationInfo) -> Bool {
+        if let bundleIdentifier, bundleIdentifier == application.bundleIdentifier {
+            return true
+        }
+
+        return bundlePath == application.bundlePath
+    }
+}
+
 /// Define the tiers as a type
 enum HistoryLimit: Int, CaseIterable, Codable {
     case essential  = 100
@@ -34,11 +56,13 @@ class SettingsManager: ObservableObject {
     // Keys
     private let hotkeyModifiersKey = "hotkeyModifiers"
     private let hotkeyKeyCodeKey = "hotkeyKeyCode"
+    private let excludedAppsKey = "excludedApps"
     
     @Published var hotkeyModifiers: HotkeyModifiers
     @Published var hotkeyKeyCode: UInt16
     @Published var launchAtLogin: Bool = false
     @Published var historyLimit: HistoryLimit = .essential
+    @Published var excludedApps: [ExcludedApp] = []
     
     private init() {
         // Initialize with defaults first, then load saved values
@@ -64,12 +88,21 @@ class SettingsManager: ObservableObject {
         // Load history limit
         let rawLimit = defaults.integer(forKey: "historyLimit")
         self.historyLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
+
+        // Load excluded apps
+        if let data = defaults.data(forKey: excludedAppsKey),
+           let apps = try? JSONDecoder().decode([ExcludedApp].self, from: data) {
+            self.excludedApps = apps
+        }
     }
     
     func save() {
         defaults.set(hotkeyModifiers.toArray(), forKey: hotkeyModifiersKey)
         defaults.set(Int(hotkeyKeyCode), forKey: hotkeyKeyCodeKey)
         defaults.set(historyLimit.rawValue, forKey: "historyLimit")
+        if let data = try? JSONEncoder().encode(excludedApps) {
+            defaults.set(data, forKey: excludedAppsKey)
+        }
     }
     
     func toggleLaunchAtLogin(_ enabled: Bool) {
@@ -89,6 +122,22 @@ class SettingsManager: ObservableObject {
                 self.launchAtLogin = SMAppService.mainApp.status == .enabled
             }
         }
+    }
+
+    func addExcludedApp(_ app: ExcludedApp) {
+        guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
+        excludedApps.append(app)
+        excludedApps.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        save()
+    }
+
+    func removeExcludedApp(id: ExcludedApp.ID) {
+        excludedApps.removeAll { $0.id == id }
+        save()
+    }
+
+    func shouldExcludeCapture(from application: SourceApplicationInfo) -> Bool {
+        excludedApps.contains { $0.matches(application) }
     }
 }
 
