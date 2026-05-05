@@ -1,209 +1,113 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
-/// Settings view for configuring Buffer preferences
+private enum SettingsCategory: String, CaseIterable, Identifiable {
+    case general
+    case privacy
+    case about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .privacy: return "Privacy"
+        case .about: return "About"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .privacy: return "hand.raised"
+        case .about: return "info.circle"
+        }
+    }
+}
+
+private struct AppMetadata {
+    let name: String
+    let version: String
+    let build: String
+    let licenseName: String
+    let licenseText: String
+
+    static let current = AppMetadata(
+        name: Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "Buffer",
+        version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0",
+        build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1",
+        licenseName: "MIT License",
+        licenseText: """
+        MIT License
+
+        Copyright (c) 2026 Samir Patil
+        Copyright (c) 2026 Florian Winkler
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        """
+    )
+}
+
 struct SettingsView: View {
+    let onCategoryTitleChange: (String) -> Void
+
     @StateObject private var settings = SettingsViewModel()
+    @State private var selectedCategory: SettingsCategory? = .general
     @State private var isRecording = false
-    @State private var recordedKeyCode: UInt16 = 0
-    @State private var recordedModifiers = HotkeyModifiers()
     @State private var showingTrimAlert = false
     @State private var pendingTier: HistoryLimit?
-    
+
+    private let about = AppMetadata.current
+    private var activeCategory: SettingsCategory { selectedCategory ?? .general }
+
+    init(onCategoryTitleChange: @escaping (String) -> Void = { _ in }) {
+        self.onCategoryTitleChange = onCategoryTitleChange
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            HStack {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 24))
-                    .foregroundColor(.accentColor)
-                Text("Buffer Settings")
-                    .font(.system(size: 16, weight: .semibold))
-                Spacer()
+        NavigationSplitView {
+            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
+                Label(category.title, systemImage: category.icon)
+                    .tag(category)
             }
-            
-            Divider()
-            
-            // System section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("System")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-                
-                HStack {
-                    Text("Launch at Login")
-                        .font(.system(size: 13, weight: .medium))
-                    Spacer()
-                    Toggle("", isOn: $settings.launchAtLogin)
-                        .labelsHidden()
-                        .onChange(of: settings.launchAtLogin) { newValue in
-                            SettingsManager.shared.toggleLaunchAtLogin(newValue)
-                            DispatchQueue.main.async {
-                                settings.launchAtLogin = SettingsManager.shared.launchAtLogin
-                            }
-                        }
-                        .toggleStyle(.switch)
-                }
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+            .listStyle(.sidebar)
+        } detail: {
+            NavigationStack {
+                detailView(for: activeCategory)
+                    .navigationTitle(activeCategory.title)
             }
-            
-            Divider()
-            
-            // Hotkey section
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Keyboard Shortcut")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    // Current shortcut display
-                    HStack(spacing: 4) {
-                        Text(settings.hotkeyModifiers.displayString)
-                            .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        Text(keyCodeNames[settings.hotkeyKeyCode] ?? "?")
-                            .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isRecording ? Color.accentColor.opacity(0.2) : Color(NSColor.controlBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(isRecording ? Color.accentColor : Color.gray.opacity(0.3), lineWidth: 1)
-                    )
-                    
-                    Button(action: { isRecording.toggle() }) {
-                        Text(isRecording ? "Cancel" : "Change")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button(action: {
-                        settings.restoreDefaultHotkey()
-                        isRecording = false
-                    }) {
-                        Text("Restore Default")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Spacer()
-                }
-                
-                if isRecording {
-                    Text("Press your new shortcut...")
-                        .font(.system(size: 11))
-                        .foregroundColor(.accentColor)
-                }
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Excluded Apps")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                if settings.excludedApps.isEmpty {
-                    HStack(spacing: 10) {
-                        Image(systemName: "shield")
-                            .foregroundColor(.secondary)
-                        Text("No excluded apps yet.")
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(NSColor.controlBackgroundColor))
-                    )
-                } else {
-                    ScrollView {
-                        excludedAppsList
-                    }
-                    .frame(height: 192, alignment: .top)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(NSColor.controlBackgroundColor))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-                    )
-                }
-
-                HStack {
-                    Button(action: pickExcludedApp) {
-                        Label("Add App…", systemImage: "plus")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(.bordered)
-
-                    Spacer()
-                }
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("History Size")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 12) {
-                    ForEach(HistoryLimit.allCases, id: \.self) { tier in
-                        Button(action: {
-                            if tier.rawValue < settings.historyLimit.rawValue {
-                                pendingTier = tier
-                                showingTrimAlert = true
-                            } else {
-                                settings.historyLimit = tier
-                                settings.save()
-                            }
-                        }) {
-                            VStack(alignment: .center, spacing: 6) {
-                                if settings.historyLimit == tier {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.accentColor)
-                                        .font(.system(size: 14))
-                                } else {
-                                    Image(systemName: "circle")
-                                        .foregroundColor(.secondary.opacity(0.3))
-                                        .font(.system(size: 14))
-                                }
-                                
-                                Text(tier.label)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(settings.historyLimit == tier ? .primary : .secondary)
-                                
-                                Text(tier.subtitle)
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary.opacity(0.8))
-                            }
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(settings.historyLimit == tier
-                                          ? Color.accentColor.opacity(0.1)
-                                          : Color(NSColor.controlBackgroundColor))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(settings.historyLimit == tier
-                                            ? Color.accentColor : Color.clear, lineWidth: settings.historyLimit == tier ? 1.5 : 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
+            .id(activeCategory)
         }
-        .padding(24)
-        .frame(width: 380)
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 760, minHeight: 520)
+        .onAppear {
+            if selectedCategory == nil {
+                selectedCategory = .general
+            }
+            onCategoryTitleChange(activeCategory.title)
+        }
+        .onChange(of: selectedCategory) { _ in
+            onCategoryTitleChange(activeCategory.title)
+        }
         .alert("Reduce History Limit?", isPresented: $showingTrimAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Reduce & Delete", role: .destructive) {
@@ -221,6 +125,189 @@ struct SettingsView: View {
             settings.save()
             isRecording = false
         })
+    }
+
+    private var generalView: some View {
+        Form {
+            Section("Launch at Login") {
+                Toggle("Open Buffer when you sign in", isOn: $settings.launchAtLogin)
+                    .onChange(of: settings.launchAtLogin) { newValue in
+                        SettingsManager.shared.toggleLaunchAtLogin(newValue)
+                        DispatchQueue.main.async {
+                            settings.launchAtLogin = SettingsManager.shared.launchAtLogin
+                        }
+                    }
+                Text("Keep clipboard history running automatically in the background.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("History Size") {
+                Picker("Saved History", selection: $settings.historyLimit) {
+                    ForEach(HistoryLimit.allCases, id: \.self) { tier in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tier.label)
+                            Text(tier.subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .tag(tier)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                .onChange(of: settings.historyLimit) { newValue in
+                    guard newValue != SettingsManager.shared.historyLimit else { return }
+                    if newValue.rawValue < SettingsManager.shared.historyLimit.rawValue {
+                        pendingTier = newValue
+                        settings.historyLimit = SettingsManager.shared.historyLimit
+                        showingTrimAlert = true
+                    } else {
+                        settings.save()
+                    }
+                }
+            }
+
+            Section("Keyboard Shortcut") {
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Text(settings.hotkeyModifiers.displayString)
+                        Text(keyCodeNames[settings.hotkeyKeyCode] ?? "?")
+                    }
+                    .font(.system(.body).weight(.medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isRecording ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(isRecording ? Color.accentColor : Color.clear, lineWidth: 1)
+                    )
+
+                    Button(isRecording ? "Cancel" : "Change") {
+                        isRecording.toggle()
+                    }
+                    
+                    Spacer()
+
+                    Button("Restore") {
+                        settings.restoreDefaultHotkey()
+                        isRecording = false
+                    }
+                }
+
+                Text(isRecording ? "Press your new shortcut... (use at least one modifier key)" : "Keyboard Shortcut to open clipboard history.")
+                    .font(.caption)
+                    .foregroundStyle(isRecording ? Color.accentColor : .secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var privacyView: some View {
+        Form {
+            Section("Excluded Apps") {
+                Text("Buffer will ignore copied text and images from these apps.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ScrollView {
+                    if settings.excludedApps.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "hand.raised")
+                                .font(.system(size: 22))
+                                .foregroundStyle(.secondary)
+                            Text("No Excluded Apps")
+                                .font(.headline)
+                            Text("Add apps like password managers to keep their copied content out of Buffer history.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(settings.excludedApps) { app in
+                                ExcludedAppRow(app: app) {
+                                    settings.removeExcludedApp(app)
+                                }
+
+                                if app.id != settings.excludedApps.last?.id {
+                                    Divider()
+                                }
+                            }
+                        }
+                    }
+                }
+                .frame(height: 220)
+
+                HStack {
+                    Spacer()
+                    Button(action: pickExcludedApp) {
+                        Image(systemName: "plus")
+                    }
+                    .help("Add App")
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var aboutView: some View {
+        Form {
+            Section {
+                HStack(spacing: 16) {
+                    Image(nsImage: NSApp.applicationIconImage)
+                        .resizable()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(about.name)
+                            .font(.title3.weight(.semibold))
+                        Text("Version \(about.version) (\(about.build))")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button("Check for Updates") {
+                    }
+                    .padding(.trailing, 6)
+                }
+            }
+
+            Section("License") {
+                ScrollView {
+                    Text(about.licenseText)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .padding(.vertical, 4)
+                }
+                .frame(height: 300)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private func detailView(for category: SettingsCategory) -> some View {
+        Group {
+            switch category {
+            case .general:
+                generalView
+            case .privacy:
+                privacyView
+            case .about:
+                aboutView
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func pickExcludedApp() {
@@ -249,20 +336,6 @@ struct SettingsView: View {
         }
     }
 
-    private var excludedAppsList: some View {
-        VStack(spacing: 0) {
-            ForEach(settings.excludedApps) { app in
-                ExcludedAppRow(app: app) {
-                    settings.removeExcludedApp(app)
-                }
-
-                if app.id != settings.excludedApps.last?.id {
-                    Divider()
-                        .padding(.leading, 50)
-                }
-            }
-        }
-    }
 }
 
 private final class AppBundleOpenPanelDelegate: NSObject, NSOpenSavePanelDelegate {
@@ -284,17 +357,16 @@ private final class AppBundleOpenPanelDelegate: NSObject, NSOpenSavePanelDelegat
     }
 }
 
-/// Records keyboard shortcuts when active
 struct KeyRecorder: NSViewRepresentable {
     @Binding var isRecording: Bool
     let onRecord: (UInt16, HotkeyModifiers) -> Void
-    
+
     func makeNSView(context: Context) -> KeyRecorderView {
         let view = KeyRecorderView()
         view.onRecord = onRecord
         return view
     }
-    
+
     func updateNSView(_ nsView: KeyRecorderView, context: Context) {
         nsView.isRecording = isRecording
         if isRecording {
@@ -308,43 +380,26 @@ struct KeyRecorder: NSViewRepresentable {
 class KeyRecorderView: NSView {
     var isRecording = false
     var onRecord: ((UInt16, HotkeyModifiers) -> Void)?
-    
+
     override var acceptsFirstResponder: Bool { true }
-    
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if let window = self.window {
-            // Set level to be above other apps but below system items
-            window.level = .floating
-            
-            // Use a tiny delay to allow the window to be properly added to the window list
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
-    }
-    
+
     override func keyDown(with event: NSEvent) {
         guard isRecording else {
             super.keyDown(with: event)
             return
         }
-        
-        // Ignore modifier-only presses
+
         if event.keyCode == 56 || event.keyCode == 59 || event.keyCode == 58 || event.keyCode == 55 {
             return
         }
-        
+
         let mods = HotkeyModifiers(
             shift: event.modifierFlags.contains(.shift),
             command: event.modifierFlags.contains(.command),
             option: event.modifierFlags.contains(.option),
             control: event.modifierFlags.contains(.control)
         )
-        
-        // Require at least one modifier
+
         if mods.shift || mods.command || mods.option || mods.control {
             onRecord?(event.keyCode, mods)
         }
@@ -360,31 +415,27 @@ private struct ExcludedAppRow: View {
             Image(nsImage: NSWorkspace.shared.icon(forFile: app.bundlePath))
                 .resizable()
                 .frame(width: 28, height: 28)
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(app.name)
-                    .font(.system(size: 13, weight: .medium))
-
+                    .font(.body)
                 Text(app.bundleIdentifier ?? app.bundlePath)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
 
             Spacer()
 
-            Button(action: onRemove) {
+            Button(role: .destructive, action: onRemove) {
                 Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 14))
             }
             .buttonStyle(.plain)
-            .foregroundColor(.secondary)
             .help("Remove app")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
     }
 }
 
@@ -403,7 +454,6 @@ private extension ExcludedApp {
     }
 }
 
-/// ViewModel wrapper for SettingsManager to avoid crashes
 class SettingsViewModel: ObservableObject {
     private static let defaultHotkeyModifiers = HotkeyModifiers(shift: true, command: true, option: false, control: false)
     private static let defaultHotkeyKeyCode: UInt16 = 9
@@ -413,44 +463,38 @@ class SettingsViewModel: ObservableObject {
     @Published var launchAtLogin: Bool
     @Published var historyLimit: HistoryLimit
     @Published var excludedApps: [ExcludedApp]
-    
+
     private let defaults = UserDefaults.standard
     private let hotkeyModifiersKey = "hotkeyModifiers"
     private let hotkeyKeyCodeKey = "hotkeyKeyCode"
-    
+
     init() {
-        // Load modifiers
         if let savedMods = defaults.array(forKey: hotkeyModifiersKey) as? [String] {
             self.hotkeyModifiers = HotkeyModifiers(from: savedMods)
         } else {
             self.hotkeyModifiers = Self.defaultHotkeyModifiers
         }
-        
-        // Load keycode (default to V = 9)
+
         let savedKeyCode = defaults.integer(forKey: hotkeyKeyCodeKey)
         self.hotkeyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : Self.defaultHotkeyKeyCode
-        
-        // Load launch at login status from manager natively via SMAppService
         self.launchAtLogin = SettingsManager.shared.launchAtLogin
-        
-        // Load history limit
+
         let rawLimit = defaults.integer(forKey: "historyLimit")
         self.historyLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
-
         self.excludedApps = SettingsManager.shared.excludedApps
     }
-    
+
     func save() {
         defaults.set(hotkeyModifiers.toArray(), forKey: hotkeyModifiersKey)
         defaults.set(Int(hotkeyKeyCode), forKey: hotkeyKeyCodeKey)
         defaults.set(historyLimit.rawValue, forKey: "historyLimit")
-        
+
         SettingsManager.shared.hotkeyModifiers = hotkeyModifiers
         SettingsManager.shared.hotkeyKeyCode = hotkeyKeyCode
         SettingsManager.shared.historyLimit = historyLimit
         SettingsManager.shared.excludedApps = excludedApps
         SettingsManager.shared.save()
-        
+
         NotificationCenter.default.post(name: .bufferHotkeyChanged, object: nil)
         NotificationCenter.default.post(name: .bufferHistoryLimitChanged, object: nil)
     }

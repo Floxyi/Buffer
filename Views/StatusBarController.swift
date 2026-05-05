@@ -3,6 +3,8 @@ import SwiftUI
 
 /// Manages the menu bar status item - click to toggle window
 class StatusBarController {
+    private static let settingsToolbarIdentifier = NSToolbar.Identifier("BufferSettingsToolbar")
+
     private var statusItem: NSStatusItem
     private let store: ClipboardStore
     private let watcher: ClipboardWatcher
@@ -104,11 +106,33 @@ class StatusBarController {
             return
         }
 
-        let hostingController = NSHostingController(rootView: SettingsView())
+        var settingsWindow: NSWindow?
+        let hostingController = NSHostingController(
+            rootView: SettingsView { title in
+                settingsWindow?.title = title
+            }
+        )
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 428, height: 640))
+        settingsWindow = window
+        let toolbar = NSToolbar(identifier: Self.settingsToolbarIdentifier)
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.displayMode = .iconOnly
+        toolbar.showsBaselineSeparator = false
+
+        window.title = "General"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .visible
+        window.isMovableByWindowBackground = true
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.hasShadow = true
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        window.titlebarSeparatorStyle = .none
+        window.animationBehavior = .documentWindow
+        window.setContentSize(NSSize(width: 780, height: 560))
         window.isReleasedWhenClosed = false
 
         let controller = NSWindowController(window: window)
