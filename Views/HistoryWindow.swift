@@ -1,11 +1,101 @@
 import Cocoa
 import SwiftUI
 
+protocol BufferEffectView: AnyObject {
+    func updateBufferAppearance(cornerRadius: CGFloat)
+}
+
+typealias BufferEffectHostView = NSView & BufferEffectView
+
+@available(macOS 26.0, *)
+private final class BufferLiquidGlassEffectView: NSGlassEffectView, BufferEffectView {
+    private typealias SetVariantType = @convention(c) (AnyObject, Selector, Int) -> Void
+    private static let setVariantSelector = NSSelectorFromString("set_variant:")
+
+    static func canUsePrivateLiquidGlassLook() -> Bool {
+        class_getInstanceMethod(object_getClass(NSGlassEffectView()), setVariantSelector) != nil
+    }
+
+    convenience init(clear: Bool) {
+        self.init()
+        style = clear ? .clear : .regular
+        if clear {
+            safeSetVariant(3)
+        }
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    func updateBufferAppearance(cornerRadius: CGFloat) {
+        self.cornerRadius = cornerRadius
+    }
+
+    private func safeSetVariant(_ value: Int) {
+        guard let method = class_getInstanceMethod(object_getClass(self), Self.setVariantSelector) else { return }
+        let methodImplementation = method_getImplementation(method)
+        let function = unsafeBitCast(methodImplementation, to: SetVariantType.self)
+        function(self, Self.setVariantSelector, value)
+    }
+}
+
+private enum HistoryWindowStyle {
+    static let panelCornerRadius = CGFloat(24)
+    static let panelBorderOpacity = 0.18
+}
+
+private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffectView {
+    convenience init() {
+        self.init()
+        blendingMode = .behindWindow
+        state = .active
+        material = .hudWindow
+        wantsLayer = true
+    }
+
+    func updateBufferAppearance(cornerRadius: CGFloat) {
+        material = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .hudWindow : .popover
+        updateRoundedCorners(cornerRadius)
+    }
+
+    private func updateRoundedCorners(_ cornerRadius: CGFloat) {
+        guard cornerRadius > 0 else {
+            maskImage = nil
+            return
+        }
+        let edgeLength = 2.0 * cornerRadius + 1.0
+        let mask = NSImage(size: NSSize(width: edgeLength, height: edgeLength), flipped: false) { rect in
+            NSColor.black.set()
+            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+            return true
+        }
+        mask.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius, bottom: cornerRadius, right: cornerRadius)
+        mask.resizingMode = .stretch
+        maskImage = mask
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private func makeBufferEffectView() -> BufferEffectHostView {
+    if #available(macOS 26.0, *) {
+        let usePrivateLook = BufferLiquidGlassEffectView.canUsePrivateLiquidGlassLook()
+        let effectView = BufferLiquidGlassEffectView(clear: usePrivateLook)
+        effectView.updateBufferAppearance(cornerRadius: HistoryWindowStyle.panelCornerRadius)
+        return effectView
+    }
+    let effectView = BufferFrostedGlassEffectView()
+    effectView.updateBufferAppearance(cornerRadius: HistoryWindowStyle.panelCornerRadius)
+    return effectView
+}
+
 /// Custom panel that closes when clicking outside
 class HistoryPanel: NSPanel {
     var onClickOutside: (() -> Void)?
     
     override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
     
     override func resignKey() {
         super.resignKey()
@@ -28,6 +118,8 @@ private struct ChunkedTextState {
 class HistoryWindowController: NSWindowController {
     private let store: ClipboardStore
     private var previousApp: NSRunningApplication?
+    private var hostingView: NSHostingView<HistoryContentView>?
+    private var focusSearchOnNextOpen = true
     
     init(store: ClipboardStore) {
         self.store = store
@@ -35,7 +127,7 @@ class HistoryWindowController: NSWindowController {
         // Wider window for split pane
         let panel = HistoryPanel(
             contentRect: NSRect(x: 0, y: 0, width: 700, height: 480),
-            styleMask: [.titled, .closable, .resizable, .nonactivatingPanel, .fullSizeContentView],
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -62,13 +154,17 @@ class HistoryWindowController: NSWindowController {
         
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
-        panel.backgroundColor = NSColor.windowBackgroundColor
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
         panel.isMovableByWindowBackground = true
-        panel.hasShadow = true
+        panel.hasShadow = false
         
         panel.contentView?.wantsLayer = true
-        panel.contentView?.layer?.cornerRadius = 10
+        panel.contentView?.layer?.cornerRadius = HistoryWindowStyle.panelCornerRadius
         panel.contentView?.layer?.masksToBounds = true
+        if let contentView = panel.contentView {
+            contentView.layer?.backgroundColor = NSColor.clear.cgColor
+        }
         
         panel.center()
         
@@ -81,13 +177,16 @@ class HistoryWindowController: NSWindowController {
             forName: NSWindow.didBecomeKeyNotification,
             object: panel,
             queue: .main
-        ) { _ in
-            NotificationCenter.default.post(name: .bufferWindowDidOpen, object: nil)
+        ) { [weak self] _ in
+            NotificationCenter.default.post(
+                name: .bufferWindowDidOpen,
+                object: self?.focusSearchOnNextOpen ?? true
+            )
         }
     }
     
     private func setupContent() {
-        let contentView = HistoryContentView(
+        let rootView = HistoryContentView(
             store: store,
             onCopyToClipboard: { [weak self] item in
                 self?.copyToClipboard(item)
@@ -102,8 +201,17 @@ class HistoryWindowController: NSWindowController {
                 self?.close()
             }
         )
-        
-        window?.contentView = NSHostingView(rootView: contentView)
+        let effectView = makeBufferEffectView()
+        effectView.frame = window?.contentView?.bounds ?? .zero
+        effectView.autoresizingMask = [.width, .height]
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.frame = effectView.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        effectView.addSubview(hostingView)
+        self.hostingView = hostingView
+        window?.contentView = effectView
     }
     
     private func copyToClipboard(_ item: ClipboardItem) {
@@ -126,12 +234,19 @@ class HistoryWindowController: NSWindowController {
     }
     
     override func showWindow(_ sender: Any?) {
-        previousApp = NSWorkspace.shared.frontmostApplication
+        showWindow(sender, focusSearch: true, activateApp: true)
+    }
+
+    func showWindow(_ sender: Any?, focusSearch: Bool, activateApp: Bool) {
+        focusSearchOnNextOpen = focusSearch
+        previousApp = ActiveApplicationMonitor.shared.currentApplication
         window?.center()
         super.showWindow(sender)
-        NSApp.activate(ignoringOtherApps: true)
+        if activateApp {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        }
         window?.makeKeyAndOrderFront(nil)
-        window?.makeFirstResponder(window?.contentView)
+        window?.makeMain()
     }
 }
 
@@ -156,7 +271,8 @@ struct HistoryContentView: View {
     @State private var previewImage: NSImage?
     @State private var chunkedText = ChunkedTextState()
     @State private var scrollTrigger = false  // Triggers scroll on keyboard navigation
-    @State private var itemSize: Int?         // Holds computed size of item
+    @State private var shouldRefocusSearchOnActivate = false
+    @State private var showsQuickPasteNumbers = false
     
     // Multi-select state
     @State private var selectedIDs: Set<UUID> = []
@@ -301,6 +417,60 @@ struct HistoryContentView: View {
         selectionAnchor = nil
         selectedID = nil
     }
+
+    private func syncSelection(preferredID: UUID? = nil) {
+        guard !filteredItems.isEmpty else {
+            clearSelection()
+            selectedIndex = 0
+            return
+        }
+
+        let targetID = preferredID
+            ?? selectedID
+            ?? selectedIDs.first
+            ?? filteredItems.first?.id
+
+        guard let targetID,
+              let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
+            if let firstID = filteredItems.first?.id {
+                selectedID = firstID
+                selectedIDs = [firstID]
+                selectionAnchor = firstID
+                selectedIndex = 0
+            }
+            return
+        }
+
+        selectedID = targetID
+        selectedIDs = [targetID]
+        selectionAnchor = targetID
+        selectedIndex = index
+    }
+
+    private func focusSearchField() {
+        isSearchFocused = false
+        DispatchQueue.main.async {
+            isSearchFocused = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isSearchFocused = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            isSearchFocused = true
+        }
+    }
+
+    private func setQuickPasteMode(_ isEnabled: Bool) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+            showsQuickPasteNumbers = isEnabled
+        }
+    }
+
+    private func performQuickPaste(at index: Int) {
+        guard let item = filteredItems[safe: index] else { return }
+        selectSingle(item.id)
+        onPaste(item)
+    }
     
     /// Download all selected images to a folder
     /// Download all selected images to a folder
@@ -367,88 +537,57 @@ struct HistoryContentView: View {
             actionBar
         }
         .frame(minWidth: 600, minHeight: 400)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(windowBackdrop)
+        .clipShape(RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(HistoryWindowStyle.panelBorderOpacity), lineWidth: 1)
+        }
+        .ignoresSafeArea(.container, edges: .top)
         .onChange(of: searchText) { _ in
-            // Find first unpinned item in filtered results
-            let defaultItem = defaultSelectedItem
-            selectedID = defaultItem?.id
-            if let id = defaultItem?.id {
-                selectedIDs = [id]
-                selectionAnchor = id
-            } else {
-                selectedIDs = []
-                selectionAnchor = nil
-            }
-            // Calculate the correct index
-            if let index = filteredItems.firstIndex(where: { $0.id == defaultItem?.id }) {
-                selectedIndex = index
-            } else {
-                selectedIndex = 0
-            }
+            syncSelection(preferredID: filteredItems.first?.id)
         }
         .onChange(of: selectedIndex) { newIndex in
             selectedID = filteredItems[safe: newIndex]?.id
         }
         .onChange(of: store.items) { _ in
-            // Remove deleted items from selection set
-            selectedIDs = selectedIDs.filter { id in
-                filteredItems.contains { $0.id == id }
-            }
-            
-            // Preserve selection by UUID lookup, adjust index if needed
-            guard let id = selectedID else { return }
-            if let newIndex = filteredItems.firstIndex(where: { $0.id == id }) {
-                if selectedIndex != newIndex { selectedIndex = newIndex }
-            } else {
-                // Selected item was deleted — select the item now at the same position (or last)
-                let fallbackIndex = min(selectedIndex, filteredItems.count - 1)
-                if let fallbackItem = filteredItems[safe: fallbackIndex] {
-                    selectedID = fallbackItem.id
-                    selectedIDs = [fallbackItem.id]
-                    selectionAnchor = fallbackItem.id
-                    selectedIndex = fallbackIndex
-                } else {
-                    selectedID = nil
-                    selectedIDs = []
-                    selectionAnchor = nil
-                    selectedIndex = 0
-                }
+            syncSelection()
+        }
+        .onAppear {
+            syncSelection()
+            setQuickPasteMode(NSEvent.modifierFlags.contains(.command))
+            if NSApp.isActive {
+                focusSearchField()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { notification in
             searchText = ""
-            // Select first unpinned item, or first item if all are pinned
-            let firstUnpinned = store.items.first(where: { !$0.isPinned }) ?? store.items.first
-            selectedID = firstUnpinned?.id
-            if let id = firstUnpinned?.id {
-                selectedIDs = [id]
-                selectionAnchor = id
-            } else {
-                selectedIDs = []
-                selectionAnchor = nil
+            syncSelection(preferredID: filteredItems.first?.id)
+            setQuickPasteMode(NSEvent.modifierFlags.contains(.command))
+            let shouldFocusSearch = (notification.object as? Bool) ?? true
+            if shouldFocusSearch {
+                shouldRefocusSearchOnActivate = true
+                focusSearchField()
             }
-            // Find the correct index in the filtered (sorted) items
-            if let index = filteredItems.firstIndex(where: { $0.id == firstUnpinned?.id }) {
-                selectedIndex = index
-            } else {
-                selectedIndex = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard shouldRefocusSearchOnActivate else { return }
+            focusSearchField()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                shouldRefocusSearchOnActivate = false
             }
-            // Delay needed for NSHostingView to have settled as key window
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                isSearchFocused = true
-            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            setQuickPasteMode(false)
         }
         .task(id: selectedItem?.id) {
             // Clear preview
             previewImage = nil
             chunkedText = ChunkedTextState()
             isExtractingText = false
-            itemSize = nil
             
             // Load new preview async
             if let item = selectedItem {
-                itemSize = store.itemSize(for: item)
-                
                 if item.type == .image {
                     previewImage = await loadPreviewImage(for: item)
                 } else if item.type == .text {
@@ -478,15 +617,7 @@ struct HistoryContentView: View {
                 scrollTrigger = true
                 extendSelectionDown()
             },
-            onEnter: { 
-                if !selectedItems.isEmpty {
-                    // Paste all selected items
-                    onPasteMultiple(Array(selectedItems))
-                } else if let item = selectedItem {
-                    // Fallback to single item paste
-                    onPaste(item)
-                }
-            },
+            onEnter: performPrimaryPasteAction,
             onEscape: onDismiss,
             onDelete: {
                 if let item = selectedItem {
@@ -494,11 +625,6 @@ struct HistoryContentView: View {
                 }
             },
             onCopy: { if let item = selectedItem { onCopyToClipboard(item) } },
-            onBookmark: {
-                if let item = selectedItem {
-                    store.toggleBookmark(for: item)
-                }
-            },
             onPin: {
                 if let item = selectedItem {
                     store.togglePin(for: item)
@@ -508,7 +634,9 @@ struct HistoryContentView: View {
                 if selectedItem?.type == .image, let img = previewImage {
                     PasteController.saveImageToDisk(img)
                 }
-            }
+            },
+            onQuickPaste: performQuickPaste,
+            onCommandChanged: setQuickPasteMode
         ))
     }
     
@@ -524,9 +652,7 @@ struct HistoryContentView: View {
     private func loadInitialChunk(for item: ClipboardItem) async {
         chunkedText.isLoadingMore = true // Initial load spinner
         
-        let chunkResult = await Task.detached(priority: .userInitiated) {
-            self.store.textChunk(for: item, charCount: ChunkedTextState.initialChars)
-        }.value
+        let chunkResult = store.textChunk(for: item, charCount: ChunkedTextState.initialChars)
         
         if let result = chunkResult {
             chunkedText.visibleText = result.text
@@ -543,9 +669,7 @@ struct HistoryContentView: View {
         chunkedText.isLoadingMore = true
         let nextCharCount = chunkedText.loadedCharCount + ChunkedTextState.chunkSize
         
-        let chunkResult = await Task.detached(priority: .userInitiated) {
-            self.store.textChunk(for: item, charCount: nextCharCount)
-        }.value
+        let chunkResult = store.textChunk(for: item, charCount: nextCharCount)
         
         if let result = chunkResult {
             chunkedText.visibleText = result.text
@@ -568,66 +692,58 @@ struct HistoryContentView: View {
     }
     
     private var searchBar: some View {
-        HStack(spacing: 10) {
-            // Search icon
+        HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary.opacity(0.7))
+                .foregroundColor(.secondary.opacity(0.82))
                 .font(.system(size: 13, weight: .medium))
+                .padding(.leading, 2)
             
-            TextField("Search clipboard...", text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .focused($isSearchFocused)
-            
-            if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary.opacity(0.5))
-                        .font(.system(size: 12))
+            HStack(spacing: 10) {
+                TextField("Search clipboard...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($isSearchFocused)
+                
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary.opacity(0.7))
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
-            
-            Spacer()
-            
-            // Item count
+            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+
             Text("\(filteredItems.count) items")
                 .font(.system(size: 11, weight: .regular))
-                .foregroundColor(.secondary.opacity(0.6))
+                .foregroundColor(.secondary.opacity(0.72))
+                .padding(.trailing, 2)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            Color(NSColor.controlBackgroundColor)
-                .overlay(
-                    Rectangle()
-                        .frame(height: 0.5)
-                        .foregroundColor(Color.primary.opacity(0.06)),
-                    alignment: .bottom
-                )
-        )
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Color.white.opacity(0.16))
+        }
     }
     
     private var listPane: some View {
         Group {
             if filteredItems.isEmpty {
-                VStack {
-                    Spacer()
-                    Text(searchText.isEmpty ? "No clipboard history" : "No matches")
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
+                Spacer()
             } else {
                 ClipboardListView(
                     items: filteredItems,
                     selectedIndex: $selectedIndex,
                     scrollTrigger: $scrollTrigger,
                     store: store,
+                    showsQuickPasteNumbers: showsQuickPasteNumbers,
                     onSelect: onCopyToClipboard,
                     onPaste: onPaste,
                     onDelete: { item in store.delete(item) },
                     onDismiss: onDismiss,
-                    selectedID: selectedID,
                     selectedIDs: $selectedIDs,
                     onSelectSingle: selectSingle,
                     onToggleSelection: toggleSelection,
@@ -635,7 +751,11 @@ struct HistoryContentView: View {
                 )
             }
         }
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .background {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.34)
+        }
     }
     
     private var detailPane: some View {
@@ -653,60 +773,39 @@ struct HistoryContentView: View {
                     .font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.15))
-                    .cornerRadius(4)
-                } else if let item = selectedItem {
-                    // Single selection header
-                    HStack(spacing: 6) {
-                        Text(item.type == .text ? "Text" : "Image")
-                        
-                        if item.isFileBacked {
-                            Text("Large")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.orange.opacity(0.8))
-                                .cornerRadius(4)
-                        }
-                        
-                        if let size = itemSize, size > 0 {
-                            Text(formattedByteCount(size))
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary.opacity(0.5))
-                        }
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
                     }
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.2))
-                    .cornerRadius(4)
                 }
                 
                 Spacer()
                 
                 // Action buttons - only show for single selection or hide for multi
                 if selectionCount <= 1 {
-                    HStack(spacing: 12) {
-                        Button(action: { if let item = selectedItem { onCopyToClipboard(item) } }) {
-                            Image(systemName: "doc.on.doc")
+                    HStack(spacing: 10) {
+                        headerGlassSymbolButton(
+                            help: "Copy",
+                            systemName: "doc.on.doc"
+                        ) {
+                            if let item = selectedItem { onCopyToClipboard(item) }
                         }
-                        .buttonStyle(.plain)
-                        .help("Copy")
-                        
+
                         if selectedItem?.type == .image && previewImage != nil {
-                            Button(action: {
+                            headerGlassSymbolButton(
+                                help: "Save image",
+                                systemName: "arrow.down.to.line"
+                            ) {
                                 if let img = previewImage { PasteController.saveImageToDisk(img) }
-                            }) {
-                                Image(systemName: "arrow.down.to.line")
                             }
-                            .buttonStyle(.plain)
-                            .help("Save image")
                         }
-                        
-                        // OCR button — only for image items without existing OCR text
+
                         if selectedItem?.type == .image && previewImage != nil && selectedItem?.ocrText == nil {
-                            Button(action: {
+                            headerGlassSymbolButton(
+                                help: "Extract Text from Image",
+                                systemName: isExtractingText ? "ellipsis.circle" : "text.viewfinder"
+                            ) {
                                 Task {
                                     guard let img = previewImage, let item = selectedItem else { return }
                                     isExtractingText = true
@@ -715,33 +814,24 @@ struct HistoryContentView: View {
                                     store.setOCRText(text, for: item)
                                     isExtractingText = false
                                 }
-                            }) {
-                                Image(systemName: isExtractingText ? "ellipsis.circle" : "text.viewfinder")
                             }
-                            .buttonStyle(.plain)
                             .disabled(isExtractingText)
-                            .help("Extract Text from Image")
                         }
-                        
-                        Button(action: { if let item = selectedItem { store.togglePin(for: item) } }) {
-                            Image(systemName: selectedItem?.isPinned == true ? "pin.fill" : "pin")
+
+                        headerGlassSymbolButton(
+                            help: selectedItem?.isPinned == true ? "Unpin" : "Pin",
+                            systemName: selectedItem?.isPinned == true ? "pin.fill" : "pin",
+                            tint: selectedItem?.isPinned == true ? .accentColor : .secondary
+                        ) {
+                            if let item = selectedItem { store.togglePin(for: item) }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(selectedItem?.isPinned == true ? .accentColor : .secondary)
-                        .help(selectedItem?.isPinned == true ? "Unpin" : "Pin")
-                        
-                        Button(action: { if let item = selectedItem { store.toggleBookmark(for: item) } }) {
-                            Image(systemName: selectedItem?.isBookmarked == true ? "star.fill" : "star")
+
+                        headerGlassSymbolButton(
+                            help: "Delete",
+                            systemName: "trash"
+                        ) {
+                            if let item = selectedItem { store.delete(item) }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(selectedItem?.isBookmarked == true ? .yellow : .secondary)
-                        .help(selectedItem?.isBookmarked == true ? "Remove Bookmark" : "Bookmark")
-                        
-                        Button(action: { if let item = selectedItem { store.delete(item) } }) {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete")
                     }
                     .foregroundColor(.secondary)
                     .font(.system(size: 13))
@@ -749,7 +839,11 @@ struct HistoryContentView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+            .background {
+                Rectangle()
+                    .fill(.thinMaterial)
+                    .opacity(0.18)
+            }
             
             Divider()
             
@@ -764,12 +858,13 @@ struct HistoryContentView: View {
                     itemContent(item)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
-                } else {
-                    Text("Select an item")
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+        }
+        .background {
+            Rectangle()
+                .fill(.regularMaterial)
+                .opacity(0.16)
         }
     }
     
@@ -986,135 +1081,158 @@ struct HistoryContentView: View {
             // selectedID will be synced via onChange(of: selectedIndex)
         }
     }
+
+    private func performPrimaryPasteAction() {
+        if !selectedItems.isEmpty {
+            onPasteMultiple(Array(selectedItems))
+        } else if let item = selectedItem {
+            onPaste(item)
+        }
+    }
     
     private var actionBar: some View {
         HStack(spacing: 16) {
-            // Navigate buttons - minimal, elegant
-            HStack(spacing: 6) {
-                Button(action: navigateDown) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(NSColor.controlBackgroundColor))
-                                .shadow(color: Color.black.opacity(0.06), radius: 1, x: 0, y: 1)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
-                
-                Button(action: navigateUp) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(NSColor.controlBackgroundColor))
-                                .shadow(color: Color.black.opacity(0.06), radius: 1, x: 0, y: 1)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
+            HStack(spacing: 10) {
+                shortcutHint("⇧ ↑↓", label: "Multiselect")
+                shortcutHint("⌘P", label: "Pin")
             
-            Text("Navigate")
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(.secondary.opacity(0.8))
-
-            Color.primary.opacity(0.1)
-                .frame(width: 2, height: 14)
-
-            HStack(spacing: 4) {
-                Text("⌘↑↓")
-                    .font(.system(size: 10))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(3)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 3)
-                            .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-                    )
-                Text("multi-select")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary.opacity(0.6))
-            }
-
-            HStack(spacing: 4) {
-                Text("⌘P")
-                    .font(.system(size: 10))
-                Text("pin")
-                    .font(.system(size: 11))
-            }
-            .foregroundColor(.secondary.opacity(0.6))
-            .padding(.leading, 8)
-            
-            if selectedItem?.type == .image {
-                HStack(spacing: 4) {
-                    Text("⌘S")
-                        .font(.system(size: 10))
-                    Text("save")
-                        .font(.system(size: 11))
+                if selectedItem?.type == .image {
+                    shortcutHint("⌘S", label: "Save")
                 }
-                .foregroundColor(.secondary.opacity(0.6))
-                .padding(.leading, 4)
             }
             
             Spacer()
-            
-            // Keyboard shortcut hint
-            HStack(spacing: 4) {
-                Image(systemName: "return")
-                    .font(.system(size: 10))
-                Text("to paste")
-                    .font(.system(size: 11))
-            }
-            .foregroundColor(.secondary.opacity(0.6))
-            
-            // Paste button - Apple-style, refined
-            Button(action: { if let item = selectedItem { onPaste(item) } }) {
+
+            Button(action: performPrimaryPasteAction) {
                 HStack(spacing: 5) {
-                    Image(systemName: "doc.on.clipboard")
+                    Image(systemName: "return")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("to paste")
                         .font(.system(size: 11, weight: .medium))
-                    Text("Paste")
-                        .font(.system(size: 12, weight: .medium))
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.primary.opacity(0.85))
-                )
-                .foregroundColor(Color(NSColor.windowBackgroundColor))
+                .foregroundColor(.secondary.opacity(0.82))
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .buttonStyle(.plain)
+        .buttonStyle(.plain)
+            .frame(height: 28)
+            .bufferGlassSurface(cornerRadius: 14, interactive: true)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            Color(NSColor.controlBackgroundColor)
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .frame(height: 0.5)
+                .foregroundColor(Color.white.opacity(0.15))
+        }
+    }
+
+    private func shortcutHint(_ shortcut: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(shortcut)
+                .font(.system(size: 10))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .cornerRadius(3)
                 .overlay(
-                    Rectangle()
-                        .frame(height: 0.5)
-                        .foregroundColor(Color.primary.opacity(0.06)),
-                    alignment: .top
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
                 )
-        )
+            Text(label)
+                .font(.system(size: 11))
+        }
+        .foregroundColor(.secondary.opacity(0.6))
+    }
+
+    private var windowBackdrop: some View {
+        ZStack {
+            Color.black.opacity(0.24)
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.18),
+                    Color.clear,
+                    Color.black.opacity(0.10)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.08),
+                    Color.clear,
+                    Color.white.opacity(0.03)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .background(Color.clear)
+    }
+
+    private func headerGlassActionButton<Label: View>(
+        help: String,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        Button(action: action) {
+            label()
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .frame(height: 28)
+        .bufferGlassSurface(cornerRadius: 14, interactive: true)
+        .help(help)
+    }
+
+    private func headerGlassSymbolButton(
+        help: String,
+        systemName: String,
+        tint: Color = .secondary,
+        action: @escaping () -> Void
+    ) -> some View {
+        headerGlassActionButton(help: help, action: action) {
+            Image(systemName: systemName)
+                .symbolRenderingMode(.monochrome)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(tint)
+                .frame(width: 14, height: 14, alignment: .center)
+        }
     }
 }
 
 extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func bufferGlassSurface(
+        cornerRadius: CGFloat,
+        tint: Color? = nil,
+        interactive: Bool = false
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            let baseGlass = Glass.regular.interactive(interactive)
+            let configuredGlass = tint.map { baseGlass.tint($0) } ?? baseGlass
+            self.glassEffect(
+                configuredGlass,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        } else {
+            self
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                }
+        }
     }
 }
 
@@ -1128,22 +1246,30 @@ struct GlobalKeyMonitor: NSViewRepresentable {
     let onEscape: () -> Void
     let onDelete: () -> Void
     let onCopy: () -> Void
-    let onBookmark: () -> Void
     let onPin: () -> Void
     let onSaveImage: () -> Void
+    let onQuickPaste: (Int) -> Void
+    let onCommandChanged: (Bool) -> Void
     
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
             // Add local monitor to window
-            guard let window = view.window else { return }
+            guard view.window != nil else { return }
             
             // We use a property on the window or controller to store the monitor
             // But for simplicity in SwiftUI, we'll use a weak ref approach here
             // or just rely on the view traversing up. 
             // Actually, best way is to add monitor to the window.
             
-            let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+                let isCommandPressed = event.modifierFlags.contains(.command)
+
+                if event.type == .flagsChanged {
+                    onCommandChanged(isCommandPressed)
+                    return event
+                }
+
                 switch event.keyCode {
                 case 126: // Up
                     if event.modifierFlags.contains(.shift) {
@@ -1187,12 +1313,6 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                         return nil
                     }
                     return event
-                case 11: // B (for Bookmark)
-                    if event.modifierFlags.contains(.command) {
-                        onBookmark()
-                        return nil
-                    }
-                    return event
                 case 35: // Cmd+P (P is 35)
                     if event.modifierFlags.contains(.command) {
                         onPin()
@@ -1205,6 +1325,23 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                         return nil
                     }
                     return event
+                case 18...23:
+                    guard isCommandPressed else { return event }
+
+                    let quickPasteIndexByKeyCode: [UInt16: Int] = [
+                        18: 0, // 1
+                        19: 1, // 2
+                        20: 2, // 3
+                        21: 3, // 4
+                        23: 4  // 5
+                    ]
+
+                    guard let quickPasteIndex = quickPasteIndexByKeyCode[event.keyCode] else {
+                        return event
+                    }
+
+                    onQuickPaste(quickPasteIndex)
+                    return nil
                 default:
                     return event
                 }

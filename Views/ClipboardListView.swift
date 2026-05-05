@@ -7,11 +7,11 @@ struct ClipboardListView: View {
     @Binding var selectedIndex: Int
     @Binding var scrollTrigger: Bool
     let store: ClipboardStore
+    let showsQuickPasteNumbers: Bool
     let onSelect: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
     let onDelete: (ClipboardItem) -> Void
     let onDismiss: () -> Void
-    let selectedID: UUID?  // Track selection by item ID for stability during list mutations
     
     // Multi-select support
     @Binding var selectedIDs: Set<UUID>
@@ -57,8 +57,10 @@ struct ClipboardListView: View {
                         ClipboardItemRow(
                             item: item,
                             store: store,
-                            isPrimarySelection: item.id == selectedID,
-                            isMultiSelected: selectedIDs.contains(item.id)
+                            isMultiSelected: selectedIDs.contains(item.id),
+                            joinsSelectionAbove: index > 0 && selectedIDs.contains(items[index - 1].id),
+                            joinsSelectionBelow: index < items.count - 1 && selectedIDs.contains(items[index + 1].id),
+                            quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil
                         )
                         .id(item.id)
                         .contentShape(Rectangle())
@@ -95,9 +97,14 @@ struct ClipboardListView: View {
                         )
                     }
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(4)
             }
+            .background(
+                ScrollViewConfigurator { scrollView in
+                    scrollView.scrollerStyle = .overlay
+                    scrollView.verticalScroller?.controlSize = .small
+                }
+            )
             .onChange(of: selectedIndex) { newValue in
                 // Only scroll if triggered by keyboard
                 if scrollTrigger {
@@ -120,3 +127,40 @@ struct ClipboardListView: View {
     }
 }
 
+private struct ScrollViewConfigurator: NSViewRepresentable {
+    let configure: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ConfiguratorView()
+        view.configure = configure
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? ConfiguratorView {
+            view.configure = configure
+            view.applyConfigurationIfNeeded()
+        }
+    }
+
+    private final class ConfiguratorView: NSView {
+        var configure: ((NSScrollView) -> Void)?
+        private weak var configuredScrollView: NSScrollView?
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            applyConfigurationIfNeeded()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyConfigurationIfNeeded()
+        }
+
+        func applyConfigurationIfNeeded() {
+            guard let scrollView = enclosingScrollView else { return }
+            configure?(scrollView)
+            configuredScrollView = scrollView
+        }
+    }
+}

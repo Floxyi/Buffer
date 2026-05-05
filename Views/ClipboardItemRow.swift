@@ -1,68 +1,80 @@
 import SwiftUI
+import AppKit
 
 /// Single row displaying a clipboard item - optimized for smooth scrolling
 struct ClipboardItemRow: View {
     let item: ClipboardItem
     let store: ClipboardStore
-    let isPrimarySelection: Bool  // True for focused row (full accent), false otherwise
     let isMultiSelected: Bool     // True if this item is part of multi-selection
+    let joinsSelectionAbove: Bool
+    let joinsSelectionBelow: Bool
+    let quickPasteNumber: Int?
     
     @State private var isHovered = false
     @State private var thumbnail: NSImage?
+    @State private var sourceAppIcon: NSImage?
+    @State private var imageDimensionsText: String?
     
     private var backgroundColor: Color {
-        if isMultiSelected && !isPrimarySelection {
-            // Multi-selected item: distinct purple highlight
-            return Color.purple.opacity(0.15)
-        } else if isPrimarySelection {
-            // Single selection: blue highlight (original behavior)
-            return Color.accentColor.opacity(0.25)
+        if isMultiSelected {
+            return Color(nsColor: .selectedContentBackgroundColor)
         } else if isHovered {
             return Color.primary.opacity(0.06)
         }
         return Color.clear
     }
+
+    private var foregroundColor: Color {
+        isMultiSelected ? Color(nsColor: .selectedTextColor) : .primary
+    }
+
+    private var secondaryForegroundColor: Color {
+        isMultiSelected ? Color(nsColor: .selectedTextColor).opacity(0.82) : .secondary
+    }
+
+    private var selectionCornerRadius: CGFloat { 6 }
     
-    /// Truncated preview for list display - short and single line
-    private var truncatedPreviewText: String {
-        let text = item.textContent ?? item.previewText
-        // Replace newlines and extra whitespace with single space
-        let singleLine = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-        // Truncate to 50 characters for compact display
-        if singleLine.count > 50 {
-            return String(singleLine.prefix(50)) + "…"
+    private var primaryLabelText: String {
+        switch item.type {
+        case .text:
+            let text = item.textContent ?? item.previewText
+            let singleLine = text
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespaces)
+            if singleLine.count > 50 {
+                return String(singleLine.prefix(50)) + "…"
+            }
+            return singleLine
+        case .image:
+            if let imageDimensionsText {
+                return "Image (\(imageDimensionsText))"
+            }
+            return "Image"
         }
-        return singleLine
     }
     
     var body: some View {
         HStack(spacing: 10) {
-            // Icon
-            icon
-                .frame(width: 20, height: 20)
+            if let quickPasteNumber {
+                quickPasteBadge(quickPasteNumber)
+                    .transition(
+                        .asymmetric(
+                            insertion: .offset(x: -10).combined(with: .opacity),
+                            removal: .offset(x: -10).combined(with: .opacity)
+                        )
+                    )
+            }
+
+            leadingVisual
+                .frame(width: 24, height: 24)
             
-            // Content preview - truncated for list view
-            Text(truncatedPreviewText)
+            Text(primaryLabelText)
                 .font(.system(size: 13))
-                .foregroundColor(.primary)
+                .foregroundColor(foregroundColor)
                 .lineLimit(1)
             
             Spacer(minLength: 0)
-            
-            // Bookmark indicator
-            if item.isBookmarked {
-                Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
-                    .font(.system(size: 10))
-            }
-            
-            // Source app badge
-            if let app = item.sourceApp {
-                Text(app)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-            
+
             // Pin indicator
             if item.isPinned {
                 Circle()
@@ -72,54 +84,117 @@ struct ClipboardItemRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(backgroundColor)
-        .cornerRadius(4)
+        .background(selectionBackground)
         .onHover { hovering in
             isHovered = hovering
         }
         .task(id: item.id) {
-            // Load thumbnail async off main thread
             if item.type == .image && thumbnail == nil {
                 thumbnail = await loadThumbnail()
+                imageDimensionsText = await loadImageDimensionsText()
+            }
+            if sourceAppIcon == nil {
+                sourceAppIcon = await loadSourceApplicationIcon()
             }
         }
+        .animation(.spring(response: 0.22, dampingFraction: 0.9), value: quickPasteNumber != nil)
+    }
+
+    private func quickPasteBadge(_ number: Int) -> some View {
+        Text("\(number)")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(foregroundColor)
+            .frame(width: 20, height: 20)
+            .background(
+                Circle()
+                    .fill(Color.primary.opacity(isMultiSelected ? 0.18 : 0.08))
+            )
+            .overlay(
+                Circle()
+                    .stroke(Color.primary.opacity(isMultiSelected ? 0.22 : 0.12), lineWidth: 0.5)
+            )
     }
     
     @ViewBuilder
-    private var icon: some View {
-        // Check if text content is a pure color value
-        if item.type == .text,
-           let content = item.textContent?.trimmingCharacters(in: .whitespaces),
-           let color = parseColor(content) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(color)
-                .frame(width: 20, height: 20)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
-                )
-        } else {
-            switch item.type {
-            case .text:
-                Image(systemName: "doc.text")
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-            case .image:
-                if let img = thumbnail {
-                    Image(nsImage: img)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 20, height: 20)
-                        .clipped()
-                        .cornerRadius(2)
-                } else {
-                    // Placeholder while loading
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(width: 20, height: 20)
+    private var leadingVisual: some View {
+        switch item.type {
+        case .text:
+            sourceApplicationVisual
+        case .image:
+            imageVisual
+        }
+    }
+
+    @ViewBuilder
+    private var selectionBackground: some View {
+        if isMultiSelected {
+            ZStack {
+                RoundedRectangle(cornerRadius: selectionCornerRadius)
+                    .fill(backgroundColor)
+
+                if joinsSelectionAbove {
+                    Rectangle()
+                        .fill(backgroundColor)
+                        .frame(height: selectionCornerRadius)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+
+                if joinsSelectionBelow {
+                    Rectangle()
+                        .fill(backgroundColor)
+                        .frame(height: selectionCornerRadius)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
+        } else {
+            Rectangle()
+                .fill(backgroundColor)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+    }
+
+    @ViewBuilder
+    private var sourceApplicationVisual: some View {
+        if let content = item.textContent?.trimmingCharacters(in: .whitespaces),
+           let color = parseColor(content) {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(color)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
+                )
+        } else if let sourceAppIcon {
+            Image(nsImage: sourceAppIcon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 24, height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .help(item.sourceApp ?? "Source App")
+        } else if item.sourceApp != nil || item.sourceAppBundleIdentifier != nil || item.sourceAppBundlePath != nil {
+            Image(systemName: "app.fill")
+                .font(.system(size: 14))
+                .foregroundColor(secondaryForegroundColor)
+                .help(item.sourceApp ?? "Source App")
+        } else {
+            Image(systemName: "doc.text")
+                .font(.system(size: 14))
+                .foregroundColor(secondaryForegroundColor)
+        }
+    }
+
+    @ViewBuilder
+    private var imageVisual: some View {
+        if let img = thumbnail {
+            Image(nsImage: img)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 24, height: 24)
+                .clipped()
+                .cornerRadius(4)
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.secondary.opacity(0.2))
         }
     }
     
@@ -145,6 +220,53 @@ struct ClipboardItemRow: View {
                 thumb.unlockFocus()
                 
                 continuation.resume(returning: thumb)
+            }
+        }
+    }
+
+    private func loadImageDimensionsText() async -> String? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let original = store.image(for: item) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                if let representation = original.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
+                   representation.pixelsWide > 0,
+                   representation.pixelsHigh > 0 {
+                    continuation.resume(returning: "\(representation.pixelsWide)x\(representation.pixelsHigh)")
+                    return
+                }
+
+                let width = Int(original.size.width.rounded())
+                let height = Int(original.size.height.rounded())
+                continuation.resume(returning: width > 0 && height > 0 ? "\(width)x\(height)" : nil)
+            }
+        }
+    }
+
+    private func loadSourceApplicationIcon() async -> NSImage? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let iconImage: NSImage?
+
+                if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty {
+                    iconImage = NSWorkspace.shared.icon(forFile: bundlePath)
+                } else if let bundleIdentifier = item.sourceAppBundleIdentifier,
+                          let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+                    iconImage = NSWorkspace.shared.icon(forFile: appURL.path)
+                } else {
+                    iconImage = nil
+                }
+
+                guard let iconImage else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                iconImage.size = NSSize(width: 14, height: 14)
+                continuation.resume(returning: iconImage)
             }
         }
     }
