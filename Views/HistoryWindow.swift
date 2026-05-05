@@ -157,7 +157,7 @@ class HistoryWindowController: NSWindowController {
         panel.titleVisibility = .hidden
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.hasShadow = false
         
         panel.contentView?.wantsLayer = true
@@ -295,7 +295,19 @@ struct HistoryContentView: View {
                 return item.textContent?.localizedCaseInsensitiveContains(searchText) ?? false
             }
         }
-        return baseItems.sorted { $0.isPinned && !$1.isPinned }
+        return baseItems.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned {
+                return lhs.isPinned && !rhs.isPinned
+            }
+            if lhs.isPinned, rhs.isPinned {
+                let lhsPinnedAt = lhs.pinnedAt ?? lhs.timestamp
+                let rhsPinnedAt = rhs.pinnedAt ?? rhs.timestamp
+                if lhsPinnedAt != rhsPinnedAt {
+                    return lhsPinnedAt < rhsPinnedAt
+                }
+            }
+            return lhs.timestamp > rhs.timestamp
+        }
     }
     
     /// Get the first unpinned item, or the first pinned item if no unpinned items exist
@@ -480,6 +492,13 @@ struct HistoryContentView: View {
         selectSingle(item.id)
         onPaste(item)
     }
+
+    private func togglePinForSelectedItem() {
+        guard let item = selectedItem else { return }
+        let selectedItemID = item.id
+        store.togglePin(for: item)
+        syncSelection(preferredID: selectedItemID)
+    }
     
     /// Download all selected images to a folder
     /// Download all selected images to a folder
@@ -529,15 +548,15 @@ struct HistoryContentView: View {
             
             Divider()
             
-            // Split pane: List + Detail
-            HSplitView {
-                // Left: List
+            // Static two-column layout with a centered divider.
+            HStack(spacing: 0) {
                 listPane
-                    .frame(minWidth: 280, maxWidth: 350)
-                
-                // Right: Detail
+                    .frame(minWidth: 280, maxWidth: .infinity)
+
+                Divider()
+
                 detailPane
-                    .frame(minWidth: 300)
+                    .frame(minWidth: 300, maxWidth: .infinity)
             }
             
             Divider()
@@ -634,11 +653,7 @@ struct HistoryContentView: View {
                 }
             },
             onCopy: { if let item = selectedItem { onCopyToClipboard(item) } },
-            onPin: {
-                if let item = selectedItem {
-                    store.togglePin(for: item)
-                }
-            },
+            onPin: togglePinForSelectedItem,
             onSaveImage: {
                 if selectedItem?.type == .image, let img = previewImage {
                     PasteController.saveImageToDisk(img)
@@ -847,7 +862,7 @@ struct HistoryContentView: View {
                             systemName: selectedItem?.isPinned == true ? "pin.fill" : "pin",
                             tint: selectedItem?.isPinned == true ? .accentColor : .secondary
                         ) {
-                            if let item = selectedItem { store.togglePin(for: item) }
+                            togglePinForSelectedItem()
                         }
 
                         headerGlassSymbolButton(

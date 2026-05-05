@@ -77,13 +77,6 @@ struct ClipboardItemRow: View {
                 .lineLimit(1)
             
             Spacer(minLength: 0)
-
-            // Pin indicator
-            if item.isPinned {
-                Circle()
-                    .fill(Color(red: 112/255.0, green: 104/255.0, blue: 196/255.0).opacity(0.7))
-                    .frame(width: 5, height: 5)
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)

@@ -110,6 +110,7 @@ class ClipboardStore: ObservableObject {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
         
         items[index].isPinned.toggle()
+        items[index].pinnedAt = items[index].isPinned ? Date() : nil
         
         let itemsToSave = items
         saveQueue.async { [weak self] in

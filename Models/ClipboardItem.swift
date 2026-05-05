@@ -21,6 +21,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     
     // Pin state
     var isPinned: Bool = false
+    var pinnedAt: Date?
     
     // Extracted OCR text (persisted after first extraction)
     var ocrText: String?
@@ -42,6 +43,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         textFilename: String? = nil,
         imageFilename: String? = nil,
         isPinned: Bool = false,
+        pinnedAt: Date? = nil,
         ocrText: String? = nil,
         isTruncated: Bool = false,
         originalSizeBytes: Int? = nil
@@ -56,6 +58,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         self.textFilename = textFilename
         self.imageFilename = imageFilename
         self.isPinned = isPinned
+        self.pinnedAt = pinnedAt
         self.ocrText = ocrText
         self.isTruncated = isTruncated
         self.originalSizeBytes = originalSizeBytes
@@ -63,7 +66,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     
     enum CodingKeys: String, CodingKey {
         case id, type, timestamp, sourceApp, sourceAppBundleIdentifier, sourceAppBundlePath, textContent, textFilename, imageFilename
-        case isBookmarked, isPinned, ocrText, isTruncated, originalSizeBytes
+        case isBookmarked, isPinned, pinnedAt, ocrText, isTruncated, originalSizeBytes
     }
     
     init(from decoder: Decoder) throws {
@@ -80,6 +83,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         let legacyBookmarked = try container.decodeIfPresent(Bool.self, forKey: .isBookmarked) ?? false
         let pinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         self.isPinned = pinned || legacyBookmarked
+        self.pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
         self.ocrText = try container.decodeIfPresent(String.self, forKey: .ocrText)
         self.isTruncated = try container.decodeIfPresent(Bool.self, forKey: .isTruncated) ?? false
         self.originalSizeBytes = try container.decodeIfPresent(Int.self, forKey: .originalSizeBytes)
@@ -97,6 +101,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
         try container.encodeIfPresent(textFilename, forKey: .textFilename)
         try container.encodeIfPresent(imageFilename, forKey: .imageFilename)
         try container.encode(isPinned, forKey: .isPinned)
+        try container.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
         try container.encodeIfPresent(ocrText, forKey: .ocrText)
         try container.encode(isTruncated, forKey: .isTruncated)
         try container.encodeIfPresent(originalSizeBytes, forKey: .originalSizeBytes)
