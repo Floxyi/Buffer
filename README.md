@@ -6,7 +6,14 @@
 
 <p align="center">
   <strong>A lightweight, beautiful clipboard manager for macOS</strong>
+
+  <br/>
+  <br/>
+
+  <img width="742" height="514" alt="SCR-20260505-qaiu" src="https://github.com/user-attachments/assets/15d82388-8e17-4dee-8bc3-c5a3ca49e254" />
 </p>
+
+---
 
 ### ✨ Why Buffer?
 
@@ -16,18 +23,17 @@
 - **Multi-select & multi‑paste** — Select multiple items in history and paste them together
 - **Configurable hotkeys** — Change the global shortcut in Settings with dynamic re-registration
 - **Native macOS Feel** — Clean SwiftUI + AppKit menu-bar app
-- **Open Source** — MIT license, actively maintained
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## ⚙️ Settings
 
-| Shortcut  | Action                 |
-| --------- | ---------------------- |
-| `⇧⌘V`     | Open clipboard history |
-| `↑` / `↓` | Navigate items         |
-| `↵` Enter | Paste selected item    |
-| `⎋` Esc   | Close history window   |
+- **General** — Control launch at login, saved history size, and the global keyboard shortcut
+- **Privacy** — Exclude specific apps so their copied content never appears in Buffer histor
+
+<p align="center">
+  <img width="1633" height="614" alt="SCR-20260505-qaxi" src="https://github.com/user-attachments/assets/f1dc3598-5b27-4a1b-95a3-3114a97efe82" />
+</p>
 
 ---
 
@@ -41,7 +47,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/samirpatil2000/Buffer.git
+git clone https://github.com/Floxyi/Buffer.git
 cd Buffer
 
 # Open in Xcode
