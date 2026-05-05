@@ -11,10 +11,9 @@
 ### ✨ Why Buffer?
 
 - **Ultra-lightweight** — Only ~2 MB download/install, minimal RAM/CPU usage
-- **100% Private &amp; Local** — Everything stays on your Mac, no cloud, no tracking
-- **Text + Images + OCR** — Copies anything; extracts searchable text from images/screenshots/memes using on-device Vision
+- **Text + Images + OCR** — extracts searchable text from images/screenshots/memes using on-device vision
 - **Pins & Smart History** — Pin favorites, keep them anchored, and cycle history while prioritizing unpinned items
-- **Multi-select & multi‑paste** — Select multiple items in history with clear on-screen instructions and paste them together
+- **Multi-select & multi‑paste** — Select multiple items in history and paste them together
 - **Configurable hotkeys** — Change the global shortcut in Settings with dynamic re-registration
 - **Native macOS Feel** — Clean SwiftUI + AppKit menu-bar app
 - **Open Source** — MIT license, actively maintained
