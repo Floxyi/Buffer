@@ -29,98 +29,102 @@ struct ClipboardListView: View {
     }
     
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                LazyVStack(spacing: 0) {
-                    if items.contains(where: { $0.isPinned }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "pin")
-                            Text("Pinned")
-                        }
-                        .font(.system(size: 10).smallCaps())
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        // Thin separator between pinned and recent items
-                        if !item.isPinned && index > 0 && items[index - 1].isPinned {
-                            Rectangle()
-                                .fill(Color.primary.opacity(0.06))
-                                .frame(height: 0.5)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 4)
+        VStack {
+            Spacer(minLength: 3)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(spacing: 0) {
+                        if items.contains(where: { $0.isPinned }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "pin")
+                                Text("Pinned")
+                            }
+                            .font(.system(size: 10).smallCaps())
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         
-                        ClipboardItemRow(
-                            item: item,
-                            store: store,
-                            isMultiSelected: selectedIDs.contains(item.id),
-                            joinsSelectionAbove: index > 0 && selectedIDs.contains(items[index - 1].id),
-                            joinsSelectionBelow: index < items.count - 1 && selectedIDs.contains(items[index + 1].id),
-                            quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil
-                        )
-                        .id(item.id)
-                        .contentShape(Rectangle())
-                        .overlay(
-                            ClickModifierDetector { modifiers in
-                                selectedIndex = index
-                                
-                                if modifiers.hasCommand {
-                                    // Cmd+click: toggle selection
-                                    onToggleSelection(item.id)
-                                } else if modifiers.hasShift {
-                                    // Shift+click: extend selection
-                                    onExtendSelectionTo(item.id)
-                                } else {
-                                    // Regular click: single select
-                                    onSelectSingle(item.id)
-                                }
-                            },
-                            alignment: .center
-                        )
-                        .simultaneousGesture(
-                            TapGesture(count: 1)
-                                .onEnded { _ in
-                                    // This will be handled by ClickModifierDetector
-                                }
-                        )
-                        .highPriorityGesture(
-                            TapGesture(count: 2)
-                                .onEnded { _ in
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            // Thin separator between pinned and recent items
+                            if !item.isPinned && index > 0 && items[index - 1].isPinned {
+                                Rectangle()
+                                    .fill(Color.primary.opacity(0.06))
+                                    .frame(height: 0.5)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 4)
+                            }
+                            
+                            ClipboardItemRow(
+                                item: item,
+                                store: store,
+                                isMultiSelected: selectedIDs.contains(item.id),
+                                joinsSelectionAbove: index > 0 && selectedIDs.contains(items[index - 1].id),
+                                joinsSelectionBelow: index < items.count - 1 && selectedIDs.contains(items[index + 1].id),
+                                quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil
+                            )
+                            .id(item.id)
+                            .contentShape(Rectangle())
+                            .overlay(
+                                ClickModifierDetector { modifiers in
                                     selectedIndex = index
-                                    onSelect(item)
-                                    onDismiss()
-                                }
-                        )
-                    }
-                }
-                .padding(4)
-            }
-            .background(
-                ScrollViewConfigurator { scrollView in
-                    scrollView.scrollerStyle = .overlay
-                    scrollView.verticalScroller?.controlSize = .small
-                }
-            )
-            .onChange(of: selectedIndex) { newValue in
-                // Only scroll if triggered by keyboard
-                if scrollTrigger {
-                    if let item = items[safe: newValue] {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            // No anchor means minimal scrolling (just enough to make visible)
-                            proxy.scrollTo(item.id)
+                                    
+                                    if modifiers.hasCommand {
+                                        // Cmd+click: toggle selection
+                                        onToggleSelection(item.id)
+                                    } else if modifiers.hasShift {
+                                        // Shift+click: extend selection
+                                        onExtendSelectionTo(item.id)
+                                    } else {
+                                        // Regular click: single select
+                                        onSelectSingle(item.id)
+                                    }
+                                },
+                                alignment: .center
+                            )
+                            .simultaneousGesture(
+                                TapGesture(count: 1)
+                                    .onEnded { _ in
+                                        // This will be handled by ClickModifierDetector
+                                    }
+                            )
+                            .highPriorityGesture(
+                                TapGesture(count: 2)
+                                    .onEnded { _ in
+                                        selectedIndex = index
+                                        onSelect(item)
+                                        onDismiss()
+                                    }
+                            )
                         }
                     }
-                    scrollTrigger = false
+                    .padding(.horizontal, 4)
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { _ in
-                // Always snap to the top when the window is reopened
-                if let firstId = items.first?.id {
-                    proxy.scrollTo(firstId, anchor: .top)
+                .background(
+                    ScrollViewConfigurator { scrollView in
+                        scrollView.scrollerStyle = .overlay
+                        scrollView.verticalScroller?.controlSize = .small
+                        scrollView.contentInsets = NSEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
+                    }
+                )
+                .onChange(of: selectedIndex) { newValue in
+                    // Only scroll if triggered by keyboard
+                    if scrollTrigger {
+                        if let item = items[safe: newValue] {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                // No anchor means minimal scrolling (just enough to make visible)
+                                proxy.scrollTo(item.id)
+                            }
+                        }
+                        scrollTrigger = false
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { _ in
+                    // Always snap to the top when the window is reopened
+                    if let firstId = items.first?.id {
+                        proxy.scrollTo(firstId, anchor: .top)
+                    }
                 }
             }
         }

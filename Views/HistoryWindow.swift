@@ -324,6 +324,14 @@ struct HistoryContentView: View {
             sum + (store.itemSize(for: item) ?? 0)
         }
     }
+
+    private var isSingleImageSelection: Bool {
+        selectionCount <= 1 && selectedItem?.type == .image
+    }
+
+    private var canExtractSelectedImageText: Bool {
+        isSingleImageSelection && selectedItem?.ocrText == nil && !isExtractingText
+    }
     
     // MARK: - Selection Helpers
     
@@ -792,30 +800,45 @@ struct HistoryContentView: View {
                             if let item = selectedItem { onCopyToClipboard(item) }
                         }
 
-                        if selectedItem?.type == .image && previewImage != nil {
+                        if isSingleImageSelection {
                             headerGlassSymbolButton(
                                 help: "Save image",
                                 systemName: "arrow.down.to.line"
                             ) {
-                                if let img = previewImage { PasteController.saveImageToDisk(img) }
+                                guard let item = selectedItem,
+                                      let img = previewImage ?? store.image(for: item) else { return }
+                                PasteController.saveImageToDisk(img)
                             }
                         }
 
-                        if selectedItem?.type == .image && previewImage != nil && selectedItem?.ocrText == nil {
+                        if isSingleImageSelection && selectedItem?.ocrText == nil {
                             headerGlassSymbolButton(
                                 help: "Extract Text from Image",
                                 systemName: isExtractingText ? "ellipsis.circle" : "text.viewfinder"
                             ) {
                                 Task {
-                                    guard let img = previewImage, let item = selectedItem else { return }
+                                    guard let item = selectedItem else { return }
                                     isExtractingText = true
+
+                                    let img: NSImage?
+                                    if let previewImage {
+                                        img = previewImage
+                                    } else {
+                                        img = await loadPreviewImage(for: item)
+                                    }
+
+                                    guard let img else {
+                                        isExtractingText = false
+                                        return
+                                    }
+
                                     let result = await OCRService.shared.recognizeText(from: img)
                                     let text = result ?? "No text found in this image."
                                     store.setOCRText(text, for: item)
                                     isExtractingText = false
                                 }
                             }
-                            .disabled(isExtractingText)
+                            .disabled(!canExtractSelectedImageText)
                         }
 
                         headerGlassSymbolButton(
