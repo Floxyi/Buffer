@@ -546,20 +546,20 @@ struct HistoryContentView: View {
             // Search bar
             searchBar
             
-            Divider()
+            historySeparator()
             
             // Static two-column layout with a centered divider.
             HStack(spacing: 0) {
                 listPane
                     .frame(minWidth: 280, maxWidth: .infinity)
 
-                Divider()
+                historySeparator(isVertical: true)
 
                 detailPane
                     .frame(minWidth: 300, maxWidth: .infinity)
             }
             
-            Divider()
+            historySeparator()
             
             // Bottom action bar
             actionBar
@@ -672,6 +672,13 @@ struct HistoryContentView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func historySeparator(isVertical: Bool = false) -> some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.12))
+            .frame(width: isVertical ? 1 : nil, height: isVertical ? nil : 1)
+    }
     
     private func loadInitialChunk(for item: ClipboardItem) async {
         chunkedText.isLoadingMore = true // Initial load spinner
@@ -746,11 +753,6 @@ struct HistoryContentView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 40)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Color.white.opacity(0.16))
-        }
     }
     
     private var listPane: some View {
@@ -1175,11 +1177,6 @@ struct HistoryContentView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 40)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .frame(height: 0.5)
-                .foregroundColor(Color.white.opacity(0.15))
-        }
     }
 
     private func shortcutHint(_ shortcut: String, label: String) -> some View {

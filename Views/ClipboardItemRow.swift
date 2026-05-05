@@ -22,7 +22,7 @@ struct ClipboardItemRow: View {
         if isMultiSelected {
             return Color(nsColor: .selectedContentBackgroundColor)
         } else if isHovered {
-            return Color.primary.opacity(0.06)
+            return Color(nsColor: .secondaryLabelColor).opacity(0.12)
         }
         return Color.clear
     }
@@ -81,8 +81,23 @@ struct ClipboardItemRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(selectionBackground)
-        .onHover { hovering in
-            isHovered = hovering
+        .animation(.easeInOut(duration: 0.16), value: isHovered)
+        .onReceive(NotificationCenter.default.publisher(for: .clipboardRowHoverChanged)) { notification in
+            guard let hoveredItemID = notification.object as? UUID,
+                  let hoverState = notification.userInfo?["isHovered"] as? Bool else {
+                self.isHovered = false
+                return
+            }
+
+            if hoverState {
+                // Important:
+                // Every visible row receives this event.
+                // Only the row matching the hovered ID may stay hovered.
+                self.isHovered = hoveredItemID == item.id
+            } else if hoveredItemID == item.id {
+                // Only clear hover when the leave event belongs to this row.
+                self.isHovered = false
+            }
         }
         .task(id: item.id) {
             if item.type == .image && thumbnail == nil {
@@ -146,7 +161,7 @@ struct ClipboardItemRow: View {
         } else {
             Rectangle()
                 .fill(backgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: selectionCornerRadius))
         }
     }
 
@@ -419,4 +434,8 @@ struct ClipboardItemRow: View {
         
         return (r, g, b)
     }
+}
+
+extension Notification.Name {
+    static let clipboardRowHoverChanged = Notification.Name("clipboardRowHoverChanged")
 }

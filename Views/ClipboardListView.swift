@@ -1,41 +1,30 @@
 import SwiftUI
 import AppKit
 
-/// Vertical list of clipboard items with keyboard navigation
+/// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
     private let topScrollAnchorID = "history-list-top"
     private let calendar = Calendar.current
-    private let scrollCoordinateSpaceName = "history-list-scroll"
-    private let scrollIndicatorGutter: CGFloat = 10
+
     @StateObject private var scrollController = ScrollController()
 
     let items: [ClipboardItem]
+    
     @Binding var selectedIndex: Int
     @Binding var scrollTrigger: Bool
+    
     let store: ClipboardStore
     let showsQuickPasteNumbers: Bool
     let onSelect: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
     let onDelete: (ClipboardItem) -> Void
     let onDismiss: () -> Void
-    
+
     // Multi-select support
     @Binding var selectedIDs: Set<UUID>
     var onSelectSingle: (UUID) -> Void = { _ in }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
-    
-    @State private var lastClickedItemID: UUID?
-    @State private var lastClickGesture: ClickType = .single
-    @State private var viewportHeight: CGFloat = 0
-    @State private var contentHeight: CGFloat = 0
-    @State private var scrollOffset: CGFloat = 0
-    
-    enum ClickType {
-        case single
-        case shiftClick
-        case cmdClick
-    }
 
     private struct ItemSection: Identifiable {
         let id: String
@@ -63,12 +52,21 @@ struct ClipboardListView: View {
         guard !unpinnedItems.isEmpty else { return [] }
 
         var sections: [ItemSection] = []
+
         for item in unpinnedItems {
             let title = title(for: item.timestamp)
-            if let lastIndex = sections.indices.last, sections[lastIndex].title == title {
+
+            if let lastIndex = sections.indices.last,
+               sections[lastIndex].title == title {
                 sections[lastIndex].items.append(item)
             } else {
-                sections.append(ItemSection(id: title, title: title, items: [item]))
+                sections.append(
+                    ItemSection(
+                        id: title,
+                        title: title,
+                        items: [item]
+                    )
+                )
             }
         }
 
@@ -87,13 +85,23 @@ struct ClipboardListView: View {
             )
 
             for item in pinnedItems {
-                rows.append(DisplayRow(id: "item-\(item.id.uuidString)", kind: .item(item)))
+                rows.append(
+                    DisplayRow(
+                        id: "item-\(item.id.uuidString)",
+                        kind: .item(item)
+                    )
+                )
             }
         }
 
         for (sectionIndex, section) in unpinnedSections.enumerated() {
             if sectionIndex == 0 && !pinnedItems.isEmpty {
-                rows.append(DisplayRow(id: "divider-pinned", kind: .divider))
+                rows.append(
+                    DisplayRow(
+                        id: "divider-pinned",
+                        kind: .divider
+                    )
+                )
             }
 
             rows.append(
@@ -104,19 +112,45 @@ struct ClipboardListView: View {
             )
 
             for item in section.items {
-                rows.append(DisplayRow(id: "item-\(item.id.uuidString)", kind: .item(item)))
+                rows.append(
+                    DisplayRow(
+                        id: "item-\(item.id.uuidString)",
+                        kind: .item(item)
+                    )
+                )
             }
         }
 
         return rows
     }
-    
+
     var body: some View {
         VStack {
             Spacer(minLength: 3)
+
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
+                    ScrollViewConfigurator { scrollView in
+                        scrollView.hasVerticalScroller = false
+                        scrollView.autohidesScrollers = true
+                        scrollView.scrollerStyle = .overlay
+
+                        scrollView.automaticallyAdjustsContentInsets = false
+                        scrollView.verticalScrollElasticity = .none
+                        scrollView.horizontalScrollElasticity = .none
+
+                        scrollView.contentInsets = NSEdgeInsets(
+                            top: 4,
+                            left: 0,
+                            bottom: 4,
+                            right: 0
+                        )
+
+                        scrollController.configure(scrollView: scrollView)
+                    }
+                    .frame(width: 0, height: 0)
+
+                    VStack(spacing: 0) {
                         Color.clear
                             .frame(height: 0)
                             .id(topScrollAnchorID)
@@ -124,88 +158,53 @@ struct ClipboardListView: View {
                         ForEach(displayRows) { row in
                             switch row.kind {
                             case .header(let title, let systemImage):
-                                sectionHeader(title, systemImage: systemImage)
+                                sectionHeader(
+                                    title,
+                                    systemImage: systemImage,
+                                    topPadding: row.id == "header-pinned" ? 2 : 6
+                                )
+
                             case .divider:
                                 Rectangle()
                                     .fill(Color.primary.opacity(0.12))
                                     .frame(height: 1)
                                     .padding(.horizontal, 4)
                                     .padding(.vertical, 4)
+
                             case .item(let item):
                                 itemRow(for: item)
                             }
                         }
                     }
-                    .padding(.leading, 4)
-                    .padding(.trailing, scrollIndicatorGutter)
-                    .background(
-                        GeometryReader { geometry in
-                            Color.clear.preference(
-                                key: ScrollMetricsPreferenceKey.self,
-                                value: ScrollMetrics(
-                                    viewportHeight: nil,
-                                    contentHeight: geometry.size.height,
-                                    contentMinY: geometry.frame(in: .named(scrollCoordinateSpaceName)).minY
-                                )
-                            )
-                        }
-                    )
-                }
-                .coordinateSpace(name: scrollCoordinateSpaceName)
-                .background(
-                    ScrollViewConfigurator { scrollView in
-                        scrollView.hasVerticalScroller = false
-                        scrollView.scrollerStyle = .overlay
-                        scrollView.contentInsets = NSEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
-                        scrollController.configure(scrollView: scrollView)
-                    }
-                )
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: ScrollMetricsPreferenceKey.self,
-                            value: ScrollMetrics(
-                                viewportHeight: geometry.size.height,
-                                contentHeight: nil,
-                                contentMinY: nil
-                            )
-                        )
-                    }
-                )
-                .onPreferenceChange(ScrollMetricsPreferenceKey.self) { metrics in
-                    if let viewportHeight = metrics.viewportHeight {
-                        self.viewportHeight = viewportHeight
-                    }
-
-                    if let contentHeight = metrics.contentHeight {
-                        self.contentHeight = contentHeight
-                    }
-
-                    if let contentMinY = metrics.contentMinY {
-                        scrollOffset = max(0, -contentMinY)
-                    }
+                    .padding(.leading, 8)
+                    .padding(.trailing, 18)
                 }
                 .overlay(alignment: .bottom) {
-                    scrollToTopButton(proxy: proxy)
+                    scrollToTopButton
                 }
                 .overlay(alignment: .topTrailing) {
                     customScrollbar
                 }
+                .onAppear {
+                    scrollController.scrollToTop(retryCount: 6)
+                }
                 .onChange(of: selectedIndex) { newValue in
-                    // Only scroll if triggered by keyboard
-                    if scrollTrigger {
-                        if let item = items[safe: newValue] {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                // No anchor means minimal scrolling (just enough to make visible)
-                                proxy.scrollTo(item.id)
-                            }
+                    guard scrollTrigger else { return }
+
+                    if let item = items[safe: newValue] {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            proxy.scrollTo(item.id)
                         }
-                        scrollTrigger = false
+                    }
+
+                    scrollTrigger = false
+
+                    DispatchQueue.main.async {
+                        scrollController.syncMetrics()
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { _ in
-                    // Always snap to the top when the window is reopened
-                    proxy.scrollTo(topScrollAnchorID, anchor: .top)
+                    scrollController.scrollToTop(retryCount: 6)
                 }
 
                 Spacer(minLength: 3)
@@ -214,12 +213,13 @@ struct ClipboardListView: View {
     }
 
     @ViewBuilder
-    private func scrollToTopButton(proxy: ScrollViewProxy) -> some View {
+    private var scrollToTopButton: some View {
+        let viewportHeight = scrollController.viewportHeight
+        let scrollOffset = scrollController.scrollOffset
+
         if scrollOffset > max(80, viewportHeight * 0.35) {
             Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    proxy.scrollTo(topScrollAnchorID, anchor: .top)
-                }
+                scrollController.scrollToTopImmediately()
             } label: {
                 Image(systemName: "arrow.up")
                     .symbolRenderingMode(.monochrome)
@@ -228,7 +228,12 @@ struct ClipboardListView: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 14, height: 14)
                     .frame(width: 28, height: 28)
-                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .contentShape(
+                        RoundedRectangle(
+                            cornerRadius: 14,
+                            style: .continuous
+                        )
+                    )
             }
             .buttonStyle(.plain)
             .frame(height: 28)
@@ -240,6 +245,9 @@ struct ClipboardListView: View {
 
     @ViewBuilder
     private var customScrollbar: some View {
+        let viewportHeight = scrollController.viewportHeight
+        let contentHeight = scrollController.contentHeight
+
         let trackHeight = max(0, viewportHeight - 8)
         let maxScrollOffset = max(0, contentHeight - viewportHeight)
 
@@ -247,13 +255,15 @@ struct ClipboardListView: View {
             ScrollbarThumbView(
                 viewportHeight: viewportHeight,
                 contentHeight: contentHeight,
-                scrollOffset: scrollOffset
+                scrollOffset: scrollController.scrollOffset
             ) { progress in
                 scrollController.scroll(to: progress)
             }
-                .frame(width: 5, height: trackHeight)
-                .padding(.trailing, 2)
-                .padding(.vertical, 4)
+            .frame(width: 14, height: trackHeight)
+            .contentShape(Rectangle())
+            .padding(.trailing, 2)
+            .padding(.vertical, 4)
+            .zIndex(10)
         }
     }
 
@@ -281,17 +291,23 @@ struct ClipboardListView: View {
         return formatter.string(from: date).uppercased()
     }
 
-    private func sectionHeader(_ title: String, systemImage: String? = nil) -> some View {
+    private func sectionHeader(
+        _ title: String,
+        systemImage: String? = nil,
+        topPadding: CGFloat = 6
+    ) -> some View {
         HStack(spacing: 4) {
             if let systemImage {
                 Image(systemName: systemImage)
             }
+
             Text(title)
         }
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(.secondary)
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.top, topPadding)
+        .padding(.bottom, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -319,13 +335,19 @@ struct ClipboardListView: View {
                 } else {
                     onSelectSingle(item.id)
                 }
+            } onHoverChanged: { hovering in
+                NotificationCenter.default.post(
+                    name: .clipboardRowHoverChanged,
+                    object: item.id,
+                    userInfo: ["isHovered": hovering]
+                )
             },
             alignment: .center
         )
         .simultaneousGesture(
             TapGesture(count: 1)
                 .onEnded { _ in
-                    // This will be handled by ClickModifierDetector
+                    // Handled by ClickModifierDetector.
                 }
         )
         .highPriorityGesture(
@@ -340,61 +362,310 @@ struct ClipboardListView: View {
 }
 
 private final class ScrollController: ObservableObject {
+    @Published private(set) var viewportHeight: CGFloat = 0
+    @Published private(set) var contentHeight: CGFloat = 0
+    @Published private(set) var scrollOffset: CGFloat = 0
+
     weak var scrollView: NSScrollView?
 
-    func scroll(to progress: CGFloat) {
-        guard let scrollView,
-              let documentView = scrollView.documentView else { return }
+    private weak var observedDocumentView: NSView?
+    private var observers: [NSObjectProtocol] = []
+    private var isMetricsSyncScheduled = false
 
-        let clampedProgress = min(max(progress, 0), 1)
-        let viewportHeight = scrollView.contentView.bounds.height
-        let contentHeight = documentView.bounds.height
-        let maxOffset = max(0, contentHeight - viewportHeight)
-        let targetOffset = maxOffset * clampedProgress
-
-        scrollView.contentView.scroll(to: NSPoint(x: 0, y: targetOffset))
-        scrollView.reflectScrolledClipView(scrollView.contentView)
+    deinit {
+        removeObservers()
     }
 
     func configure(scrollView: NSScrollView) {
+        let documentViewChanged = observedDocumentView !== scrollView.documentView
+
+        if self.scrollView === scrollView, !documentViewChanged {
+            scheduleMetricsSync(from: scrollView)
+            return
+        }
+
+        removeObservers()
+
         self.scrollView = scrollView
+        observedDocumentView = scrollView.documentView
+
+        startObserving(scrollView: scrollView)
+        scheduleMetricsSync(from: scrollView)
+    }
+
+    func scroll(to progress: CGFloat) {
+        guard let scrollView,
+              let documentView = scrollView.documentView else {
+            return
+        }
+
+        let clampedProgress = progress.clamped(to: 0...1)
+
+        let viewportHeight = max(
+            scrollView.contentView.bounds.height,
+            scrollView.contentView.frame.height
+        )
+
+        let contentHeight = measuredContentHeight(
+            scrollView: scrollView,
+            documentView: documentView
+        )
+
+        let maxOffset = max(0, contentHeight - viewportHeight)
+
+        // Coordinate model:
+        // 0 = visual top
+        // maxOffset = visual bottom
+        let targetY = maxOffset * clampedProgress
+
+        let proposedBounds = NSRect(
+            x: scrollView.contentView.bounds.minX,
+            y: targetY.clamped(to: 0...maxOffset),
+            width: scrollView.contentView.bounds.width,
+            height: scrollView.contentView.bounds.height
+        )
+
+        let constrainedBounds = scrollView.contentView.constrainBoundsRect(proposedBounds)
+
+        scrollView.contentView.scroll(to: constrainedBounds.origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        syncMetricsNow(from: scrollView)
+    }
+
+    func scrollToTop(retryCount: Int = 4) {
+        scheduleScrollToTop(remainingPasses: retryCount)
+    }
+
+    func scrollToTopImmediately() {
+        scrollToTopNow()
+    }
+
+    func syncMetrics() {
+        guard let scrollView else { return }
+        scheduleMetricsSync(from: scrollView)
+    }
+
+    private func scheduleScrollToTop(remainingPasses: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+
+            self.scrollToTopNow()
+
+            if remainingPasses > 0 {
+                self.scheduleScrollToTop(remainingPasses: remainingPasses - 1)
+            }
+        }
+    }
+
+    private func scrollToTopNow() {
+        guard let scrollView,
+              let documentView = scrollView.documentView else {
+            return
+        }
+
+        scrollView.layoutSubtreeIfNeeded()
+        documentView.layoutSubtreeIfNeeded()
+
+        let proposedBounds = NSRect(
+            x: scrollView.contentView.bounds.minX,
+            y: 0,
+            width: scrollView.contentView.bounds.width,
+            height: scrollView.contentView.bounds.height
+        )
+
+        let constrainedBounds = scrollView.contentView.constrainBoundsRect(proposedBounds)
+
+        scrollView.contentView.scroll(to: constrainedBounds.origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        syncMetricsNow(from: scrollView)
+    }
+
+    private func startObserving(scrollView: NSScrollView) {
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        scrollView.contentView.postsFrameChangedNotifications = true
+
+        let center = NotificationCenter.default
+
+        observers.append(
+            center.addObserver(
+                forName: NSView.boundsDidChangeNotification,
+                object: scrollView.contentView,
+                queue: .main
+            ) { [weak self, weak scrollView] _ in
+                guard let self, let scrollView else { return }
+                self.scheduleMetricsSync(from: scrollView)
+            }
+        )
+
+        observers.append(
+            center.addObserver(
+                forName: NSView.frameDidChangeNotification,
+                object: scrollView.contentView,
+                queue: .main
+            ) { [weak self, weak scrollView] _ in
+                guard let self, let scrollView else { return }
+                self.scheduleMetricsSync(from: scrollView)
+            }
+        )
+
+        if let documentView = scrollView.documentView {
+            documentView.postsFrameChangedNotifications = true
+            documentView.postsBoundsChangedNotifications = true
+
+            observers.append(
+                center.addObserver(
+                    forName: NSView.frameDidChangeNotification,
+                    object: documentView,
+                    queue: .main
+                ) { [weak self, weak scrollView] _ in
+                    guard let self, let scrollView else { return }
+                    self.scheduleMetricsSync(from: scrollView)
+                }
+            )
+        }
+    }
+
+    private func scheduleMetricsSync(from scrollView: NSScrollView) {
+        guard !isMetricsSyncScheduled else { return }
+
+        isMetricsSyncScheduled = true
+
+        DispatchQueue.main.async { [weak self, weak scrollView] in
+            guard let self else { return }
+
+            self.isMetricsSyncScheduled = false
+
+            guard let scrollView else { return }
+
+            self.syncMetricsNow(from: scrollView)
+        }
+    }
+
+    private func syncMetricsNow(from scrollView: NSScrollView) {
+        guard let documentView = scrollView.documentView else {
+            update(
+                viewportHeight: 0,
+                contentHeight: 0,
+                scrollOffset: 0
+            )
+            return
+        }
+
+        let nextViewportHeight = max(
+            scrollView.contentView.bounds.height,
+            scrollView.contentView.frame.height
+        )
+
+        let nextContentHeight = measuredContentHeight(
+            scrollView: scrollView,
+            documentView: documentView
+        )
+
+        let maxOffset = max(0, nextContentHeight - nextViewportHeight)
+        let rawY = scrollView.contentView.bounds.minY
+
+        // Coordinate model:
+        // rawY = 0 means visual top.
+        // rawY = maxOffset means visual bottom.
+        //
+        // Result:
+        // scrollOffset = 0 means top.
+        // scrollOffset = maxOffset means bottom.
+        let nextScrollOffset = rawY.clamped(to: 0...maxOffset)
+
+        update(
+            viewportHeight: nextViewportHeight,
+            contentHeight: nextContentHeight,
+            scrollOffset: nextScrollOffset
+        )
+    }
+
+    private func measuredContentHeight(
+        scrollView: NSScrollView,
+        documentView: NSView
+    ) -> CGFloat {
+        max(
+            documentView.bounds.height,
+            documentView.frame.height,
+            scrollView.contentView.documentRect.height
+        )
+    }
+
+    private func update(
+        viewportHeight nextViewportHeight: CGFloat,
+        contentHeight nextContentHeight: CGFloat,
+        scrollOffset nextScrollOffset: CGFloat
+    ) {
+        if abs(viewportHeight - nextViewportHeight) > 0.5 {
+            viewportHeight = nextViewportHeight
+        }
+
+        if abs(contentHeight - nextContentHeight) > 0.5 {
+            contentHeight = nextContentHeight
+        }
+
+        if abs(scrollOffset - nextScrollOffset) > 0.5 {
+            scrollOffset = nextScrollOffset
+        }
+    }
+
+    private func removeObservers() {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
     }
 }
 
 private struct ScrollViewConfigurator: NSViewRepresentable {
     let configure: (NSScrollView) -> Void
 
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context: Context) -> ConfiguratorView {
         let view = ConfiguratorView()
         view.configure = configure
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        if let view = nsView as? ConfiguratorView {
-            view.configure = configure
-            view.applyConfigurationIfNeeded()
-        }
+    func updateNSView(_ nsView: ConfiguratorView, context: Context) {
+        nsView.configure = configure
+        nsView.scheduleConfiguration()
     }
 
-    private final class ConfiguratorView: NSView {
+    final class ConfiguratorView: NSView {
         var configure: ((NSScrollView) -> Void)?
-        private weak var configuredScrollView: NSScrollView?
+
+        private var isConfigurationScheduled = false
 
         override func viewDidMoveToSuperview() {
             super.viewDidMoveToSuperview()
-            applyConfigurationIfNeeded()
+            scheduleConfiguration()
         }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            applyConfigurationIfNeeded()
+            scheduleConfiguration()
         }
 
-        func applyConfigurationIfNeeded() {
-            guard let scrollView = enclosingScrollView else { return }
+        func scheduleConfiguration() {
+            guard !isConfigurationScheduled else { return }
+
+            isConfigurationScheduled = true
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+
+                self.isConfigurationScheduled = false
+                self.applyConfigurationIfPossible()
+            }
+        }
+
+        private func applyConfigurationIfPossible() {
+            guard let scrollView = enclosingScrollView else {
+                scheduleConfiguration()
+                return
+            }
+
             configure?(scrollView)
-            configuredScrollView = scrollView
         }
     }
 }
@@ -407,32 +678,46 @@ private struct ScrollbarThumbView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ThumbView {
         let view = ThumbView()
-        view.onScroll = onScroll
+        view.updateMetrics(
+            viewportHeight: viewportHeight,
+            contentHeight: contentHeight,
+            scrollOffset: scrollOffset,
+            onScroll: onScroll
+        )
         return view
     }
 
     func updateNSView(_ nsView: ThumbView, context: Context) {
-        nsView.viewportHeight = viewportHeight
-        nsView.contentHeight = contentHeight
-        nsView.scrollOffset = scrollOffset
-        nsView.onScroll = onScroll
-        nsView.needsDisplay = true
+        nsView.updateMetrics(
+            viewportHeight: viewportHeight,
+            contentHeight: contentHeight,
+            scrollOffset: scrollOffset,
+            onScroll: onScroll
+        )
     }
 
     final class ThumbView: NSView {
-        var viewportHeight: CGFloat = 0
-        var contentHeight: CGFloat = 0
-        var scrollOffset: CGFloat = 0
-        var onScroll: ((CGFloat) -> Void)?
+        private var viewportHeight: CGFloat = 0
+        private var contentHeight: CGFloat = 0
+        private var scrollOffset: CGFloat = 0
+        private var onScroll: ((CGFloat) -> Void)?
+
+        private let thumbLayer = CALayer()
+
+        private let collapsedWidth: CGFloat = 5
+        private let expandedWidth: CGFloat = 7
+        private let animationDuration: CFTimeInterval = 0.14
 
         private var trackingArea: NSTrackingArea?
-        private var isHovering = false {
-            didSet { needsDisplay = true }
-        }
+
+        private var isHovering = false
+        private var isDraggingThumb = false
+
         private var dragOffsetWithinThumb: CGFloat = 0
-        private var isDraggingThumb = false {
-            didSet { needsDisplay = true }
-        }
+        private var dragProgress: CGFloat?
+
+        private var dragViewportHeight: CGFloat?
+        private var dragContentHeight: CGFloat?
 
         override var isFlipped: Bool {
             true
@@ -442,6 +727,56 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             false
         }
 
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+
+            wantsLayer = true
+            layer?.backgroundColor = NSColor.clear.cgColor
+
+            thumbLayer.backgroundColor = NSColor.labelColor.withAlphaComponent(0.22).cgColor
+            thumbLayer.cornerRadius = collapsedWidth / 2
+            thumbLayer.masksToBounds = true
+
+            layer?.addSublayer(thumbLayer)
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func layout() {
+            super.layout()
+            updateThumbLayer(animated: false)
+        }
+
+        func updateMetrics(
+            viewportHeight: CGFloat,
+            contentHeight: CGFloat,
+            scrollOffset: CGFloat,
+            onScroll: @escaping (CGFloat) -> Void
+        ) {
+            self.onScroll = onScroll
+
+            if !isDraggingThumb {
+                self.viewportHeight = viewportHeight
+                self.contentHeight = contentHeight
+                self.scrollOffset = scrollOffset
+                self.dragProgress = nil
+                self.dragViewportHeight = nil
+                self.dragContentHeight = nil
+            }
+
+            updateThumbLayer(animated: false)
+        }
+
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
 
@@ -449,63 +784,122 @@ private struct ScrollbarThumbView: NSViewRepresentable {
                 removeTrackingArea(trackingArea)
             }
 
-            let trackingArea = NSTrackingArea(
+            let newTrackingArea = NSTrackingArea(
                 rect: bounds,
-                options: [.activeInKeyWindow, .inVisibleRect, .mouseEnteredAndExited],
+                options: [
+                    .activeAlways,
+                    .inVisibleRect,
+                    .mouseEnteredAndExited
+                ],
                 owner: self,
                 userInfo: nil
             )
-            addTrackingArea(trackingArea)
-            self.trackingArea = trackingArea
-        }
 
-        override func resetCursorRects() {
-            addCursorRect(bounds, cursor: .arrow)
+            addTrackingArea(newTrackingArea)
+            trackingArea = newTrackingArea
         }
 
         override func mouseEntered(with event: NSEvent) {
             isHovering = true
+            updateThumbLayer(animated: true)
         }
 
         override func mouseExited(with event: NSEvent) {
+            guard !isDraggingThumb else { return }
+
             isHovering = false
-            isDraggingThumb = false
+            updateThumbLayer(animated: true)
         }
 
         override func mouseDown(with event: NSEvent) {
-            let location = convert(event.locationInWindow, from: nil)
+            dragViewportHeight = viewportHeight
+            dragContentHeight = contentHeight
+
+            let mouseY = topOriginMouseY(for: event)
             let metrics = scrollbarMetrics()
             let thumbRect = metrics.thumbRect
 
-            if thumbRect.contains(location) {
-                dragOffsetWithinThumb = location.y - thumbRect.minY
+            guard thumbRect.height > 0 else { return }
+
+            if thumbRect.contains(NSPoint(x: bounds.midX, y: mouseY)) {
+                dragOffsetWithinThumb = mouseY - thumbRect.minY
             } else {
                 dragOffsetWithinThumb = thumbRect.height / 2
-                scroll(toThumbOrigin: location.y - dragOffsetWithinThumb, metrics: metrics)
+
+                scroll(
+                    toThumbOrigin: mouseY - dragOffsetWithinThumb,
+                    metrics: metrics
+                )
             }
 
             isDraggingThumb = true
+            updateThumbLayer(animated: true)
         }
 
         override func mouseDragged(with event: NSEvent) {
             guard isDraggingThumb else { return }
 
-            let location = convert(event.locationInWindow, from: nil)
-            scroll(toThumbOrigin: location.y - dragOffsetWithinThumb, metrics: scrollbarMetrics())
+            let mouseY = topOriginMouseY(for: event)
+            let metrics = scrollbarMetrics()
+
+            scroll(
+                toThumbOrigin: mouseY - dragOffsetWithinThumb,
+                metrics: metrics
+            )
         }
 
         override func mouseUp(with event: NSEvent) {
             isDraggingThumb = false
+            dragProgress = nil
+            dragViewportHeight = nil
+            dragContentHeight = nil
+
+            let mouseY = topOriginMouseY(for: event)
+            isHovering = bounds.contains(NSPoint(x: bounds.midX, y: mouseY))
+
+            updateThumbLayer(animated: true)
         }
 
-        override func draw(_ dirtyRect: NSRect) {
-            NSColor.clear.setFill()
-            dirtyRect.fill()
+        private func topOriginMouseY(for event: NSEvent) -> CGFloat {
+            let location = convert(event.locationInWindow, from: nil)
+            return location.y.clamped(to: 0...bounds.height)
+        }
 
-            let thumbRect = scrollbarMetrics().thumbRect
-            guard thumbRect.height > 0 else { return }
+        private func scroll(toThumbOrigin originY: CGFloat, metrics: ScrollbarMetrics) {
+            let clampedOrigin = originY.clamped(to: 0...metrics.availableTravel)
+
+            let progress = metrics.availableTravel > 0
+                ? clampedOrigin / metrics.availableTravel
+                : 0
+
+            let activeViewportHeight = dragViewportHeight ?? viewportHeight
+            let activeContentHeight = dragContentHeight ?? contentHeight
+            let maxScrollOffset = max(0, activeContentHeight - activeViewportHeight)
+
+            dragProgress = progress
+            scrollOffset = maxScrollOffset * progress
+
+            updateThumbLayer(animated: false)
+            onScroll?(progress)
+        }
+
+        private func updateThumbLayer(animated: Bool) {
+            let metrics = scrollbarMetrics()
+            let thumbRect = metrics.thumbRect
+
+            guard thumbRect.height > 0 else {
+                thumbLayer.isHidden = true
+                return
+            }
+
+            thumbLayer.isHidden = false
+
+            let visualWidth = isHovering || isDraggingThumb
+                ? expandedWidth
+                : collapsedWidth
 
             let alpha: CGFloat
+
             if isDraggingThumb {
                 alpha = 0.46
             } else if isHovering {
@@ -514,30 +908,67 @@ private struct ScrollbarThumbView: NSViewRepresentable {
                 alpha = 0.22
             }
 
-            NSColor.labelColor.withAlphaComponent(alpha).setFill()
-            NSBezierPath(
-                roundedRect: thumbRect,
-                xRadius: thumbRect.width / 2,
-                yRadius: thumbRect.width / 2
-            ).fill()
-        }
+            // CALayer coordinates are bottom-left based.
+            // scrollbarMetrics() uses top-origin coordinates.
+            let targetFrame = CGRect(
+                x: (bounds.width - visualWidth) / 2,
+                y: thumbRect.minY,
+                width: visualWidth,
+                height: thumbRect.height
+            )
 
-        private func scroll(toThumbOrigin originY: CGFloat, metrics: ScrollbarMetrics) {
-            let clampedOrigin = originY.clamped(to: 0...metrics.availableTravel)
-            let progress = metrics.availableTravel > 0 ? clampedOrigin / metrics.availableTravel : 0
-            onScroll?(progress)
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(animated ? animationDuration : 0)
+            CATransaction.setAnimationTimingFunction(
+                CAMediaTimingFunction(name: .easeInEaseOut)
+            )
+
+            thumbLayer.frame = targetFrame
+            thumbLayer.cornerRadius = visualWidth / 2
+            thumbLayer.backgroundColor = NSColor.labelColor
+                .withAlphaComponent(alpha)
+                .cgColor
+
+            CATransaction.commit()
         }
 
         private func scrollbarMetrics() -> ScrollbarMetrics {
+            let activeViewportHeight = dragViewportHeight ?? viewportHeight
+            let activeContentHeight = dragContentHeight ?? contentHeight
+
             let trackHeight = bounds.height
-            let maxScrollOffset = max(0, contentHeight - viewportHeight)
-            let visibleRatio = viewportHeight / max(contentHeight, viewportHeight)
-            let thumbHeight = max(40, trackHeight * visibleRatio)
+            let maxScrollOffset = max(0, activeContentHeight - activeViewportHeight)
+
+            guard trackHeight > 0, maxScrollOffset > 0 else {
+                return ScrollbarMetrics(
+                    thumbRect: .zero,
+                    availableTravel: 0
+                )
+            }
+
+            let visibleRatio = activeViewportHeight / max(activeContentHeight, activeViewportHeight)
+            let thumbHeight = min(trackHeight, max(40, trackHeight * visibleRatio))
             let availableTravel = max(0, trackHeight - thumbHeight)
-            let progress = maxScrollOffset > 0 ? (scrollOffset / maxScrollOffset).clamped(to: 0...1) : 0
+
+            let progress: CGFloat
+
+            if let dragProgress {
+                progress = dragProgress.clamped(to: 0...1)
+            } else {
+                progress = maxScrollOffset > 0
+                    ? (scrollOffset / maxScrollOffset).clamped(to: 0...1)
+                    : 0
+            }
+
             let thumbOrigin = availableTravel * progress
+
             return ScrollbarMetrics(
-                thumbRect: NSRect(x: 0, y: thumbOrigin, width: bounds.width, height: thumbHeight),
+                thumbRect: NSRect(
+                    x: 0,
+                    y: thumbOrigin,
+                    width: bounds.width,
+                    height: thumbHeight
+                ),
                 availableTravel: availableTravel
             )
         }
@@ -565,43 +996,30 @@ private extension View {
         if #available(macOS 26.0, *) {
             let baseGlass = Glass.regular.interactive(interactive)
             let configuredGlass = tint.map { baseGlass.tint($0) } ?? baseGlass
+
             self.glassEffect(
                 configuredGlass,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                in: RoundedRectangle(
+                    cornerRadius: cornerRadius,
+                    style: .continuous
+                )
             )
         } else {
             self
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .background(
+                    .thinMaterial,
+                    in: RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                )
                 .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                    .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
                 }
-        }
-    }
-}
-
-private struct ScrollMetrics: Equatable {
-    var viewportHeight: CGFloat?
-    var contentHeight: CGFloat?
-    var contentMinY: CGFloat?
-}
-
-private struct ScrollMetricsPreferenceKey: PreferenceKey {
-    static var defaultValue = ScrollMetrics()
-
-    static func reduce(value: inout ScrollMetrics, nextValue: () -> ScrollMetrics) {
-        let next = nextValue()
-
-        if let viewportHeight = next.viewportHeight {
-            value.viewportHeight = viewportHeight
-        }
-
-        if let contentHeight = next.contentHeight {
-            value.contentHeight = contentHeight
-        }
-
-        if let contentMinY = next.contentMinY {
-            value.contentMinY = contentMinY
         }
     }
 }
