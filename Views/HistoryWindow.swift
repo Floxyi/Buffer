@@ -41,6 +41,7 @@ private final class BufferLiquidGlassEffectView: NSGlassEffectView, BufferEffect
 private enum HistoryWindowStyle {
     static let panelCornerRadius = CGFloat(24)
     static let panelBorderOpacity = 0.18
+    static let imagePreviewHeight = CGFloat(320)
 }
 
 private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffectView {
@@ -883,6 +884,12 @@ struct HistoryContentView: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
+            .background(
+                DetailScrollViewConfigurator { scrollView in
+                    scrollView.scrollerStyle = .overlay
+                    scrollView.verticalScroller?.controlSize = .small
+                }
+            )
         }
         .background {
             Rectangle()
@@ -1005,16 +1012,25 @@ struct HistoryContentView: View {
             }
         case .image:
             VStack(spacing: 12) {
-                if let img = previewImage {
-                    Image(nsImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    // Loading placeholder
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: 200)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.primary.opacity(0.04))
+
+                    if let img = previewImage {
+                        Image(nsImage: img)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: HistoryWindowStyle.imagePreviewHeight
+                            )
+                    } else {
+                        ProgressView()
+                    }
                 }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(maxWidth: .infinity)
+                .frame(height: HistoryWindowStyle.imagePreviewHeight)
                 
                 // OCR result
                 if isExtractingText {
@@ -1395,6 +1411,42 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             if let monitor = monitor {
                 NSEvent.removeMonitor(monitor)
             }
+        }
+    }
+}
+
+private struct DetailScrollViewConfigurator: NSViewRepresentable {
+    let configure: (NSScrollView) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ConfiguratorView()
+        view.configure = configure
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let view = nsView as? ConfiguratorView {
+            view.configure = configure
+            view.applyConfigurationIfNeeded()
+        }
+    }
+
+    private final class ConfiguratorView: NSView {
+        var configure: ((NSScrollView) -> Void)?
+
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            applyConfigurationIfNeeded()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyConfigurationIfNeeded()
+        }
+
+        func applyConfigurationIfNeeded() {
+            guard let scrollView = enclosingScrollView else { return }
+            configure?(scrollView)
         }
     }
 }

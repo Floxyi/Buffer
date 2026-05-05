@@ -126,6 +126,8 @@ struct ClipboardListView: View {
                         proxy.scrollTo(firstId, anchor: .top)
                     }
                 }
+
+                Spacer(minLength: 3)
             }
         }
     }

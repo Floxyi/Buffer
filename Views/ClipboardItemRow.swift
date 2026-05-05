@@ -3,6 +3,9 @@ import AppKit
 
 /// Single row displaying a clipboard item - optimized for smooth scrolling
 struct ClipboardItemRow: View {
+    private let leadingVisualSize = CGFloat(28)
+    private let appIconScale = CGFloat(1.16)
+
     let item: ClipboardItem
     let store: ClipboardStore
     let isMultiSelected: Bool     // True if this item is part of multi-selection
@@ -66,7 +69,7 @@ struct ClipboardItemRow: View {
             }
 
             leadingVisual
-                .frame(width: 24, height: 24)
+                .frame(width: leadingVisualSize, height: leadingVisualSize)
             
             Text(primaryLabelText)
                 .font(.system(size: 13))
@@ -101,16 +104,17 @@ struct ClipboardItemRow: View {
     }
 
     private func quickPasteBadge(_ number: Int) -> some View {
-        Text("\(number)")
-            .font(.system(size: 11, weight: .semibold))
+        Text("⌘\(number)")
+            .font(.system(size: 10, weight: .semibold))
             .foregroundColor(foregroundColor)
-            .frame(width: 20, height: 20)
+            .frame(minWidth: 28, minHeight: 20)
+            .padding(.horizontal, 4)
             .background(
-                Circle()
+                Capsule()
                     .fill(Color.primary.opacity(isMultiSelected ? 0.18 : 0.08))
             )
             .overlay(
-                Circle()
+                Capsule()
                     .stroke(Color.primary.opacity(isMultiSelected ? 0.22 : 0.12), lineWidth: 0.5)
             )
     }
@@ -167,7 +171,8 @@ struct ClipboardItemRow: View {
             Image(nsImage: sourceAppIcon)
                 .resizable()
                 .interpolation(.high)
-                .frame(width: 24, height: 24)
+                .frame(width: leadingVisualSize, height: leadingVisualSize)
+                .scaleEffect(appIconScale)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .help(item.sourceApp ?? "Source App")
         } else if item.sourceApp != nil || item.sourceAppBundleIdentifier != nil || item.sourceAppBundlePath != nil {
@@ -189,7 +194,7 @@ struct ClipboardItemRow: View {
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 24, height: 24)
+                .frame(width: leadingVisualSize, height: leadingVisualSize)
                 .clipped()
                 .cornerRadius(4)
         } else {
@@ -207,8 +212,8 @@ struct ClipboardItemRow: View {
                     return
                 }
                 
-                // Create a tiny thumbnail (40x40 for retina)
-                let thumbSize = NSSize(width: 40, height: 40)
+                let pixelSize = leadingVisualSize * 2
+                let thumbSize = NSSize(width: pixelSize, height: pixelSize)
                 let thumb = NSImage(size: thumbSize)
                 thumb.lockFocus()
                 original.draw(
