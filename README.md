@@ -69,5 +69,5 @@ MIT License — feel free to use this project however you like.
 ---
 
 <p align="center">
-  Made with ❤️ for macOS
+  This project is based on work originally created by Samir Patil, licensed under the MIT License.
 </p>
