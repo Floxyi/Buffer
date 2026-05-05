@@ -29,7 +29,7 @@
 ## ⚙️ Settings
 
 - **General** — Control launch at login, saved history size, and the global keyboard shortcut
-- **Privacy** — Exclude specific apps so their copied content never appears in Buffer histor
+- **Privacy** — Exclude specific apps so their copied content never appears in Buffer history
 
 <p align="center">
   <img width="1633" height="614" alt="SCR-20260505-qaxi" src="https://github.com/user-attachments/assets/f1dc3598-5b27-4a1b-95a3-3114a97efe82" />
