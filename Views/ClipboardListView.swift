@@ -6,6 +6,9 @@ struct ClipboardListView: View {
     private let topScrollAnchorID = "history-list-top"
     private let calendar = Calendar.current
 
+    @State private var padding: CGFloat = 8
+    @State private var scrollbarWidth: CGFloat = 4
+
     @StateObject private var scrollController = ScrollController()
 
     let items: [ClipboardItem]
@@ -126,30 +129,8 @@ struct ClipboardListView: View {
 
     var body: some View {
         VStack {
-            Spacer(minLength: 3)
-
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
-                    ScrollViewConfigurator { scrollView in
-                        scrollView.hasVerticalScroller = false
-                        scrollView.autohidesScrollers = true
-                        scrollView.scrollerStyle = .overlay
-
-                        scrollView.automaticallyAdjustsContentInsets = false
-                        scrollView.verticalScrollElasticity = .none
-                        scrollView.horizontalScrollElasticity = .none
-
-                        scrollView.contentInsets = NSEdgeInsets(
-                            top: 4,
-                            left: 0,
-                            bottom: 4,
-                            right: 0
-                        )
-
-                        scrollController.configure(scrollView: scrollView)
-                    }
-                    .frame(width: 0, height: 0)
-
                     VStack(spacing: 0) {
                         Color.clear
                             .frame(height: 0)
@@ -161,7 +142,7 @@ struct ClipboardListView: View {
                                 sectionHeader(
                                     title,
                                     systemImage: systemImage,
-                                    topPadding: row.id == "header-pinned" ? 2 : 6
+                                    topPadding: 6
                                 )
 
                             case .divider:
@@ -176,14 +157,32 @@ struct ClipboardListView: View {
                             }
                         }
                     }
-                    .padding(.leading, 8)
-                    .padding(.trailing, 18)
+                    .padding(.vertical, padding)
+                    .padding(.leading, padding)
+                    .padding(.trailing, scrollbarWidth + 2 * padding)
+                }
+                .background {
+                    ScrollViewConfigurator { scrollView in
+                        scrollView.hasVerticalScroller = false
+                        scrollView.autohidesScrollers = true
+                        scrollView.scrollerStyle = .overlay
+
+                        scrollView.automaticallyAdjustsContentInsets = false
+                        scrollView.verticalScrollElasticity = .none
+                        scrollView.horizontalScrollElasticity = .none
+
+                        scrollController.configure(scrollView: scrollView)
+                    }
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
                 }
                 .overlay(alignment: .bottom) {
                     scrollToTopButton
                 }
                 .overlay(alignment: .topTrailing) {
                     customScrollbar
+                        .padding(.vertical, padding)
+                        .padding(.trailing, padding)
                 }
                 .onAppear {
                     scrollController.scrollToTop(retryCount: 6)
@@ -206,8 +205,6 @@ struct ClipboardListView: View {
                 .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { _ in
                     scrollController.scrollToTop(retryCount: 6)
                 }
-
-                Spacer(minLength: 3)
             }
         }
     }
@@ -248,21 +245,20 @@ struct ClipboardListView: View {
         let viewportHeight = scrollController.viewportHeight
         let contentHeight = scrollController.contentHeight
 
-        let trackHeight = max(0, viewportHeight - 8)
+        let trackHeight = max(0, viewportHeight - 2 * padding)
         let maxScrollOffset = max(0, contentHeight - viewportHeight)
 
         if trackHeight > 0, maxScrollOffset > 0 {
             ScrollbarThumbView(
                 viewportHeight: viewportHeight,
                 contentHeight: contentHeight,
+                scrollbarWidth: scrollbarWidth,
                 scrollOffset: scrollController.scrollOffset
             ) { progress in
                 scrollController.scroll(to: progress)
             }
-            .frame(width: 14, height: trackHeight)
+            .frame(width: scrollbarWidth, height: trackHeight)
             .contentShape(Rectangle())
-            .padding(.trailing, 2)
-            .padding(.vertical, 4)
             .zIndex(10)
         }
     }
@@ -636,6 +632,14 @@ private struct ScrollViewConfigurator: NSViewRepresentable {
 
         private var isConfigurationScheduled = false
 
+        override var intrinsicContentSize: NSSize {
+            NSSize(width: 0, height: 0)
+        }
+
+        override var fittingSize: NSSize {
+            NSSize(width: 0, height: 0)
+        }
+
         override func viewDidMoveToSuperview() {
             super.viewDidMoveToSuperview()
             scheduleConfiguration()
@@ -660,12 +664,34 @@ private struct ScrollViewConfigurator: NSViewRepresentable {
         }
 
         private func applyConfigurationIfPossible() {
-            guard let scrollView = enclosingScrollView else {
+            guard let scrollView = findScrollView() else {
                 scheduleConfiguration()
                 return
             }
 
             configure?(scrollView)
+        }
+
+        private func findScrollView() -> NSScrollView? {
+            if let enclosingScrollView {
+                return enclosingScrollView
+            }
+
+            var current: NSView? = superview
+
+            while let view = current {
+                if let scrollView = view as? NSScrollView {
+                    return scrollView
+                }
+
+                if let scrollView = view.firstDescendant(of: NSScrollView.self) {
+                    return scrollView
+                }
+
+                current = view.superview
+            }
+
+            return window?.contentView?.firstDescendant(of: NSScrollView.self)
         }
     }
 }
@@ -673,6 +699,7 @@ private struct ScrollViewConfigurator: NSViewRepresentable {
 private struct ScrollbarThumbView: NSViewRepresentable {
     let viewportHeight: CGFloat
     let contentHeight: CGFloat
+    let scrollbarWidth: CGFloat
     let scrollOffset: CGFloat
     let onScroll: (CGFloat) -> Void
 
@@ -681,6 +708,7 @@ private struct ScrollbarThumbView: NSViewRepresentable {
         view.updateMetrics(
             viewportHeight: viewportHeight,
             contentHeight: contentHeight,
+            scrollbarWidth: scrollbarWidth,
             scrollOffset: scrollOffset,
             onScroll: onScroll
         )
@@ -691,6 +719,7 @@ private struct ScrollbarThumbView: NSViewRepresentable {
         nsView.updateMetrics(
             viewportHeight: viewportHeight,
             contentHeight: contentHeight,
+            scrollbarWidth: scrollbarWidth,
             scrollOffset: scrollOffset,
             onScroll: onScroll
         )
@@ -699,14 +728,22 @@ private struct ScrollbarThumbView: NSViewRepresentable {
     final class ThumbView: NSView {
         private var viewportHeight: CGFloat = 0
         private var contentHeight: CGFloat = 0
+        private var scrollbarWidth: CGFloat = 4
         private var scrollOffset: CGFloat = 0
         private var onScroll: ((CGFloat) -> Void)?
 
         private let thumbLayer = CALayer()
 
-        private let collapsedWidth: CGFloat = 5
-        private let expandedWidth: CGFloat = 7
-        private let animationDuration: CFTimeInterval = 0.14
+        private let hoverAnimationDuration: CFTimeInterval = 0.14
+        private let movementAnimationDuration: CFTimeInterval = 0.075
+
+        private var collapsedWidth: CGFloat {
+            max(2, scrollbarWidth)
+        }
+
+        private var expandedWidth: CGFloat {
+            max(2, scrollbarWidth + scrollbarWidth / 3)
+        }
 
         private var trackingArea: NSTrackingArea?
 
@@ -734,7 +771,6 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             layer?.backgroundColor = NSColor.clear.cgColor
 
             thumbLayer.backgroundColor = NSColor.labelColor.withAlphaComponent(0.22).cgColor
-            thumbLayer.cornerRadius = collapsedWidth / 2
             thumbLayer.masksToBounds = true
 
             layer?.addSublayer(thumbLayer)
@@ -760,10 +796,19 @@ private struct ScrollbarThumbView: NSViewRepresentable {
         func updateMetrics(
             viewportHeight: CGFloat,
             contentHeight: CGFloat,
+            scrollbarWidth: CGFloat,
             scrollOffset: CGFloat,
             onScroll: @escaping (CGFloat) -> Void
         ) {
+            let previousViewportHeight = self.viewportHeight
+            let previousContentHeight = self.contentHeight
+            let previousScrollOffset = self.scrollOffset
+            let hadValidMetrics = previousViewportHeight > 0 && previousContentHeight > 0
+
             self.onScroll = onScroll
+            self.scrollbarWidth = max(2, scrollbarWidth)
+
+            let shouldAnimateMovement: Bool
 
             if !isDraggingThumb {
                 self.viewportHeight = viewportHeight
@@ -772,9 +817,21 @@ private struct ScrollbarThumbView: NSViewRepresentable {
                 self.dragProgress = nil
                 self.dragViewportHeight = nil
                 self.dragContentHeight = nil
+
+                let didScroll = abs(previousScrollOffset - scrollOffset) > 0.5
+                let didResize =
+                    abs(previousViewportHeight - viewportHeight) > 0.5 ||
+                    abs(previousContentHeight - contentHeight) > 0.5
+
+                shouldAnimateMovement = hadValidMetrics && (didScroll || didResize)
+            } else {
+                shouldAnimateMovement = false
             }
 
-            updateThumbLayer(animated: false)
+            updateThumbLayer(
+                animated: shouldAnimateMovement,
+                duration: movementAnimationDuration
+            )
         }
 
         override func updateTrackingAreas() {
@@ -801,14 +858,20 @@ private struct ScrollbarThumbView: NSViewRepresentable {
 
         override func mouseEntered(with event: NSEvent) {
             isHovering = true
-            updateThumbLayer(animated: true)
+            updateThumbLayer(
+                animated: true,
+                duration: hoverAnimationDuration
+            )
         }
 
         override func mouseExited(with event: NSEvent) {
             guard !isDraggingThumb else { return }
 
             isHovering = false
-            updateThumbLayer(animated: true)
+            updateThumbLayer(
+                animated: true,
+                duration: hoverAnimationDuration
+            )
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -833,7 +896,10 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             }
 
             isDraggingThumb = true
-            updateThumbLayer(animated: true)
+            updateThumbLayer(
+                animated: true,
+                duration: hoverAnimationDuration
+            )
         }
 
         override func mouseDragged(with event: NSEvent) {
@@ -857,7 +923,10 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             let mouseY = topOriginMouseY(for: event)
             isHovering = bounds.contains(NSPoint(x: bounds.midX, y: mouseY))
 
-            updateThumbLayer(animated: true)
+            updateThumbLayer(
+                animated: true,
+                duration: hoverAnimationDuration
+            )
         }
 
         private func topOriginMouseY(for event: NSEvent) -> CGFloat {
@@ -883,7 +952,10 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             onScroll?(progress)
         }
 
-        private func updateThumbLayer(animated: Bool) {
+        private func updateThumbLayer(
+            animated: Bool,
+            duration: CFTimeInterval = 0
+        ) {
             let metrics = scrollbarMetrics()
             let thumbRect = metrics.thumbRect
 
@@ -908,8 +980,6 @@ private struct ScrollbarThumbView: NSViewRepresentable {
                 alpha = 0.22
             }
 
-            // CALayer coordinates are bottom-left based.
-            // scrollbarMetrics() uses top-origin coordinates.
             let targetFrame = CGRect(
                 x: (bounds.width - visualWidth) / 2,
                 y: thumbRect.minY,
@@ -918,9 +988,10 @@ private struct ScrollbarThumbView: NSViewRepresentable {
             )
 
             CATransaction.begin()
-            CATransaction.setAnimationDuration(animated ? animationDuration : 0)
+            CATransaction.setDisableActions(!animated)
+            CATransaction.setAnimationDuration(animated ? duration : 0)
             CATransaction.setAnimationTimingFunction(
-                CAMediaTimingFunction(name: .easeInEaseOut)
+                CAMediaTimingFunction(name: .easeOut)
             )
 
             thumbLayer.frame = targetFrame
@@ -978,6 +1049,22 @@ private struct ScrollbarThumbView: NSViewRepresentable {
 private struct ScrollbarMetrics {
     let thumbRect: NSRect
     let availableTravel: CGFloat
+}
+
+private extension NSView {
+    func firstDescendant<T: NSView>(of type: T.Type) -> T? {
+        if let match = self as? T {
+            return match
+        }
+
+        for subview in subviews {
+            if let match = subview.firstDescendant(of: type) {
+                return match
+            }
+        }
+
+        return nil
+    }
 }
 
 private extension Comparable {
