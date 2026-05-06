@@ -274,6 +274,7 @@ struct HistoryContentView: View {
     @State private var scrollTrigger = false  // Triggers scroll on keyboard navigation
     @State private var shouldRefocusSearchOnActivate = false
     @State private var showsQuickPasteNumbers = false
+    @State private var quickPasteNeedsModifierReset = false
     
     // Multi-select state
     @State private var selectedIDs: Set<UUID> = []
@@ -487,6 +488,29 @@ struct HistoryContentView: View {
         }
     }
 
+    private func prepareQuickPasteForWindowOpen(using flags: NSEvent.ModifierFlags) {
+        quickPasteNeedsModifierReset = !quickPasteRelevantFlags(from: flags).isEmpty
+        setQuickPasteMode(false)
+    }
+
+    private func handleQuickPasteModifierFlagsChange(_ flags: NSEvent.ModifierFlags) {
+        let relevantFlags = quickPasteRelevantFlags(from: flags)
+
+        if quickPasteNeedsModifierReset {
+            if relevantFlags.isEmpty {
+                quickPasteNeedsModifierReset = false
+            }
+            setQuickPasteMode(false)
+            return
+        }
+
+        setQuickPasteMode(relevantFlags == .command)
+    }
+
+    private func quickPasteRelevantFlags(from flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
+        flags.intersection([.command, .shift, .option, .control])
+    }
+
     private func performQuickPaste(at index: Int) {
         guard let item = filteredItems[safe: index] else { return }
         selectSingle(item.id)
@@ -583,7 +607,7 @@ struct HistoryContentView: View {
         }
         .onAppear {
             syncSelection()
-            setQuickPasteMode(NSEvent.modifierFlags.contains(.command))
+            prepareQuickPasteForWindowOpen(using: NSEvent.modifierFlags)
             if NSApp.isActive {
                 focusSearchField()
             }
@@ -591,7 +615,7 @@ struct HistoryContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .bufferWindowDidOpen)) { notification in
             searchText = ""
             syncSelection(preferredID: filteredItems.first?.id)
-            setQuickPasteMode(NSEvent.modifierFlags.contains(.command))
+            prepareQuickPasteForWindowOpen(using: NSEvent.modifierFlags)
             let shouldFocusSearch = (notification.object as? Bool) ?? true
             if shouldFocusSearch {
                 shouldRefocusSearchOnActivate = true
@@ -607,6 +631,7 @@ struct HistoryContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             setQuickPasteMode(false)
+            quickPasteNeedsModifierReset = false
         }
         .task(id: selectedItem?.id) {
             // Clear preview
@@ -660,7 +685,7 @@ struct HistoryContentView: View {
                 }
             },
             onQuickPaste: performQuickPaste,
-            onCommandChanged: setQuickPasteMode
+            onCommandChanged: handleQuickPasteModifierFlagsChange
         ))
     }
     
@@ -1300,7 +1325,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
     let onPin: () -> Void
     let onSaveImage: () -> Void
     let onQuickPaste: (Int) -> Void
-    let onCommandChanged: (Bool) -> Void
+    let onCommandChanged: (NSEvent.ModifierFlags) -> Void
     
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -1314,10 +1339,11 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             // Actually, best way is to add monitor to the window.
             
             let monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
-                let isCommandPressed = event.modifierFlags.contains(.command)
+                let relevantFlags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+                let isCommandOnlyPressed = relevantFlags == .command
 
                 if event.type == .flagsChanged {
-                    onCommandChanged(isCommandPressed)
+                    onCommandChanged(event.modifierFlags)
                     return event
                 }
 
@@ -1377,7 +1403,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                     }
                     return event
                 case 18...23:
-                    guard isCommandPressed else { return event }
+                    guard isCommandOnlyPressed else { return event }
 
                     let quickPasteIndexByKeyCode: [UInt16: Int] = [
                         18: 0, // 1
