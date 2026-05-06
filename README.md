@@ -1,17 +1,16 @@
-<p align="center">
-  <img src="Assets/Buffer-Logo.png" alt="Buffer Logo" width="128" height="128">
-</p>
+<div align="center">
+  <img src="Assets/Buffer-Logo.png" alt="Buffer Logo" width="192" height="192">
+  <h1>Buffer</h1>
+</div>
 
-<h1 align="center">Buffer</h1>
-
-<p align="center">
+<div align="center">
   <strong>A lightweight, beautiful clipboard manager for macOS</strong>
 
   <br/>
   <br/>
 
-  <img width="742" height="514" alt="SCR-20260505-qaiu" src="https://github.com/user-attachments/assets/15d82388-8e17-4dee-8bc3-c5a3ca49e254" />
-</p>
+  <img width="742" height="514" alt="SCR-20260505-qaiu" src="https://github.com/user-attachments/assets/5284d898-56be-40b8-aeda-2e40047549d6" />
+</div>
 
 ---
 
