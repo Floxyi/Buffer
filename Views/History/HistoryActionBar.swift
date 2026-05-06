@@ -9,10 +9,12 @@ struct HistoryActionBar: View {
             HStack(spacing: 14) {
                 BufferShortcutHint(shortcut: "⇧ ↑↓", label: "Select")
                 BufferShortcutHint(shortcut: "⌘ P", label: "Pin")
-
+                
                 if showsSaveShortcut {
                     BufferShortcutHint(shortcut: "⌘ S", label: "Save")
                 }
+                
+                BufferShortcutHint(shortcut: "⌥", label: "Copy", shortcutSymbolName: "return")
             }
             .frame(maxWidth: .infinity, alignment: .center)
 

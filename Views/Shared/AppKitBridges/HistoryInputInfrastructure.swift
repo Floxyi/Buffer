@@ -8,6 +8,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
     let onExtendUp: () -> Void
     let onExtendDown: () -> Void
     let onEnter: () -> Void
+    let onOptionEnter: () -> Void
     let onEscape: () -> Void
     let onDelete: () -> Void
     let onCopy: () -> Void
@@ -26,6 +27,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                 onExtendUp: onExtendUp,
                 onExtendDown: onExtendDown,
                 onEnter: onEnter,
+                onOptionEnter: onOptionEnter,
                 onEscape: onEscape,
                 onDelete: onDelete,
                 onCopy: onCopy,
@@ -56,6 +58,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             onExtendUp: @escaping () -> Void,
             onExtendDown: @escaping () -> Void,
             onEnter: @escaping () -> Void,
+            onOptionEnter: @escaping () -> Void,
             onEscape: @escaping () -> Void,
             onDelete: @escaping () -> Void,
             onCopy: @escaping () -> Void,
@@ -90,7 +93,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                     event.modifierFlags.contains(.shift) ? onExtendDown() : onDown()
                     return nil
                 case 36:
-                    onEnter()
+                    event.modifierFlags.contains(.option) ? onOptionEnter() : onEnter()
                     return nil
                 case 53:
                     onEscape()

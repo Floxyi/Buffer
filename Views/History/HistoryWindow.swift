@@ -8,7 +8,7 @@ struct HistoryContentView: View {
     let onPasteMultiple: ([ClipboardItem]) -> Void
     let onDismiss: () -> Void
 
-    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchFocused = false
     @State private var shouldRefocusSearchOnActivate = false
 
     var body: some View {
@@ -16,7 +16,8 @@ struct HistoryContentView: View {
             HistorySearchBar(
                 searchText: $viewModel.searchText,
                 filteredItemCount: viewModel.filteredItems.count,
-                isSearchFocused: $isSearchFocused
+                isSearchFocused: $isSearchFocused,
+                searchSelectionToken: viewModel.searchSelectionToken
             )
 
             BufferPanelSeparator()
@@ -27,8 +28,10 @@ struct HistoryContentView: View {
 
                 BufferPanelSeparator(isVertical: true)
 
-                detailPane
-                    .frame(minWidth: 500, maxWidth: .infinity)
+                if viewModel.selectionCount > 0 {
+                    detailPane
+                        .frame(minWidth: 500, maxWidth: .infinity)
+                }
             }
 
             BufferPanelSeparator()
@@ -78,6 +81,7 @@ struct HistoryContentView: View {
                 onExtendUp: viewModel.extendSelectionUp,
                 onExtendDown: viewModel.extendSelectionDown,
                 onEnter: performPrimaryPasteAction,
+                onOptionEnter: performCopyOnlyAction,
                 onEscape: onDismiss,
                 onDelete: viewModel.deleteSelectedItem,
                 onCopy: {
@@ -137,18 +141,18 @@ struct HistoryContentView: View {
     }
 
     private var detailPane: some View {
-            HistoryDetailPane(
-                selectionCount: viewModel.selectionCount,
-                isSingleImageSelection: viewModel.isSingleImageSelection,
-                selectedItemIsPinned: viewModel.selectedItemIsPinned,
-                canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
-                isExtractingText: viewModel.isExtractingText,
-                selectedItemSourceName: viewModel.selectedItemSourceName,
-                selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
-                selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
-                textSelectionCount: viewModel.textSelectionCount,
-                imageSelectionCount: viewModel.imageSelectionCount,
-                firstTextPreview: viewModel.firstTextPreview,
+        HistoryDetailPane(
+            selectionCount: viewModel.selectionCount,
+            isSingleImageSelection: viewModel.isSingleImageSelection,
+            selectedItemIsPinned: viewModel.selectedItemIsPinned,
+            canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
+            isExtractingText: viewModel.isExtractingText,
+            selectedItemSourceName: viewModel.selectedItemSourceName,
+            selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
+            selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
+            textSelectionCount: viewModel.textSelectionCount,
+            imageSelectionCount: viewModel.imageSelectionCount,
+            firstTextPreview: viewModel.firstTextPreview,
             selectedItem: viewModel.selectedItem,
             previewImage: viewModel.previewImage,
             chunkedText: viewModel.chunkedText,
@@ -180,11 +184,19 @@ struct HistoryContentView: View {
     }
 
     private func performPrimaryPasteAction() {
+        viewModel.clearSearchAfterCommittedAction()
         if !viewModel.selectedItems.isEmpty {
             onPasteMultiple(viewModel.selectedItems)
         } else if let item = viewModel.selectedItem {
             onPaste(item)
         }
+    }
+
+    private func performCopyOnlyAction() {
+        guard let item = viewModel.selectedItem else { return }
+        viewModel.clearSearchAfterCommittedAction()
+        onCopyToClipboard(item)
+        onDismiss()
     }
 
     private func focusSearchField() {

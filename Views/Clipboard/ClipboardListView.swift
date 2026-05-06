@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
+    private let topScrollAnchorID = "history-list-top-anchor"
+
     @StateObject private var scrollController = ScrollController()
 
     let items: [ClipboardItem]
@@ -48,6 +50,10 @@ struct ClipboardListView: View {
         VStack {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(topScrollAnchorID)
+
                     LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
                         ForEach(displayRows) { row in
                             switch row.kind {
@@ -101,7 +107,11 @@ struct ClipboardListView: View {
                 .onChange(of: selectedIndex) { newValue in
                     guard scrollTrigger else { return }
 
-                    if let item = items[safe: newValue] {
+                    if newValue == 0 {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            proxy.scrollTo(topScrollAnchorID, anchor: .top)
+                        }
+                    } else if let item = items[safe: newValue] {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             proxy.scrollTo(item.id)
                         }

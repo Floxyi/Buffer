@@ -19,6 +19,7 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var showsQuickPasteNumbers = false
     @Published private(set) var windowOpenToken = 0
     @Published private(set) var shouldFocusSearchOnOpen = true
+    @Published private(set) var searchSelectionToken = 0
     @Published var scrollTrigger = false
     @Published var hoveredItemID: UUID?
 
@@ -103,7 +104,9 @@ final class HistoryViewModel: ObservableObject {
         focusSearch: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
     ) {
-        searchText = ""
+        if !searchText.isEmpty {
+            searchSelectionToken &+= 1
+        }
         shouldFocusSearchOnOpen = focusSearch
         prepareQuickPasteForWindowOpen(
             using: NSEvent.modifierFlags,
@@ -140,6 +143,11 @@ final class HistoryViewModel: ObservableObject {
     func handleAppResignActive() {
         showsQuickPasteNumbers = false
         quickPasteNeedsModifierReset = false
+    }
+
+    func clearSearchAfterCommittedAction() {
+        guard !searchText.isEmpty else { return }
+        searchText = ""
     }
 
     func selectSingle(_ id: UUID) {
