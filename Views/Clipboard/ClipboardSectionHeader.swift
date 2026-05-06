@@ -14,6 +14,7 @@ struct ClipboardSectionHeader: View {
         }
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(.secondary)
+        .frame(height: ClipboardListStructure.LayoutMetrics.sectionHeaderHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

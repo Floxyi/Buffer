@@ -2,12 +2,6 @@ import SwiftUI
 
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
-    private let topScrollAnchorID = "history-list-top"
-    private let rowSpacing: CGFloat = 4
-
-    @State private var padding: CGFloat = 8
-    @State private var scrollbarWidth: CGFloat = 4
-
     @StateObject private var scrollController = ScrollController()
 
     let items: [ClipboardItem]
@@ -32,25 +26,29 @@ struct ClipboardListView: View {
         ClipboardListStructure.displayRows(from: items)
     }
 
+    private var itemIndexByID: [UUID: Int] {
+        Dictionary(uniqueKeysWithValues: items.enumerated().map { ($0.element.id, $0.offset) })
+    }
+
+    private var estimatedContentHeight: CGFloat {
+        ClipboardListStructure.estimatedContentHeight(for: displayRows)
+    }
+
     private var hasVisibleScrollbar: Bool {
         max(0, scrollController.contentHeight - scrollController.viewportHeight) > 1
     }
 
     private var contentTrailingPadding: CGFloat {
         hasVisibleScrollbar
-            ? scrollbarWidth + 2 * padding
-            : padding
+            ? ClipboardListStructure.LayoutMetrics.scrollbarWidth + 2 * ClipboardListStructure.LayoutMetrics.contentPadding
+            : ClipboardListStructure.LayoutMetrics.contentPadding
     }
 
     var body: some View {
         VStack {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: rowSpacing) {
-                        Color.clear
-                            .frame(height: 0)
-                            .id(topScrollAnchorID)
-
+                    LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
                         ForEach(displayRows) { row in
                             switch row.kind {
                             case .header(let title, let systemImage):
@@ -58,7 +56,7 @@ struct ClipboardListView: View {
                                     title: title,
                                     systemImage: systemImage
                                 )
-                                .padding(.leading, padding)
+                                .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
 
                             case .divider:
                                 ClipboardSectionDivider()
@@ -68,8 +66,8 @@ struct ClipboardListView: View {
                             }
                         }
                     }
-                    .padding(.vertical, padding)
-                    .padding(.leading, padding)
+                    .padding(.vertical, ClipboardListStructure.LayoutMetrics.contentPadding)
+                    .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
                     .padding(.trailing, contentTrailingPadding)
                 }
                 .background {
@@ -94,7 +92,11 @@ struct ClipboardListView: View {
                     customScrollbar
                 }
                 .onAppear {
+                    scrollController.setContentHeightOverride(estimatedContentHeight)
                     scrollController.scrollToTop(retryCount: 6)
+                }
+                .onChange(of: estimatedContentHeight) { newValue in
+                    scrollController.setContentHeightOverride(newValue)
                 }
                 .onChange(of: selectedIndex) { newValue in
                     guard scrollTrigger else { return }
@@ -137,28 +139,31 @@ struct ClipboardListView: View {
         let viewportHeight = scrollController.viewportHeight
         let contentHeight = scrollController.contentHeight
 
-        let trackHeight = max(0, viewportHeight - 2 * padding)
+        let trackHeight = max(
+            0,
+            viewportHeight - 2 * ClipboardListStructure.LayoutMetrics.contentPadding
+        )
         let maxScrollOffset = max(0, contentHeight - viewportHeight)
 
         if trackHeight > 0, maxScrollOffset > 0 {
             ScrollbarThumbView(
                 viewportHeight: viewportHeight,
                 contentHeight: contentHeight,
-                scrollbarWidth: scrollbarWidth,
+                scrollbarWidth: ClipboardListStructure.LayoutMetrics.scrollbarWidth,
                 scrollOffset: scrollController.scrollOffset
             ) { progress in
                 scrollController.scroll(to: progress)
             }
-            .frame(width: scrollbarWidth, height: trackHeight)
+            .frame(width: ClipboardListStructure.LayoutMetrics.scrollbarWidth, height: trackHeight)
             .contentShape(Rectangle())
-            .padding(.vertical, padding)
-            .padding(.trailing, padding)
+            .padding(.vertical, ClipboardListStructure.LayoutMetrics.contentPadding)
+            .padding(.trailing, ClipboardListStructure.LayoutMetrics.contentPadding)
             .zIndex(10)
         }
     }
 
     private func itemRow(for item: ClipboardItem) -> some View {
-        let index = items.firstIndex(where: { $0.id == item.id }) ?? 0
+        let index = itemIndexByID[item.id] ?? 0
 
         return ClipboardItemRow(
             item: item,
@@ -166,7 +171,7 @@ struct ClipboardListView: View {
             isMultiSelected: selectedIDs.contains(item.id),
             joinsSelectionAbove: index > 0 && selectedIDs.contains(items[index - 1].id),
             joinsSelectionBelow: index < items.count - 1 && selectedIDs.contains(items[index + 1].id),
-            selectionJoinOverlap: rowSpacing / 2,
+            selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil,
             isHovered: hoveredItemID == item.id
         )

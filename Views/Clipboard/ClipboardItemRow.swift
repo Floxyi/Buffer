@@ -96,6 +96,7 @@ struct ClipboardItemRow: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+        .frame(height: ClipboardListStructure.LayoutMetrics.itemRowHeight)
         .background(selectionBackground)
         .animation(.easeInOut(duration: 0.16), value: isHovered)
         .task(id: item.id) {

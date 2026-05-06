@@ -1,6 +1,15 @@
 import Foundation
 
 enum ClipboardListStructure {
+    enum LayoutMetrics {
+        static let contentPadding = CGFloat(8)
+        static let rowSpacing = CGFloat(4)
+        static let scrollbarWidth = CGFloat(4)
+        static let itemRowHeight = CGFloat(44)
+        static let sectionHeaderHeight = CGFloat(16)
+        static let dividerHeight = CGFloat(9)
+    }
+
     struct ItemSection: Identifiable {
         let id: String
         let title: String
@@ -100,5 +109,29 @@ enum ClipboardListStructure {
         }
 
         return rows
+    }
+
+    static func estimatedContentHeight(for rows: [DisplayRow]) -> CGFloat {
+        guard !rows.isEmpty else {
+            return 2 * LayoutMetrics.contentPadding
+        }
+
+        let rowsHeight = rows.reduce(CGFloat.zero) { partialResult, row in
+            partialResult + estimatedRowHeight(for: row)
+        }
+        let spacingHeight = CGFloat(max(0, rows.count - 1)) * LayoutMetrics.rowSpacing
+
+        return 2 * LayoutMetrics.contentPadding + rowsHeight + spacingHeight
+    }
+
+    private static func estimatedRowHeight(for row: DisplayRow) -> CGFloat {
+        switch row.kind {
+        case .header:
+            return LayoutMetrics.sectionHeaderHeight
+        case .divider:
+            return LayoutMetrics.dividerHeight
+        case .item:
+            return LayoutMetrics.itemRowHeight
+        }
     }
 }

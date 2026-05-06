@@ -8,9 +8,10 @@ struct HistoryTextDetailContent: View {
     var body: some View {
         if item.isTruncated {
             VStack(alignment: .leading, spacing: 12) {
-                Text(item.textContent ?? "")
-                    .font(.system(size: 10, design: .monospaced))
-                    .textSelection(.enabled)
+                SelectableMonospacedTextView(
+                    text: item.textContent ?? "",
+                    fontSize: 10
+                )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 Label(
@@ -22,10 +23,11 @@ struct HistoryTextDetailContent: View {
                 .padding(.top, 4)
             }
         } else if item.isFileBacked {
-            LazyVStack(spacing: 8, pinnedViews: []) {
-                Text(chunkedText.visibleText)
-                    .font(.system(size: 10, design: .monospaced))
-                    .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 8) {
+                SelectableMonospacedTextView(
+                    text: chunkedText.visibleText,
+                    fontSize: 10
+                )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 if chunkedText.isLoadingMore {
@@ -44,9 +46,10 @@ struct HistoryTextDetailContent: View {
                 }
             }
         } else {
-            Text(item.textContent ?? "")
-                .font(.system(size: 10, design: .monospaced))
-                .textSelection(.enabled)
+            SelectableMonospacedTextView(
+                text: item.textContent ?? "",
+                fontSize: 10
+            )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }

@@ -4,8 +4,8 @@ import SwiftUI
 @MainActor
 final class ScrollController: ObservableObject {
     fileprivate enum SmoothScrollStyle {
-        static let wheelStep = CGFloat(60)
-        static let preciseWheelMultiplier = CGFloat(7)
+        static let wheelStep = CGFloat(2)
+        static let preciseWheelMultiplier = CGFloat(2)
         static let animationDuration = 0.32
         static let frameDurationNanoseconds: UInt64 = 1_000_000_000 / 60
     }
@@ -17,6 +17,7 @@ final class ScrollController: ObservableObject {
     weak var scrollView: NSScrollView?
 
     private weak var observedDocumentView: NSView?
+    private var contentHeightOverride: CGFloat?
     private var observers: [NSObjectProtocol] = []
     private var isMetricsSyncScheduled = false
     private let smoothWheelScroller = SmoothWheelScroller()
@@ -66,7 +67,7 @@ final class ScrollController: ObservableObject {
             scrollView.contentView.frame.height
         )
 
-        let contentHeight = measuredContentHeight(
+        let contentHeight = resolvedContentHeight(
             scrollView: scrollView,
             documentView: documentView
         )
@@ -100,6 +101,13 @@ final class ScrollController: ObservableObject {
     func syncMetrics() {
         guard let scrollView else { return }
         scheduleMetricsSync(from: scrollView)
+    }
+
+    func setContentHeightOverride(_ contentHeight: CGFloat?) {
+        let sanitizedContentHeight = contentHeight.map { max(0, $0) }
+        guard contentHeightOverride != sanitizedContentHeight else { return }
+        contentHeightOverride = sanitizedContentHeight
+        syncMetrics()
     }
 
     private func scheduleScrollToTop(remainingPasses: Int) {
@@ -241,7 +249,7 @@ final class ScrollController: ObservableObject {
             scrollView.contentView.frame.height
         )
 
-        let nextContentHeight = measuredContentHeight(
+        let nextContentHeight = resolvedContentHeight(
             scrollView: scrollView,
             documentView: documentView
         )
@@ -257,15 +265,17 @@ final class ScrollController: ObservableObject {
         )
     }
 
-    private func measuredContentHeight(
+    private func resolvedContentHeight(
         scrollView: NSScrollView,
         documentView: NSView
     ) -> CGFloat {
-        max(
+        let measuredContentHeight = max(
             documentView.bounds.height,
             documentView.frame.height,
             scrollView.contentView.documentRect.height
         )
+
+        return max(measuredContentHeight, contentHeightOverride ?? 0)
     }
 
     private func update(
