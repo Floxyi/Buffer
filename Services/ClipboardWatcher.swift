@@ -1,215 +1,128 @@
-import Foundation
 import AppKit
-import Combine
-import UniformTypeIdentifiers
+import Foundation
 
-/// Monitors the system clipboard for changes and captures new content
-class ClipboardWatcher: ObservableObject {
+@MainActor
+final class ClipboardWatcher: ObservableObject {
     @Published private(set) var isPaused = false
-    
+
     private let store: ClipboardStore
-    private var timer: Timer?
-    private var lastChangeCount: Int = 0
-    private var lastContentHash: Int = 0
+    private let settingsManager: SettingsManager
+    private let activeApplicationProvider: ActiveApplicationProviding
+    private var watchTask: Task<Void, Never>?
+    private var lastChangeCount: Int
+    private var lastContentHash = 0
     private var ignoreNextChange = false
-    
-    private let pollInterval: TimeInterval = 0.5
-    
-    // Size thresholds for text handling
-    private let inlineTextLimit = 50_000       // 50 KB — store inline
-    private let previewLength = 500            // Characters kept as inline preview
-    
-    init(store: ClipboardStore) {
+
+    private let pollIntervalNanoseconds: UInt64 = 500_000_000
+
+    init(
+        store: ClipboardStore,
+        settingsManager: SettingsManager,
+        activeApplicationProvider: ActiveApplicationProviding
+    ) {
         self.store = store
+        self.settingsManager = settingsManager
+        self.activeApplicationProvider = activeApplicationProvider
         self.lastChangeCount = NSPasteboard.general.changeCount
-        
-        // Listen for ignore notification (when copying from history)
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleIgnoreNextChange),
-            name: .bufferIgnoreNextChange,
-            object: nil
-        )
     }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-    
-    @objc private func handleIgnoreNextChange() {
-        ignoreNextChange = true
-    }
-    
+
     func startWatching() {
-        guard timer == nil else { return }
-        
-        timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
-            self?.checkClipboard()
+        guard watchTask == nil else { return }
+
+        watchTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                self.checkClipboard()
+                try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            }
         }
-        
-        RunLoop.main.add(timer!, forMode: .common)
     }
-    
+
     func stopWatching() {
-        timer?.invalidate()
-        timer = nil
+        watchTask?.cancel()
+        watchTask = nil
     }
-    
+
     func pause() {
         isPaused = true
     }
-    
+
     func resume() {
         isPaused = false
         lastChangeCount = NSPasteboard.general.changeCount
     }
-    
+
+    func ignoreNextCapturedChange() {
+        ignoreNextChange = true
+    }
+
     private func checkClipboard() {
         guard !isPaused else { return }
-        
+
         let pasteboard = NSPasteboard.general
         let currentChangeCount = pasteboard.changeCount
-        
-        // No change detected
+
         guard currentChangeCount != lastChangeCount else { return }
         lastChangeCount = currentChangeCount
-        
-        // Skip if this is a copy from our own history
+
         if ignoreNextChange {
             ignoreNextChange = false
             return
         }
-        
-        // Get current frontmost app as source
-        let sourceApp = currentSourceApplicationInfo()
-        guard !SettingsManager.shared.shouldExcludeCapture(from: sourceApp) else { return }
-        
-        // Check for single image file from Finder BEFORE text check
-        // (Finder always writes both NSFilenamesPboardType + .string, so we must intercept first)
+
+        let sourceApp = ClipboardCaptureSupport.currentSourceApplicationInfo(using: activeApplicationProvider)
+        guard !settingsManager.shouldExcludeCapture(from: sourceApp) else { return }
+
         if let filePaths = pasteboard.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String],
            filePaths.count == 1,
-           let filePath = filePaths.first {
-            if isImageFile(filePath) {
-                // Read and process image file asynchronously to avoid blocking the poll timer
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                    self?.processImageFile(filePath, sourceApp: sourceApp)
+           let filePath = filePaths.first,
+           ClipboardCaptureSupport.isImageFile(filePath) {
+            let priorHash = lastContentHash
+            Task { [store] in
+                let processedImage = await Task.detached(priority: .userInitiated) {
+                    ClipboardCaptureSupport.processedImageFile(filePath, skippingHash: priorHash)
+                }.value
+
+                guard let processedImage else {
+                    return
                 }
-                return  // Prevent .string branch from also processing this change
+
+                guard let filename = store.saveImage(processedImage.pngData) else { return }
+                let item = ClipboardItem.image(filename: filename, sourceApp: sourceApp)
+                lastContentHash = processedImage.hash
+                store.add(item)
             }
+            return
         }
-        
-        // Try to capture text first
+
         if let text = pasteboard.string(forType: .string), !text.isEmpty {
             let textSize = text.utf8.count
-            
-            // Use prefix hash for large text to avoid expensive full-string hashing
-            let hashSource = textSize > inlineTextLimit ? String(text.prefix(10_000)) : text
+            let hashSource = textSize > ClipboardCaptureSupport.inlineTextLimit ? String(text.prefix(10_000)) : text
             let hash = hashSource.hashValue
-            
-            // Skip consecutive duplicates
-            if hash != lastContentHash {
-                lastContentHash = hash
-                
-                if textSize <= inlineTextLimit {
-                    // Small text: store inline (current behavior)
-                    let item = ClipboardItem.text(text, sourceApp: sourceApp)
-                    store.add(item)
-                } else {
-                    // Large text: save to file, store preview inline
-                    let preview = String(text.prefix(previewLength))
-                    if let filename = store.saveText(text) {
-                        let item = ClipboardItem.largeText(preview: preview, filename: filename, sourceApp: sourceApp)
-                        store.add(item)
-                        print("[Buffer] Large text (\(textSize / 1024) KB) saved to file: \(filename)")
-                    }
+
+            guard hash != lastContentHash else { return }
+            lastContentHash = hash
+
+            if textSize <= ClipboardCaptureSupport.inlineTextLimit {
+                store.add(.text(text, sourceApp: sourceApp))
+            } else {
+                let preview = String(text.prefix(ClipboardCaptureSupport.previewLength))
+                if let filename = store.saveText(text) {
+                    store.add(.largeText(preview: preview, filename: filename, sourceApp: sourceApp))
                 }
             }
             return
         }
-        
-        // Try to capture image
-        if let imageData = getImageData(from: pasteboard) {
-            let hash = imageData.hashValue
-            
-            // Skip consecutive duplicates
-            if hash != lastContentHash {
-                lastContentHash = hash
-                
-                // Save image to disk
-                if let filename = store.saveImage(imageData) {
-                    let item = ClipboardItem.image(filename: filename, sourceApp: sourceApp)
-                    store.add(item)
-                }
-            }
-        }
-    }
 
-    private func currentSourceApplicationInfo() -> SourceApplicationInfo {
-        ActiveApplicationMonitor.shared.currentApplicationInfo
-    }
-    
-    private func getImageData(from pasteboard: NSPasteboard) -> Data? {
-        let imageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
-        
-        for type in imageTypes {
-            if let data = pasteboard.data(forType: type) {
-                if let image = NSImage(data: data),
-                   let tiffData = image.tiffRepresentation,
-                   let bitmap = NSBitmapImageRep(data: tiffData),
-                   let pngData = bitmap.representation(using: .png, properties: [:]) {
-                    return pngData
-                }
-                return data
+        if let imageData = ClipboardCaptureSupport.imageData(from: pasteboard) {
+            let hash = imageData.hashValue
+            guard hash != lastContentHash else { return }
+
+            lastContentHash = hash
+            if let filename = store.saveImage(imageData) {
+                store.add(.image(filename: filename, sourceApp: sourceApp))
             }
-        }
-        
-        return nil
-    }
-    
-    /// Check if a file path points to an image by examining its UTType
-    private func isImageFile(_ filePath: String) -> Bool {
-        let fileExtension = (filePath as NSString).pathExtension.lowercased()
-        guard !fileExtension.isEmpty else { return false }
-        
-        if let utType = UTType(filenameExtension: fileExtension) {
-            return utType.conforms(to: .image)
-        }
-        return false
-    }
-    
-    /// Read image file from disk, convert to PNG, and store as image item
-    private func processImageFile(_ filePath: String, sourceApp: SourceApplicationInfo) {
-        do {
-            // Read file bytes
-            let fileURL = URL(fileURLWithPath: filePath)
-            let fileData = try Data(contentsOf: fileURL)
-            
-            // Convert to PNG using the same pattern as pasteboard image handling
-            guard let image = NSImage(data: fileData),
-                  let tiffData = image.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiffData),
-                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
-                print("[Buffer] Failed to convert image file: \(filePath)")
-                return
-            }
-            
-            // Check for duplicate using hash
-            let hash = pngData.hashValue
-            guard hash != lastContentHash else {
-                // print("[Buffer] Duplicate image file detected: \(filePath)")
-                return
-            }
-            
-            // Save image to disk and add to store
-            if let filename = store.saveImage(pngData) {
-                let item = ClipboardItem.image(filename: filename, sourceApp: sourceApp)
-                DispatchQueue.main.async { [weak self] in
-                    self?.lastContentHash = hash
-                    self?.store.add(item)
-                }
-            }
-        } catch {
-            print("[Buffer] Error processing image file: \(filePath) - \(error)")
         }
     }
 }

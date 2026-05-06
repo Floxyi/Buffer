@@ -1,329 +1,255 @@
-import Foundation
 import AppKit
 import Combine
+import Foundation
 
-/// Manages persistent storage of clipboard history
-class ClipboardStore: ObservableObject {
-    @Published var items: [ClipboardItem] = []
-    
-    private var maxItems: Int { SettingsManager.shared.historyLimit.rawValue }
-    private let fileManager = FileManager.default
-    private let saveQueue = DispatchQueue(label: "com.buffer.save", qos: .utility)
-    
-    private var storageDirectory: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("Buffer", isDirectory: true)
+actor ClipboardRepository {
+    private var items: [ClipboardItem]
+    private let persistence: ClipboardHistoryPersistence
+    private let assetStore: ClipboardAssetStore
+
+    init(initialItems: [ClipboardItem], persistence: ClipboardHistoryPersistence, assetStore: ClipboardAssetStore) {
+        self.items = initialItems
+        self.persistence = persistence
+        self.assetStore = assetStore
     }
-    
-    private var historyFileURL: URL {
-        storageDirectory.appendingPathComponent("history.json")
+
+    func snapshot() -> [ClipboardItem] {
+        items
     }
-    
-    private var imagesDirectory: URL {
-        storageDirectory.appendingPathComponent("images", isDirectory: true)
-    }
-    
-    private var textsDirectory: URL {
-        storageDirectory.appendingPathComponent("texts", isDirectory: true)
-    }
-    
-    init() {
-        ensureDirectoriesExist()
-        loadHistory()
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleLimitChanged),
-            name: .bufferHistoryLimitChanged,
-            object: nil
-        )
-    }
-    
-    @objc private func handleLimitChanged() {
-        guard items.count > maxItems else { return }
-        // Trim from tail, pinned items survive
-        var trimmed = items
-        while trimmed.count > maxItems {
-            if let idx = trimmed.lastIndex(where: { !$0.isPinned }) {
-                deleteAssociatedFiles(for: trimmed[idx])
-                trimmed.remove(at: idx)
-            } else {
-                break // All remaining are pinned — respect them
-            }
-        }
-        items = trimmed
-        saveQueue.async { [weak self] in self?.saveHistoryToDisk(trimmed) }
-    }
-    
-    // MARK: - Public API
-    
-    func add(_ item: ClipboardItem) {
-        // Must be called on main thread for SwiftUI updates
-        if Thread.isMainThread {
-            performAdd(item)
-        } else {
-            DispatchQueue.main.sync {
-                performAdd(item)
-            }
-        }
-    }
-    
-    private func performAdd(_ item: ClipboardItem) {
-        print("[Buffer] Store: Adding item, current count: \(items.count)")
-        
-        // Insert at beginning (newest first)
+
+    func add(_ item: ClipboardItem, maxItems: Int) -> [ClipboardItem] {
         items.insert(item, at: 0)
-        
-        // Evict oldest unpinned item if over limit
+
         if items.count > maxItems {
             if let indexToRemove = items.lastIndex(where: { !$0.isPinned }) {
                 let removed = items.remove(at: indexToRemove)
-                deleteAssociatedFiles(for: removed)
-            } else {
-                // If all are pinned, just remove the oldest one
-                let removed = items.removeLast()
-                deleteAssociatedFiles(for: removed)
+                assetStore.deleteAssociatedFiles(for: removed)
+            } else if let removed = items.popLast() {
+                assetStore.deleteAssociatedFiles(for: removed)
             }
         }
-        
-        print("[Buffer] Store: New count: \(items.count)")
-        
-        // Save to disk in background
-        let itemsToSave = items
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk(itemsToSave)
-        }
+
+        persist()
+        return items
     }
-    
-    func delete(_ item: ClipboardItem) {
+
+    func delete(_ item: ClipboardItem) -> [ClipboardItem] {
         items.removeAll { $0.id == item.id }
-        deleteAssociatedFiles(for: item)
-        
-        let itemsToSave = items
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk(itemsToSave)
-        }
+        assetStore.deleteAssociatedFiles(for: item)
+        persist()
+        return items
     }
-    
-    /// Toggle pin state for an item
-    func togglePin(for item: ClipboardItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        
+
+    func togglePin(for item: ClipboardItem) -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
+
         items[index].isPinned.toggle()
         items[index].pinnedAt = items[index].isPinned ? Date() : nil
-        
-        let itemsToSave = items
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk(itemsToSave)
-        }
+        persist()
+        return items
     }
-    
-    /// Save extracted OCR text for an image item
-    func setOCRText(_ text: String, for item: ClipboardItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+
+    func setOCRText(_ text: String, for item: ClipboardItem) -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
         items[index].ocrText = text
-        
-        let itemsToSave = items
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk(itemsToSave)
-        }
+        persist()
+        return items
     }
-    
-    /// Move an item to the top of the list (most recent position)
-    func moveToTop(_ item: ClipboardItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        
-        // Already at top, no need to move
-        if index == 0 { return }
-        
-        // Remove from current position and insert at top
+
+    func moveToTop(_ item: ClipboardItem) -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }), index != 0 else { return items }
         let removed = items.remove(at: index)
         items.insert(removed, at: 0)
-        
-        // Save updated order to disk
-        let itemsToSave = items
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk(itemsToSave)
-        }
+        persist()
+        return items
     }
-    
-    func clear() {
-        // Delete all associated files
+
+    func clear() -> [ClipboardItem] {
         for item in items {
-            deleteAssociatedFiles(for: item)
+            assetStore.deleteAssociatedFiles(for: item)
         }
         items.removeAll()
-        
-        saveQueue.async { [weak self] in
-            self?.saveHistoryToDisk([])
-        }
+        persist()
+        return items
     }
-    
-    func image(for item: ClipboardItem) -> NSImage? {
-        guard item.type == .image, let filename = item.imageFilename else { return nil }
-        let url = imagesDirectory.appendingPathComponent(filename)
-        return NSImage(contentsOf: url)
-    }
-    
-    func saveImage(_ data: Data) -> String? {
-        let filename = UUID().uuidString + ".png"
-        let url = imagesDirectory.appendingPathComponent(filename)
-        
-        do {
-            try data.write(to: url)
-            return filename
-        } catch {
-            print("[Buffer] Failed to save image: \(error)")
-            return nil
-        }
-    }
-    
-    /// Save large text to a file and return the filename
-    func saveText(_ text: String) -> String? {
-        let filename = UUID().uuidString + ".txt"
-        let url = textsDirectory.appendingPathComponent(filename)
-        
-        do {
-            try text.write(to: url, atomically: true, encoding: .utf8)
-            return filename
-        } catch {
-            print("[Buffer] Failed to save text file: \(error)")
-            return nil
-        }
-    }
-    
-    /// Load full text content from file (lazy loading for large text)
-    func fullText(for item: ClipboardItem) -> String? {
-        guard let filename = item.textFilename else { return item.textContent }
-        let url = textsDirectory.appendingPathComponent(filename)
-        
-        do {
-            return try String(contentsOf: url, encoding: .utf8)
-        } catch {
-            print("[Buffer] Failed to load text file: \(error)")
-            return item.textContent // Fallback to inline preview
-        }
-    }
-    
-    /// Load a chunk of text content, reading only what's necessary
-    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
-        if let filename = item.textFilename {
-            // File-backed large text
-            let url = textsDirectory.appendingPathComponent(filename)
-            
-            do {
-                // Get total size from attributes without reading file
-                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-                let totalBytes = attributes[.size] as? Int ?? 0
-                
-                // Read a chunk that should contain enough characters
-                // UTF-8 can be up to 4 bytes per character, so we read charCount * 4
-                // to guarantee we have enough bytes for the requested characters
-                let maximumBytesToRead = min(charCount * 4, totalBytes)
-                
-                let fileHandle = try FileHandle(forReadingFrom: url)
-                defer { try? fileHandle.close() }
-                
-                let data = try fileHandle.read(upToCount: maximumBytesToRead) ?? Data()
-                
-                // Decode to string and take exact requested characters
-                let fullChunkStr = String(decoding: data, as: UTF8.self)
-                let exactChunkStr = String(fullChunkStr.prefix(charCount))
-                
-                // If the decoded string length is less than requested, we hit EOF
-                let reachedEOF = fullChunkStr.count < charCount
-                
-                return (exactChunkStr, totalBytes, reachedEOF)
-                
-            } catch {
-                print("[Buffer] Failed to read text chunk: \(error)")
-                return nil
+
+    func trim(to maxItems: Int) -> [ClipboardItem] {
+        guard items.count > maxItems else { return items }
+
+        while items.count > maxItems {
+            if let index = items.lastIndex(where: { !$0.isPinned }) {
+                let removed = items.remove(at: index)
+                assetStore.deleteAssociatedFiles(for: removed)
+            } else {
+                break
             }
+        }
+
+        persist()
+        return items
+    }
+
+    private func persist() {
+        persistence.saveHistory(items)
+    }
+}
+
+@MainActor
+final class ClipboardStore: ObservableObject {
+    @Published private(set) var items: [ClipboardItem] = []
+
+    private(set) var currentMaxItems: Int
+    private let assetStore: ClipboardAssetStore
+    private let repository: ClipboardRepository
+    private let settingsManager: SettingsManager
+    private var cancellables: Set<AnyCancellable> = []
+    private var searchCache: [UUID: String] = [:]
+
+    init(settingsManager: SettingsManager, storagePaths: ClipboardStoragePaths? = nil) {
+        self.settingsManager = settingsManager
+
+        let paths: ClipboardStoragePaths
+        if let storagePaths {
+            paths = storagePaths
         } else {
-            // Inline text
-            let content = item.textContent ?? ""
-            let totalBytes = item.originalSizeBytes ?? content.utf8.count
-            
-            let prefix = String(content.prefix(charCount))
-            let reachedEOF = content.count <= charCount
-            
-            return (prefix, totalBytes, reachedEOF)
+            do {
+                paths = try ClipboardStoragePaths()
+            } catch {
+                BufferLogger.persistence.fault("Failed to build storage paths: \(String(describing: error), privacy: .public)")
+                let fallbackDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("BufferFallback", isDirectory: true)
+                paths = ClipboardStoragePaths(
+                    storageDirectory: fallbackDirectory,
+                    historyFileURL: fallbackDirectory.appendingPathComponent("history.json"),
+                    imagesDirectory: fallbackDirectory.appendingPathComponent("images", isDirectory: true),
+                    textsDirectory: fallbackDirectory.appendingPathComponent("texts", isDirectory: true)
+                )
+            }
+        }
+
+        self.currentMaxItems = settingsManager.historyLimit.rawValue
+
+        let assetStore = ClipboardAssetStore(paths: paths)
+        let persistence = ClipboardHistoryPersistence(paths: paths)
+        assetStore.ensureDirectoriesExist()
+
+        let initialItems = persistence.loadHistory()
+        assetStore.cleanupOrphanedAssets(referencedBy: initialItems)
+
+        self.assetStore = assetStore
+        self.repository = ClipboardRepository(
+            initialItems: initialItems,
+            persistence: persistence,
+            assetStore: assetStore
+        )
+        self.items = initialItems
+
+        bindSettings()
+    }
+
+    func add(_ item: ClipboardItem) {
+        Task {
+            let nextItems = await repository.add(item, maxItems: currentMaxItems)
+            applySnapshot(nextItems)
         }
     }
-    
-    /// Get the total size of an item (in bytes) for UI display
-    func itemSize(for item: ClipboardItem) -> Int? {
-        if let original = item.originalSizeBytes {
-            return original
+
+    func delete(_ item: ClipboardItem) {
+        Task {
+            let nextItems = await repository.delete(item)
+            applySnapshot(nextItems)
         }
-        
+    }
+
+    func togglePin(for item: ClipboardItem) {
+        Task {
+            let nextItems = await repository.togglePin(for: item)
+            applySnapshot(nextItems)
+        }
+    }
+
+    func setOCRText(_ text: String, for item: ClipboardItem) {
+        Task {
+            let nextItems = await repository.setOCRText(text, for: item)
+            applySnapshot(nextItems)
+        }
+    }
+
+    func moveToTop(_ item: ClipboardItem) {
+        Task {
+            let nextItems = await repository.moveToTop(item)
+            applySnapshot(nextItems)
+        }
+    }
+
+    func clear() {
+        Task {
+            let nextItems = await repository.clear()
+            applySnapshot(nextItems)
+        }
+    }
+
+    func image(for item: ClipboardItem) -> NSImage? {
+        assetStore.image(for: item)
+    }
+
+    func saveImage(_ data: Data) -> String? {
+        assetStore.saveImage(data)
+    }
+
+    func saveText(_ text: String) -> String? {
+        assetStore.saveText(text)
+    }
+
+    func fullText(for item: ClipboardItem) -> String? {
+        assetStore.fullText(for: item)
+    }
+
+    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+        assetStore.textChunk(for: item, charCount: charCount)
+    }
+
+    func itemSize(for item: ClipboardItem) -> Int? {
+        assetStore.itemSize(for: item)
+    }
+
+    func searchableText(for item: ClipboardItem) -> String {
+        if let cached = searchCache[item.id] {
+            return cached
+        }
+
+        let value: String
         switch item.type {
         case .text:
-            if let filename = item.textFilename {
-                let url = textsDirectory.appendingPathComponent(filename)
-                let attributes = try? fileManager.attributesOfItem(atPath: url.path)
-                return attributes?[.size] as? Int
+            if item.isFileBacked {
+                value = fullText(for: item) ?? item.textContent ?? ""
             } else {
-                return item.textContent?.utf8.count
+                value = item.textContent ?? ""
             }
         case .image:
-            if let filename = item.imageFilename {
-                let url = imagesDirectory.appendingPathComponent(filename)
-                let attributes = try? fileManager.attributesOfItem(atPath: url.path)
-                return attributes?[.size] as? Int
+            value = item.ocrText ?? ""
+        }
+
+        searchCache[item.id] = value
+        return value
+    }
+
+    private func bindSettings() {
+        settingsManager.$historyLimit
+            .removeDuplicates()
+            .sink { [weak self] limit in
+                guard let self else { return }
+                self.currentMaxItems = limit.rawValue
+                Task {
+                    let trimmed = await self.repository.trim(to: limit.rawValue)
+                    self.applySnapshot(trimmed)
+                }
             }
-        }
-        return nil
+            .store(in: &cancellables)
     }
-    
-    // MARK: - Private
-    
-    private func ensureDirectoriesExist() {
-        try? fileManager.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: imagesDirectory, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: textsDirectory, withIntermediateDirectories: true)
-    }
-    
-    private func loadHistory() {
-        guard fileManager.fileExists(atPath: historyFileURL.path) else { 
-            print("[Buffer] No history file found")
-            return 
-        }
-        
-        do {
-            let data = try Data(contentsOf: historyFileURL)
-            let loadedItems = try JSONDecoder().decode([ClipboardItem].self, from: data)
-            self.items = loadedItems
-            print("[Buffer] Loaded \(loadedItems.count) items from history")
-        } catch {
-            print("[Buffer] Failed to load history: \(error)")
-        }
-    }
-    
-    private func saveHistoryToDisk(_ itemsToSave: [ClipboardItem]) {
-        do {
-            let data = try JSONEncoder().encode(itemsToSave)
-            try data.write(to: historyFileURL)
-        } catch {
-            print("[Buffer] Failed to save history: \(error)")
-        }
-    }
-    
-    private func deleteImageFile(for item: ClipboardItem) {
-        guard item.type == .image, let filename = item.imageFilename else { return }
-        let url = imagesDirectory.appendingPathComponent(filename)
-        try? fileManager.removeItem(at: url)
-    }
-    
-    private func deleteTextFile(for item: ClipboardItem) {
-        guard let filename = item.textFilename else { return }
-        let url = textsDirectory.appendingPathComponent(filename)
-        try? fileManager.removeItem(at: url)
-    }
-    
-    /// Delete all associated files (images and text files) for an item
-    private func deleteAssociatedFiles(for item: ClipboardItem) {
-        deleteImageFile(for: item)
-        deleteTextFile(for: item)
+
+    private func applySnapshot(_ nextItems: [ClipboardItem]) {
+        items = nextItems
+        let validIDs = Set(nextItems.map(\.id))
+        searchCache = searchCache.filter { validIDs.contains($0.key) }
     }
 }

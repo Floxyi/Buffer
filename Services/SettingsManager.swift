@@ -1,8 +1,8 @@
+import Combine
 import Foundation
 import ServiceManagement
-import Combine
 
-struct ExcludedApp: Codable, Equatable, Identifiable {
+struct ExcludedApp: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
     let bundleIdentifier: String?
@@ -24,144 +24,48 @@ struct ExcludedApp: Codable, Equatable, Identifiable {
     }
 }
 
-/// Define the tiers as a type
-enum HistoryLimit: Int, CaseIterable, Codable {
-    case essential  = 100
-    case deep       = 500
-    case unlimited  = 1000
-    
+enum HistoryLimit: Int, CaseIterable, Codable, Sendable {
+    case essential = 100
+    case deep = 500
+    case unlimited = 1000
+
     var label: String {
         switch self {
         case .essential: return "Essential"
-        case .deep:      return "Deep"
+        case .deep: return "Deep"
         case .unlimited: return "Unlimited"
         }
     }
-    
+
     var subtitle: String {
         switch self {
         case .essential: return "100 items"
-        case .deep:      return "500 items"
+        case .deep: return "500 items"
         case .unlimited: return "1,000 items"
         }
     }
 }
 
-/// Manages user preferences for Buffer
-class SettingsManager: ObservableObject {
-    static let shared = SettingsManager()
-    
-    private let defaults = UserDefaults.standard
-    
-    // Keys
-    private let hotkeyModifiersKey = "hotkeyModifiers"
-    private let hotkeyKeyCodeKey = "hotkeyKeyCode"
-    private let excludedAppsKey = "excludedApps"
-    
-    @Published var hotkeyModifiers: HotkeyModifiers
-    @Published var hotkeyKeyCode: UInt16
-    @Published var launchAtLogin: Bool = false
-    @Published var historyLimit: HistoryLimit = .essential
-    @Published var excludedApps: [ExcludedApp] = []
-    
-    private init() {
-        // Initialize with defaults first, then load saved values
-        let defaultMods = HotkeyModifiers(shift: true, command: true, option: false, control: false)
-        let defaultKeyCode: UInt16 = 9  // V key
-        
-        // Load saved modifiers or use default
-        if let savedMods = defaults.array(forKey: hotkeyModifiersKey) as? [String] {
-            self.hotkeyModifiers = HotkeyModifiers(from: savedMods)
-        } else {
-            self.hotkeyModifiers = defaultMods
-        }
-        
-        // Load saved keycode or use default (V key)
-        let savedKeyCode = defaults.integer(forKey: hotkeyKeyCodeKey)
-        self.hotkeyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : defaultKeyCode
-        
-        // Load launch at login status
-        if #available(macOS 13.0, *) {
-            self.launchAtLogin = SMAppService.mainApp.status == .enabled
-        }
-        
-        // Load history limit
-        let rawLimit = defaults.integer(forKey: "historyLimit")
-        self.historyLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
-
-        // Load excluded apps
-        if let data = defaults.data(forKey: excludedAppsKey),
-           let apps = try? JSONDecoder().decode([ExcludedApp].self, from: data) {
-            self.excludedApps = apps
-        }
-    }
-    
-    func save() {
-        defaults.set(hotkeyModifiers.toArray(), forKey: hotkeyModifiersKey)
-        defaults.set(Int(hotkeyKeyCode), forKey: hotkeyKeyCodeKey)
-        defaults.set(historyLimit.rawValue, forKey: "historyLimit")
-        if let data = try? JSONEncoder().encode(excludedApps) {
-            defaults.set(data, forKey: excludedAppsKey)
-        }
-    }
-    
-    func toggleLaunchAtLogin(_ enabled: Bool) {
-        if #available(macOS 13.0, *) {
-            do {
-                if enabled {
-                    if SMAppService.mainApp.status == .enabled { return }
-                    try SMAppService.mainApp.register()
-                } else {
-                    if SMAppService.mainApp.status == .notRegistered { return }
-                    try SMAppService.mainApp.unregister()
-                }
-                self.launchAtLogin = enabled
-            } catch {
-                print("Failed to toggle Launch at Login: \(error.localizedDescription)")
-                // Revert state if it fails
-                self.launchAtLogin = SMAppService.mainApp.status == .enabled
-            }
-        }
-    }
-
-    func addExcludedApp(_ app: ExcludedApp) {
-        guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
-        excludedApps.append(app)
-        excludedApps.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        save()
-    }
-
-    func removeExcludedApp(id: ExcludedApp.ID) {
-        excludedApps.removeAll { $0.id == id }
-        save()
-    }
-
-    func shouldExcludeCapture(from application: SourceApplicationInfo) -> Bool {
-        excludedApps.contains { $0.matches(application) }
-    }
-}
-
-/// Represents hotkey modifier keys
-struct HotkeyModifiers: Equatable {
+struct HotkeyModifiers: Codable, Equatable, Sendable {
     var shift: Bool
     var command: Bool
     var option: Bool
     var control: Bool
-    
+
     init(shift: Bool = false, command: Bool = false, option: Bool = false, control: Bool = false) {
         self.shift = shift
         self.command = command
         self.option = option
         self.control = control
     }
-    
+
     init(from array: [String]) {
         self.shift = array.contains("shift")
         self.command = array.contains("command")
         self.option = array.contains("option")
         self.control = array.contains("control")
     }
-    
+
     func toArray() -> [String] {
         var result: [String] = []
         if shift { result.append("shift") }
@@ -170,7 +74,7 @@ struct HotkeyModifiers: Equatable {
         if control { result.append("control") }
         return result
     }
-    
+
     var displayString: String {
         var parts: [String] = []
         if control { parts.append("⌃") }
@@ -181,13 +85,152 @@ struct HotkeyModifiers: Equatable {
     }
 }
 
-/// Map key codes to display names
-let keyCodeNames: [UInt16: String] = [
-    0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X",
-    8: "C", 9: "V", 10: "§", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
-    16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5",
-    24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0", 30: "]", 31: "O",
-    32: "U", 33: "[", 34: "I", 35: "P", 37: "L", 38: "J", 39: "'", 40: "K",
-    41: ";", 42: "\\", 43: ",", 44: "/", 45: "N", 46: "M", 47: ".",
-    49: "Space", 50: "`"
-]
+protocol LaunchAtLoginControlling {
+    func isEnabled() -> Bool
+    func setEnabled(_ enabled: Bool) throws
+}
+
+struct MainAppLaunchAtLoginController: LaunchAtLoginControlling {
+    func isEnabled() -> Bool {
+        guard #available(macOS 13.0, *) else {
+            return false
+        }
+        return SMAppService.mainApp.status == .enabled
+    }
+
+    func setEnabled(_ enabled: Bool) throws {
+        guard #available(macOS 13.0, *) else {
+            return
+        }
+
+        if enabled {
+            if SMAppService.mainApp.status != .enabled {
+                try SMAppService.mainApp.register()
+            }
+        } else if SMAppService.mainApp.status != .notRegistered {
+            try SMAppService.mainApp.unregister()
+        }
+    }
+}
+
+@MainActor
+final class SettingsManager: ObservableObject {
+    static let defaultHotkeyModifiers = HotkeyModifiers(shift: true, command: true)
+    static let defaultHotkeyKeyCode: UInt16 = 9
+
+    private enum Key {
+        static let hotkeyModifiers = "hotkeyModifiers"
+        static let hotkeyKeyCode = "hotkeyKeyCode"
+        static let historyLimit = "historyLimit"
+        static let excludedApps = "excludedApps"
+    }
+
+    private let defaults: UserDefaults
+    private let launchAtLoginController: LaunchAtLoginControlling
+
+    @Published var hotkeyModifiers: HotkeyModifiers
+    @Published var hotkeyKeyCode: UInt16
+    @Published private(set) var launchAtLogin: Bool
+    @Published var historyLimit: HistoryLimit
+    @Published private(set) var excludedApps: [ExcludedApp]
+    @Published private(set) var persistedHistoryLimit: HistoryLimit
+
+    var hotkeyPublisher: AnyPublisher<(UInt16, HotkeyModifiers), Never> {
+        Publishers.CombineLatest($hotkeyKeyCode.removeDuplicates(), $hotkeyModifiers.removeDuplicates())
+            .eraseToAnyPublisher()
+    }
+
+    init(
+        defaults: UserDefaults = .standard,
+        launchAtLoginController: LaunchAtLoginControlling = MainAppLaunchAtLoginController()
+    ) {
+        self.defaults = defaults
+        self.launchAtLoginController = launchAtLoginController
+
+        if let savedMods = defaults.array(forKey: Key.hotkeyModifiers) as? [String] {
+            self.hotkeyModifiers = HotkeyModifiers(from: savedMods)
+        } else {
+            self.hotkeyModifiers = Self.defaultHotkeyModifiers
+        }
+
+        let savedKeyCode = defaults.integer(forKey: Key.hotkeyKeyCode)
+        self.hotkeyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : Self.defaultHotkeyKeyCode
+
+        let rawLimit = defaults.integer(forKey: Key.historyLimit)
+        let initialHistoryLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
+        self.historyLimit = initialHistoryLimit
+        self.persistedHistoryLimit = initialHistoryLimit
+
+        if let data = defaults.data(forKey: Key.excludedApps) {
+            do {
+                self.excludedApps = try JSONDecoder().decode([ExcludedApp].self, from: data)
+            } catch {
+                BufferLogger.settings.error("Failed to decode excluded apps: \(String(describing: error), privacy: .public)")
+                self.excludedApps = []
+            }
+        } else {
+            self.excludedApps = []
+        }
+
+        self.launchAtLogin = launchAtLoginController.isEnabled()
+    }
+
+    func setHotkey(keyCode: UInt16, modifiers: HotkeyModifiers) {
+        hotkeyKeyCode = keyCode
+        hotkeyModifiers = modifiers
+        persist()
+    }
+
+    func setHistoryLimit(_ limit: HistoryLimit) {
+        historyLimit = limit
+        persistedHistoryLimit = limit
+        persist()
+    }
+
+    func toggleLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try launchAtLoginController.setEnabled(enabled)
+            launchAtLogin = launchAtLoginController.isEnabled()
+        } catch {
+            BufferLogger.settings.error("Failed to toggle launch at login: \(error.localizedDescription, privacy: .public)")
+            launchAtLogin = launchAtLoginController.isEnabled()
+        }
+    }
+
+    func addExcludedApp(_ app: ExcludedApp) {
+        guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
+        excludedApps.append(app)
+        excludedApps.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        persist()
+    }
+
+    func removeExcludedApp(id: ExcludedApp.ID) {
+        excludedApps.removeAll { $0.id == id }
+        persist()
+    }
+
+    func removeExcludedApp(_ app: ExcludedApp) {
+        removeExcludedApp(id: app.id)
+    }
+
+    func restoreDefaultHotkey() {
+        setHotkey(keyCode: Self.defaultHotkeyKeyCode, modifiers: Self.defaultHotkeyModifiers)
+    }
+
+    func shouldExcludeCapture(from application: SourceApplicationInfo) -> Bool {
+        excludedApps.contains { $0.matches(application) }
+    }
+
+    private func persist() {
+        defaults.set(hotkeyModifiers.toArray(), forKey: Key.hotkeyModifiers)
+        defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
+        defaults.set(historyLimit.rawValue, forKey: Key.historyLimit)
+
+        do {
+            let data = try JSONEncoder().encode(excludedApps)
+            defaults.set(data, forKey: Key.excludedApps)
+        } catch {
+            BufferLogger.settings.error("Failed to encode excluded apps: \(String(describing: error), privacy: .public)")
+        }
+    }
+}

@@ -1,87 +1,113 @@
 import Cocoa
+import Combine
 import SwiftUI
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let container = AppContainer()
+
     private var statusBarController: StatusBarController?
-    private var clipboardWatcher: ClipboardWatcher?
     private var historyWindowController: HistoryWindowController?
-    private var hotkeyManager: HotkeyManager?
-    
-    let clipboardStore = ClipboardStore()
-    
+    private var cancellables: Set<AnyCancellable> = []
+
+    var settingsManager: SettingsManager {
+        container.settingsManager
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide dock icon - we're menu bar only
         NSApp.setActivationPolicy(.accessory)
-        _ = ActiveApplicationMonitor.shared
-        
+
+        configureFirstLaunchBehavior()
+        configureClipboardCapture()
+        configureStatusBar()
+        configureHotkeyHandling()
+        openHistoryWindowOnStartup()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        container.clipboardWatcher.stopWatching()
+        container.hotkeyManager.unregister()
+    }
+
+    private func configureFirstLaunchBehavior() {
         let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: "hasLaunchedBefore") {
-            // Give it a tiny delay to ensure everything is loaded before registering SMAppService
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                SettingsManager.shared.toggleLaunchAtLogin(true)
-                defaults.set(true, forKey: "hasLaunchedBefore")
-            }
+        guard !defaults.bool(forKey: "hasLaunchedBefore") else { return }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            self.container.settingsManager.toggleLaunchAtLogin(true)
+            defaults.set(true, forKey: "hasLaunchedBefore")
         }
-        
-        // Initialize clipboard watcher
-        clipboardWatcher = ClipboardWatcher(store: clipboardStore)
-        clipboardWatcher?.startWatching()
-        
-        // Initialize status bar
+    }
+
+    private func configureClipboardCapture() {
+        container.clipboardWatcher.startWatching()
+    }
+
+    private func configureStatusBar() {
         statusBarController = StatusBarController(
-            store: clipboardStore,
-            watcher: clipboardWatcher!,
+            store: container.clipboardStore,
+            watcher: container.clipboardWatcher,
+            settingsManager: container.settingsManager,
             onShowHistory: { [weak self] in
-                self?.showHistoryWindow()
+                self?.showHistoryWindow(openedViaHotkey: false)
             }
         )
-        
-        // Setup global hotkey (Shift + Command + V)
-        hotkeyManager = HotkeyManager { [weak self] in
-            self?.toggleHistoryWindow()
-        }
-        hotkeyManager?.register()
-        
-        NotificationCenter.default.addObserver(forName: .bufferHotkeyChanged, object: nil, queue: .main) { [weak self] _ in
-            self?.hotkeyManager?.reregister()
+    }
+
+    private func configureHotkeyHandling() {
+        container.hotkeyManager.register { [weak self] in
+            self?.toggleHistoryWindow(openedViaHotkey: true)
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.showHistoryWindow(focusSearch: true, activateApp: false)
+        container.settingsManager.hotkeyPublisher
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.container.hotkeyManager.reregister()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func openHistoryWindowOnStartup() {
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            self?.showHistoryWindow(openedViaHotkey: false)
         }
     }
-    
-    func applicationWillTerminate(_ notification: Notification) {
-        clipboardWatcher?.stopWatching()
-        hotkeyManager?.unregister()
-    }
-    
-    private func toggleHistoryWindow() {
-        print("[AppDelegate] toggleHistoryWindow called")
+
+    private func toggleHistoryWindow(openedViaHotkey: Bool) {
         let historyWindowController = historyWindowController ?? makeHistoryWindowController()
         if let window = historyWindowController.window, window.isVisible {
-            print("[AppDelegate] Window is visible, closing...")
             historyWindowController.close()
         } else {
-            print("[AppDelegate] Window is hidden, showing...")
-            showHistoryWindow()
+            showHistoryWindow(openedViaHotkey: openedViaHotkey)
         }
     }
-    
+
     private func showHistoryWindow(
         focusSearch: Bool = true,
-        activateApp: Bool = true
+        activateApp: Bool = true,
+        openedViaHotkey: Bool
     ) {
         let historyWindowController = historyWindowController ?? makeHistoryWindowController()
         historyWindowController.showWindow(
             nil,
             focusSearch: focusSearch,
-            activateApp: activateApp
+            activateApp: activateApp,
+            suppressQuickPasteUntilModifiersReleased: openedViaHotkey
         )
     }
 
     private func makeHistoryWindowController() -> HistoryWindowController {
-        let controller = HistoryWindowController(store: clipboardStore)
+        let controller = HistoryWindowController(
+            store: container.clipboardStore,
+            activeApplicationProvider: container.activeApplicationMonitor,
+            pasteController: container.pasteController,
+            ocrService: container.ocrService,
+            ignoreNextCapturedChange: { [weak watcher = container.clipboardWatcher] in
+                watcher?.ignoreNextCapturedChange()
+            }
+        )
         historyWindowController = controller
         return controller
     }

@@ -1,0 +1,12 @@
+import SwiftUI
+
+struct ChunkedTextState {
+    var visibleText: String = ""
+    var totalBytes: Int = 0
+    var loadedCharCount: Int = 0
+    var reachedEOF: Bool = true
+    var isLoadingMore: Bool = false
+    static let chunkSize = 2_000
+    static let initialChars = 2_000
+    var hasMore: Bool { !reachedEOF && loadedCharCount >= Self.initialChars }
+}

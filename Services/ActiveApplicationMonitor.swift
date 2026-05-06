@@ -1,27 +1,43 @@
 import AppKit
 
-struct SourceApplicationInfo {
+struct SourceApplicationInfo: Sendable {
     let name: String?
     let bundleIdentifier: String?
     let bundlePath: String?
 }
 
-final class ActiveApplicationMonitor {
-    static let shared = ActiveApplicationMonitor()
+@MainActor
+protocol ActiveApplicationProviding: AnyObject {
+    var currentApplication: NSRunningApplication? { get }
+    var currentApplicationInfo: SourceApplicationInfo { get }
+}
+
+@MainActor
+final class ActiveApplicationMonitor: ActiveApplicationProviding {
+    nonisolated(unsafe) private var activationObserver: NSObjectProtocol?
 
     private(set) var currentApplication: NSRunningApplication?
 
-    private init(notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) {
-        notificationCenter.addObserver(
-            self,
-            selector: #selector(handleAppActivation(_:)),
-            name: NSWorkspace.didActivateApplicationNotification,
-            object: nil
-        )
+    init(notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) {
+        activationObserver = notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+                return
+            }
+
+            MainActor.assumeIsolated {
+                self?.handleAppActivation(application)
+            }
+        }
     }
 
-    var currentApplicationName: String? {
-        currentApplication?.localizedName
+    deinit {
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
     }
 
     var currentApplicationInfo: SourceApplicationInfo {
@@ -32,12 +48,7 @@ final class ActiveApplicationMonitor {
         )
     }
 
-    @objc
-    private func handleAppActivation(_ notification: Notification) {
-        guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
-            return
-        }
-
+    private func handleAppActivation(_ application: NSRunningApplication) {
         let currentProcessID = ProcessInfo.processInfo.processIdentifier
         guard application.processIdentifier != currentProcessID else {
             return

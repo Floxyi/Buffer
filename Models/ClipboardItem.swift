@@ -2,7 +2,7 @@ import Foundation
 import AppKit
 
 /// Represents a single item in the clipboard history
-struct ClipboardItem: Identifiable, Codable, Equatable {
+struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let type: ClipboardItemType
     let timestamp: Date
@@ -186,9 +186,27 @@ struct ClipboardItem: Identifiable, Codable, Equatable {
     static func == (lhs: ClipboardItem, rhs: ClipboardItem) -> Bool {
         lhs.id == rhs.id
     }
+
+    var sourceAppDisplayName: String? {
+        if let sourceApp, !sourceApp.isEmpty {
+            return sourceApp
+        }
+
+        if let sourceAppBundlePath, !sourceAppBundlePath.isEmpty {
+            return URL(fileURLWithPath: sourceAppBundlePath)
+                .deletingPathExtension()
+                .lastPathComponent
+        }
+
+        if let sourceAppBundleIdentifier, !sourceAppBundleIdentifier.isEmpty {
+            return sourceAppBundleIdentifier
+        }
+
+        return nil
+    }
 }
 
-enum ClipboardItemType: String, Codable {
+enum ClipboardItemType: String, Codable, Sendable {
     case text
     case image
 }
