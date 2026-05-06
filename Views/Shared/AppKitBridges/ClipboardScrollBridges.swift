@@ -2,21 +2,30 @@ import AppKit
 import SwiftUI
 
 struct ScrollViewConfigurator: NSViewRepresentable {
+    enum SearchStrategy {
+        case nearestAncestorOnly
+        case nearestOrFallback
+    }
+
     let configure: (NSScrollView) -> Void
+    var searchStrategy: SearchStrategy = .nearestOrFallback
 
     func makeNSView(context: Context) -> ConfiguratorView {
         let view = ConfiguratorView()
         view.configure = configure
+        view.searchStrategy = searchStrategy
         return view
     }
 
     func updateNSView(_ nsView: ConfiguratorView, context: Context) {
         nsView.configure = configure
+        nsView.searchStrategy = searchStrategy
         nsView.scheduleConfiguration()
     }
 
     final class ConfiguratorView: NSView {
         var configure: ((NSScrollView) -> Void)?
+        var searchStrategy: SearchStrategy = .nearestOrFallback
 
         private var isConfigurationScheduled = false
 
@@ -72,11 +81,16 @@ struct ScrollViewConfigurator: NSViewRepresentable {
                     return scrollView
                 }
 
-                if let scrollView = view.firstDescendant(of: NSScrollView.self) {
+                if searchStrategy == .nearestOrFallback,
+                   let scrollView = view.firstDescendant(of: NSScrollView.self) {
                     return scrollView
                 }
 
                 current = view.superview
+            }
+
+            guard searchStrategy == .nearestOrFallback else {
+                return nil
             }
 
             return window?.contentView?.firstDescendant(of: NSScrollView.self)

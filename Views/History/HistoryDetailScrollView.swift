@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryDetailScrollView<Content: View>: View {
     private let padding = CGFloat(8)
+    private let paddingAdjustment = CGFloat(0.5)
     private let scrollbarWidth = CGFloat(4)
 
     @StateObject private var scrollController = ScrollController()
@@ -12,7 +13,7 @@ struct HistoryDetailScrollView<Content: View>: View {
     }
 
     private var contentTrailingPadding: CGFloat {
-        hasVisibleScrollbar ? scrollbarWidth + 2 * padding : padding
+        hasVisibleScrollbar ? scrollbarWidth + 2*padding + paddingAdjustment : padding
     }
 
     var body: some View {
@@ -21,19 +22,22 @@ struct HistoryDetailScrollView<Content: View>: View {
                 .padding(.vertical, padding)
                 .padding(.leading, padding)
                 .padding(.trailing, contentTrailingPadding)
-        }
-        .background {
-            ScrollViewConfigurator { scrollView in
-                scrollView.hasVerticalScroller = false
-                scrollView.autohidesScrollers = true
-                scrollView.scrollerStyle = .overlay
-                scrollView.automaticallyAdjustsContentInsets = false
-                scrollView.verticalScrollElasticity = .none
-                scrollView.horizontalScrollElasticity = .none
-                scrollController.configure(scrollView: scrollView)
-            }
-            .frame(width: 0, height: 0)
-            .allowsHitTesting(false)
+                .background {
+                    ScrollViewConfigurator(
+                        configure: { scrollView in
+                            scrollView.hasVerticalScroller = false
+                            scrollView.autohidesScrollers = true
+                            scrollView.scrollerStyle = .overlay
+                            scrollView.automaticallyAdjustsContentInsets = false
+                            scrollView.verticalScrollElasticity = .none
+                            scrollView.horizontalScrollElasticity = .none
+                            scrollController.configure(scrollView: scrollView)
+                        },
+                        searchStrategy: .nearestAncestorOnly
+                    )
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+                }
         }
         .overlay(alignment: .topTrailing) {
             let viewportHeight = scrollController.viewportHeight
@@ -53,7 +57,7 @@ struct HistoryDetailScrollView<Content: View>: View {
                 .frame(width: scrollbarWidth, height: trackHeight)
                 .contentShape(Rectangle())
                 .padding(.vertical, padding)
-                .padding(.trailing, padding)
+                .padding(.trailing, padding + paddingAdjustment)
                 .zIndex(10)
             }
         }
