@@ -101,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeHistoryWindowController() -> HistoryWindowController {
         let controller = HistoryWindowController(
             store: container.clipboardStore,
+            settingsManager: container.settingsManager,
             activeApplicationProvider: container.activeApplicationMonitor,
             pasteController: container.pasteController,
             ocrService: container.ocrService,

@@ -2,6 +2,7 @@ import AppKit
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case general
+    case behaviour
     case privacy
     case about
 
@@ -10,6 +11,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .general: return "General"
+        case .behaviour: return "Behaviour"
         case .privacy: return "Privacy"
         case .about: return "About"
         }
@@ -18,6 +20,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general: return "gearshape"
+        case .behaviour: return "slider.horizontal.3"
         case .privacy: return "hand.raised"
         case .about: return "info.circle"
         }

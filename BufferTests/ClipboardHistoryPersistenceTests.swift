@@ -33,6 +33,63 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
     }
 
     @MainActor
+    func testStoreDropsExpiredHistoryEntriesOnLoadWhenRetentionIsEnabled() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let persistence = ClipboardHistoryPersistence(paths: paths)
+        let assetStore = ClipboardAssetStore(paths: paths)
+        assetStore.ensureDirectoriesExist()
+
+        let freshItem = ClipboardItem.text("fresh")
+        let expiredItem = ClipboardItem(
+            type: .text,
+            timestamp: Date().addingTimeInterval(-(13 * 60 * 60)),
+            textContent: "expired"
+        )
+        persistence.saveHistory([freshItem, expiredItem])
+
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setHistoryRetentionPeriod(.twelveHours)
+
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+
+        XCTAssertEqual(store.items.map(\.id), [freshItem.id])
+        XCTAssertEqual(persistence.loadHistory().map(\.id), [freshItem.id])
+    }
+
+    @MainActor
+    func testStorePrunesExpiredHistoryEntriesWhenRetentionSettingChanges() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+
+        let expiredItem = ClipboardItem(
+            type: .text,
+            timestamp: Date().addingTimeInterval(-(8 * 24 * 60 * 60)),
+            textContent: "expired"
+        )
+        let freshItem = ClipboardItem.text("fresh")
+
+        store.add(expiredItem)
+        store.add(freshItem)
+
+        await eventually {
+            store.items.count == 2
+        }
+
+        settings.setHistoryRetentionPeriod(.oneWeek)
+
+        await eventually {
+            store.items.map(\.id) == [freshItem.id]
+        }
+    }
+
+    @MainActor
     func testPendingFileBackedTextAssetSurvivesUntilItemIsAdded() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(

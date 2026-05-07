@@ -33,4 +33,49 @@ final class SettingsManagerTests: XCTestCase {
             bundlePath: "/Applications/Other.app"
         )))
     }
+
+    func testInitialSelectionPreferencePersistsChanges() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setPreferInitialSelectionFromFirstNonPinnedItem(true)
+
+        XCTAssertTrue(settings.preferInitialSelectionFromFirstNonPinnedItem)
+        XCTAssertTrue(defaults.bool(forKey: "preferInitialSelectionFromFirstNonPinnedItem"))
+    }
+
+    func testBehaviourPreferencesPersistChanges() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setKeepSearchTextAfterPaste(true)
+        settings.setTextDetailFontStyle(.regular)
+        settings.setTextDetailFontSize(.large)
+
+        XCTAssertTrue(settings.keepSearchTextAfterPaste)
+        XCTAssertEqual(settings.textDetailFontStyle, .regular)
+        XCTAssertEqual(settings.textDetailFontSize, .large)
+        XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
+        XCTAssertEqual(defaults.string(forKey: "textDetailFontStyle"), TextDetailFontStyle.regular.rawValue)
+        XCTAssertEqual(defaults.integer(forKey: "textDetailFontSize"), TextDetailFontSize.large.rawValue)
+    }
+
+    func testHistoryRetentionPreferencePersistsChanges() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setHistoryRetentionPeriod(.oneWeek)
+
+        XCTAssertEqual(settings.historyRetentionPeriod, .oneWeek)
+        XCTAssertEqual(defaults.string(forKey: "historyRetentionPeriod"), HistoryRetentionPeriod.oneWeek.rawValue)
+    }
 }

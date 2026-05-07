@@ -6,6 +6,24 @@ struct SettingsPrivacyView: View {
 
     var body: some View {
         Form {
+            Section("Auto-Clear History") {
+                Picker(
+                    "Clear History Entries",
+                    selection: Binding(
+                        get: { settings.historyRetentionPeriod },
+                        set: { settings.setHistoryRetentionPeriod($0) }
+                    )
+                ) {
+                    ForEach(HistoryRetentionPeriod.allCases, id: \.self) { period in
+                        Text(period.label).tag(period)
+                    }
+                }
+
+                Text("Automatically removes history entries older than the selected age.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Excluded Apps") {
                 Text("Buffer will ignore copied text and images from these apps.")
                     .font(.caption)

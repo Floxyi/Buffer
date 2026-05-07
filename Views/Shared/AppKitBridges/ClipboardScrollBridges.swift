@@ -117,16 +117,17 @@ private extension NSView {
 struct SelectableMonospacedTextView: NSViewRepresentable {
     let text: String
     let fontSize: CGFloat
+    let usesMonospacedFont: Bool
 
     func makeNSView(context: Context) -> MeasuringSelectableTextView {
         let textView = MeasuringSelectableTextView(frame: .zero)
-        textView.configure(fontSize: fontSize)
+        textView.configure(fontSize: fontSize, usesMonospacedFont: usesMonospacedFont)
         textView.setText(text)
         return textView
     }
 
     func updateNSView(_ nsView: MeasuringSelectableTextView, context: Context) {
-        nsView.configure(fontSize: fontSize)
+        nsView.configure(fontSize: fontSize, usesMonospacedFont: usesMonospacedFont)
         nsView.setText(text)
     }
 }
@@ -182,8 +183,10 @@ final class MeasuringSelectableTextView: NSTextView {
         updateContainerWidthIfNeeded()
     }
 
-    func configure(fontSize: CGFloat) {
-        font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+    func configure(fontSize: CGFloat, usesMonospacedFont: Bool) {
+        font = usesMonospacedFont
+            ? .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+            : .systemFont(ofSize: fontSize, weight: .regular)
         textColor = .labelColor
         insertionPointColor = .labelColor
     }

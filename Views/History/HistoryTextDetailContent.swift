@@ -3,14 +3,25 @@ import SwiftUI
 struct HistoryTextDetailContent: View {
     let item: ClipboardItem
     let chunkedText: ChunkedTextState
+    let textDetailFontStyle: TextDetailFontStyle
+    let textDetailFontSize: TextDetailFontSize
     let onLoadNextChunk: (ClipboardItem) -> Void
+
+    private var fontSize: CGFloat {
+        CGFloat(textDetailFontSize.rawValue)
+    }
+
+    private var usesMonospacedFont: Bool {
+        textDetailFontStyle == .monospaced
+    }
 
     var body: some View {
         if item.isTruncated {
             VStack(alignment: .leading, spacing: 12) {
                 SelectableMonospacedTextView(
                     text: item.textContent ?? "",
-                    fontSize: 10
+                    fontSize: fontSize,
+                    usesMonospacedFont: usesMonospacedFont
                 )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -26,7 +37,8 @@ struct HistoryTextDetailContent: View {
             VStack(alignment: .leading, spacing: 8) {
                 SelectableMonospacedTextView(
                     text: chunkedText.visibleText,
-                    fontSize: 10
+                    fontSize: fontSize,
+                    usesMonospacedFont: usesMonospacedFont
                 )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -48,7 +60,8 @@ struct HistoryTextDetailContent: View {
         } else {
             SelectableMonospacedTextView(
                 text: item.textContent ?? "",
-                fontSize: 10
+                fontSize: fontSize,
+                usesMonospacedFont: usesMonospacedFont
             )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }

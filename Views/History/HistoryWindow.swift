@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HistoryContentView: View {
     @ObservedObject var viewModel: HistoryViewModel
+    @ObservedObject var settings: SettingsManager
     let store: ClipboardStore
     let onCopyToClipboard: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
@@ -156,6 +157,8 @@ struct HistoryContentView: View {
             selectedItem: viewModel.selectedItem,
             previewImage: viewModel.previewImage,
             chunkedText: viewModel.chunkedText,
+            textDetailFontStyle: settings.textDetailFontStyle,
+            textDetailFontSize: settings.textDetailFontSize,
             onCopy: {
                 if let item = viewModel.selectedItem {
                     onCopyToClipboard(item)

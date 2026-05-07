@@ -94,6 +94,9 @@ struct SettingsView: View {
                     pendingTier: $pendingTier
                 )
 
+            case .behaviour:
+                SettingsBehaviourView(settings: settings)
+
             case .privacy:
                 SettingsPrivacyView(
                     settings: settings,

@@ -46,6 +46,57 @@ enum HistoryLimit: Int, CaseIterable, Codable, Sendable {
     }
 }
 
+enum TextDetailFontStyle: String, CaseIterable, Codable, Sendable {
+    case regular
+    case monospaced
+
+    var label: String {
+        switch self {
+        case .regular: return "Regular"
+        case .monospaced: return "Monospaced"
+        }
+    }
+}
+
+enum TextDetailFontSize: Int, CaseIterable, Codable, Sendable {
+    case small = 10
+    case medium = 12
+    case large = 14
+
+    var label: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        }
+    }
+}
+
+enum HistoryRetentionPeriod: String, CaseIterable, Codable, Sendable {
+    case never
+    case twelveHours
+    case twentyFourHours
+    case oneWeek
+
+    var label: String {
+        switch self {
+        case .never: return "Never"
+        case .twelveHours: return "Older than 12 hours"
+        case .twentyFourHours: return "Older than 24 hours"
+        case .oneWeek: return "Older than 1 week"
+        }
+    }
+
+    var maxAge: TimeInterval? {
+        switch self {
+        case .never: return nil
+        case .twelveHours: return 12 * 60 * 60
+        case .twentyFourHours: return 24 * 60 * 60
+        case .oneWeek: return 7 * 24 * 60 * 60
+        }
+    }
+}
+
 struct HotkeyModifiers: Codable, Equatable, Sendable {
     var shift: Bool
     var command: Bool
@@ -123,6 +174,11 @@ final class SettingsManager: ObservableObject {
         static let hotkeyKeyCode = "hotkeyKeyCode"
         static let historyLimit = "historyLimit"
         static let excludedApps = "excludedApps"
+        static let preferInitialSelectionFromFirstNonPinnedItem = "preferInitialSelectionFromFirstNonPinnedItem"
+        static let keepSearchTextAfterPaste = "keepSearchTextAfterPaste"
+        static let textDetailFontStyle = "textDetailFontStyle"
+        static let textDetailFontSize = "textDetailFontSize"
+        static let historyRetentionPeriod = "historyRetentionPeriod"
     }
 
     private let defaults: UserDefaults
@@ -132,6 +188,11 @@ final class SettingsManager: ObservableObject {
     @Published var hotkeyKeyCode: UInt16
     @Published private(set) var launchAtLogin: Bool
     @Published var historyLimit: HistoryLimit
+    @Published var preferInitialSelectionFromFirstNonPinnedItem: Bool
+    @Published var keepSearchTextAfterPaste: Bool
+    @Published var textDetailFontStyle: TextDetailFontStyle
+    @Published var textDetailFontSize: TextDetailFontSize
+    @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published private(set) var excludedApps: [ExcludedApp]
     @Published private(set) var persistedHistoryLimit: HistoryLimit
 
@@ -160,6 +221,21 @@ final class SettingsManager: ObservableObject {
         let initialHistoryLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
         self.historyLimit = initialHistoryLimit
         self.persistedHistoryLimit = initialHistoryLimit
+        self.preferInitialSelectionFromFirstNonPinnedItem = defaults.bool(
+            forKey: Key.preferInitialSelectionFromFirstNonPinnedItem
+        )
+        self.keepSearchTextAfterPaste = defaults.bool(forKey: Key.keepSearchTextAfterPaste)
+
+        let rawTextDetailFontStyle =
+            defaults.string(forKey: Key.textDetailFontStyle) ?? TextDetailFontStyle.monospaced.rawValue
+        self.textDetailFontStyle = TextDetailFontStyle(rawValue: rawTextDetailFontStyle) ?? .monospaced
+
+        let rawTextDetailFontSize = defaults.integer(forKey: Key.textDetailFontSize)
+        self.textDetailFontSize = TextDetailFontSize(rawValue: rawTextDetailFontSize) ?? .medium
+
+        let rawHistoryRetentionPeriod =
+            defaults.string(forKey: Key.historyRetentionPeriod) ?? HistoryRetentionPeriod.never.rawValue
+        self.historyRetentionPeriod = HistoryRetentionPeriod(rawValue: rawHistoryRetentionPeriod) ?? .never
 
         if let data = defaults.data(forKey: Key.excludedApps) {
             do {
@@ -197,6 +273,31 @@ final class SettingsManager: ObservableObject {
         }
     }
 
+    func setPreferInitialSelectionFromFirstNonPinnedItem(_ enabled: Bool) {
+        preferInitialSelectionFromFirstNonPinnedItem = enabled
+        persist()
+    }
+
+    func setKeepSearchTextAfterPaste(_ enabled: Bool) {
+        keepSearchTextAfterPaste = enabled
+        persist()
+    }
+
+    func setTextDetailFontStyle(_ style: TextDetailFontStyle) {
+        textDetailFontStyle = style
+        persist()
+    }
+
+    func setTextDetailFontSize(_ size: TextDetailFontSize) {
+        textDetailFontSize = size
+        persist()
+    }
+
+    func setHistoryRetentionPeriod(_ period: HistoryRetentionPeriod) {
+        historyRetentionPeriod = period
+        persist()
+    }
+
     func addExcludedApp(_ app: ExcludedApp) {
         guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
         excludedApps.append(app)
@@ -225,6 +326,14 @@ final class SettingsManager: ObservableObject {
         defaults.set(hotkeyModifiers.toArray(), forKey: Key.hotkeyModifiers)
         defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
         defaults.set(historyLimit.rawValue, forKey: Key.historyLimit)
+        defaults.set(
+            preferInitialSelectionFromFirstNonPinnedItem,
+            forKey: Key.preferInitialSelectionFromFirstNonPinnedItem
+        )
+        defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
+        defaults.set(textDetailFontStyle.rawValue, forKey: Key.textDetailFontStyle)
+        defaults.set(textDetailFontSize.rawValue, forKey: Key.textDetailFontSize)
+        defaults.set(historyRetentionPeriod.rawValue, forKey: Key.historyRetentionPeriod)
 
         do {
             let data = try JSONEncoder().encode(excludedApps)

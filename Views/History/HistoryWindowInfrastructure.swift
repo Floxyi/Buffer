@@ -125,6 +125,7 @@ final class HistoryPanel: NSPanel {
 @MainActor
 final class HistoryWindowController: NSWindowController {
     private let store: ClipboardStore
+    private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
     private let pasteController: PasteControlling
     private let ignoreNextCapturedChange: @MainActor () -> Void
@@ -141,16 +142,22 @@ final class HistoryWindowController: NSWindowController {
 
     init(
         store: ClipboardStore,
+        settingsManager: SettingsManager,
         activeApplicationProvider: ActiveApplicationProviding,
         pasteController: PasteControlling,
         ocrService: OCRServicing,
         ignoreNextCapturedChange: @escaping @MainActor () -> Void
     ) {
         self.store = store
+        self.settingsManager = settingsManager
         self.activeApplicationProvider = activeApplicationProvider
         self.pasteController = pasteController
         self.ignoreNextCapturedChange = ignoreNextCapturedChange
-        self.viewModel = HistoryViewModel(store: store, ocrService: ocrService)
+        self.viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settingsManager,
+            ocrService: ocrService
+        )
 
         let panel = HistoryPanel(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 500),
@@ -273,6 +280,7 @@ final class HistoryWindowController: NSWindowController {
     private func setupContent() {
         let rootView = HistoryContentView(
             viewModel: viewModel,
+            settings: settingsManager,
             store: store,
             onCopyToClipboard: { [weak self] item in
                 self?.copyToClipboard(item)

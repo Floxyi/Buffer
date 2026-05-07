@@ -24,6 +24,7 @@ final class HistoryViewModel: ObservableObject {
     @Published var hoveredItemID: UUID?
 
     private let store: ClipboardStore
+    private let settingsManager: SettingsManager
     private let ocrService: OCRServicing
     private var selectionAnchor: UUID?
     private var quickPasteNeedsModifierReset = false
@@ -36,8 +37,9 @@ final class HistoryViewModel: ObservableObject {
         return formatter
     }()
 
-    init(store: ClipboardStore, ocrService: OCRServicing) {
+    init(store: ClipboardStore, settingsManager: SettingsManager, ocrService: OCRServicing) {
         self.store = store
+        self.settingsManager = settingsManager
         self.ocrService = ocrService
         filteredItems = Self.makeFilteredItems(from: store.items, query: "", store: store)
         syncSelection()
@@ -112,7 +114,7 @@ final class HistoryViewModel: ObservableObject {
             using: NSEvent.modifierFlags,
             forceModifierReset: suppressQuickPasteUntilModifiersReleased
         )
-        syncSelection(preferredID: filteredItems.first?.id)
+        syncSelection(preferredID: preferredInitialSelectionID())
         windowOpenToken += 1
     }
 
@@ -146,6 +148,7 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func clearSearchAfterCommittedAction() {
+        guard !settingsManager.keepSearchTextAfterPaste else { return }
         guard !searchText.isEmpty else { return }
         searchText = ""
     }
@@ -335,14 +338,15 @@ final class HistoryViewModel: ObservableObject {
             return
         }
 
-        let targetID = preferredID ?? selectedID ?? selectedIDs.first ?? filteredItems.first?.id
+        let targetID = preferredID ?? selectedID ?? selectedIDs.first ?? preferredInitialSelectionID()
         guard let targetID,
               let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
-            if let firstID = filteredItems.first?.id {
-                selectedIDs = [firstID]
-                selectionAnchor = firstID
-                selectedID = firstID
-                selectedIndex = 0
+            if let fallbackID = preferredInitialSelectionID(),
+               let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID }) {
+                selectedIDs = [fallbackID]
+                selectionAnchor = fallbackID
+                selectedID = fallbackID
+                selectedIndex = fallbackIndex
             }
             return
         }
@@ -351,6 +355,14 @@ final class HistoryViewModel: ObservableObject {
         selectionAnchor = targetID
         selectedID = targetID
         selectedIndex = index
+    }
+
+    private func preferredInitialSelectionID() -> UUID? {
+        if settingsManager.preferInitialSelectionFromFirstNonPinnedItem {
+            return filteredItems.first(where: { !$0.isPinned })?.id ?? filteredItems.first?.id
+        }
+
+        return filteredItems.first?.id
     }
 
     private func quickPasteRelevantFlags(from flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {

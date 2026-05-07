@@ -89,6 +89,20 @@ actor ClipboardRepository {
         return items
     }
 
+    func pruneExpired(maxAge: TimeInterval, now: Date = Date()) -> [ClipboardItem] {
+        let cutoff = now.addingTimeInterval(-maxAge)
+        let expiredItems = items.filter { $0.timestamp < cutoff }
+        guard !expiredItems.isEmpty else { return items }
+
+        for item in expiredItems {
+            assetStore.deleteAssociatedFiles(for: item)
+        }
+
+        items.removeAll { $0.timestamp < cutoff }
+        persist()
+        return items
+    }
+
     private func persist() {
         persistence.saveHistory(items)
     }
@@ -98,12 +112,14 @@ actor ClipboardRepository {
 final class ClipboardStore: ObservableObject {
     @Published private(set) var items: [ClipboardItem] = []
 
+    private let retentionCleanupIntervalNanoseconds: UInt64 = 60_000_000_000
     private(set) var currentMaxItems: Int
     private let assetStore: ClipboardAssetStore
     private let repository: ClipboardRepository
     private let settingsManager: SettingsManager
     private var cancellables: Set<AnyCancellable> = []
     private var searchCache: [UUID: String] = [:]
+    private var retentionCleanupTask: Task<Void, Never>?
 
     init(settingsManager: SettingsManager, storagePaths: ClipboardStoragePaths? = nil) {
         self.settingsManager = settingsManager
@@ -132,7 +148,11 @@ final class ClipboardStore: ObservableObject {
         let persistence = ClipboardHistoryPersistence(paths: paths)
         assetStore.ensureDirectoriesExist()
 
-        let initialItems = persistence.loadHistory()
+        let initialItems = Self.prunedInitialItems(
+            from: persistence.loadHistory(),
+            retentionPeriod: settingsManager.historyRetentionPeriod,
+            persistence: persistence
+        )
         assetStore.cleanupOrphanedAssets(referencedBy: initialItems)
 
         self.assetStore = assetStore
@@ -144,12 +164,18 @@ final class ClipboardStore: ObservableObject {
         self.items = initialItems
 
         bindSettings()
+        startBackgroundRetentionCleanup()
+    }
+
+    deinit {
+        retentionCleanupTask?.cancel()
     }
 
     func add(_ item: ClipboardItem) {
         Task {
             let nextItems = await repository.add(item, maxItems: currentMaxItems)
             applySnapshot(nextItems)
+            await applyRetentionPolicyIfNeeded()
         }
     }
 
@@ -245,11 +271,57 @@ final class ClipboardStore: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        settingsManager.$historyRetentionPeriod
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task {
+                    await self.applyRetentionPolicyIfNeeded()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     private func applySnapshot(_ nextItems: [ClipboardItem]) {
         items = nextItems
         let validIDs = Set(nextItems.map(\.id))
         searchCache = searchCache.filter { validIDs.contains($0.key) }
+    }
+
+    private func applyRetentionPolicyIfNeeded() async {
+        guard let maxAge = settingsManager.historyRetentionPeriod.maxAge else { return }
+        let pruned = await repository.pruneExpired(maxAge: maxAge)
+        applySnapshot(pruned)
+    }
+
+    private func startBackgroundRetentionCleanup() {
+        guard retentionCleanupTask == nil else { return }
+
+        retentionCleanupTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                await self.applyRetentionPolicyIfNeeded()
+                try? await Task.sleep(nanoseconds: self.retentionCleanupIntervalNanoseconds)
+            }
+        }
+    }
+
+    private static func prunedInitialItems(
+        from items: [ClipboardItem],
+        retentionPeriod: HistoryRetentionPeriod,
+        persistence: ClipboardHistoryPersistence
+    ) -> [ClipboardItem] {
+        guard let maxAge = retentionPeriod.maxAge else { return items }
+
+        let cutoff = Date().addingTimeInterval(-maxAge)
+        let retainedItems = items.filter { $0.timestamp >= cutoff }
+
+        if retainedItems.count != items.count {
+            persistence.saveHistory(retainedItems)
+        }
+
+        return retainedItems
     }
 }

@@ -16,6 +16,8 @@ struct HistoryDetailPane: View {
     let selectedItem: ClipboardItem?
     let previewImage: NSImage?
     let chunkedText: ChunkedTextState
+    let textDetailFontStyle: TextDetailFontStyle
+    let textDetailFontSize: TextDetailFontSize
     let onCopy: () -> Void
     let onSaveImage: () -> Void
     let onExtractText: () -> Void
@@ -61,6 +63,8 @@ struct HistoryDetailPane: View {
                         previewImage: previewImage,
                         chunkedText: chunkedText,
                         isExtractingText: isExtractingText,
+                        textDetailFontStyle: textDetailFontStyle,
+                        textDetailFontSize: textDetailFontSize,
                         onCopyOCRText: onCopyOCRText,
                         onLoadNextChunk: onLoadNextChunk
                     )
