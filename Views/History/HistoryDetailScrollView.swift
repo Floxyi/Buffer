@@ -57,7 +57,7 @@ struct HistoryDetailScrollView<Content: View>: View {
                 .frame(width: scrollbarWidth, height: trackHeight)
                 .contentShape(Rectangle())
                 .padding(.vertical, padding)
-                .padding(.trailing, padding + paddingAdjustment)
+                .padding(.trailing, padding)
                 .zIndex(10)
             }
         }

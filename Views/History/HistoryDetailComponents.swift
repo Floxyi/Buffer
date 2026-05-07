@@ -44,7 +44,8 @@ struct HistoryDetailPane: View {
                 onDelete: onDelete
             )
 
-            Divider()
+            //Divider()
+            BufferPanelSeparator(isVertical: false)
 
             HistoryDetailScrollView {
                 if selectionCount > 1 {
@@ -71,6 +72,7 @@ struct HistoryDetailPane: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
+            .padding(.trailing, 1)
         }
         .background {
             Rectangle()

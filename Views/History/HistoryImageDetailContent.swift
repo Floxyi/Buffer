@@ -12,22 +12,20 @@ struct HistoryImageDetailContent: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Color.primary.opacity(0.04))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if let previewImage {
                     Image(nsImage: previewImage)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(
-                            maxWidth: .infinity,
-                            maxHeight: HistoryWindowStyle.imagePreviewHeight
-                        )
+                        .frame(maxWidth: .infinity)
                 } else {
                     ProgressView()
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .frame(maxWidth: .infinity)
-            .frame(height: HistoryWindowStyle.imagePreviewHeight)
+            .frame(height: 333)
 
             if isExtractingText {
                 ProgressView()

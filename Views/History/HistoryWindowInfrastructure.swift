@@ -10,9 +10,9 @@ protocol BufferEffectView: AnyObject {
 typealias BufferEffectHostView = NSView & BufferEffectView
 
 enum HistoryWindowStyle {
+    static let panelSize = NSSize(width: 800, height: 500)
     static let panelCornerRadius = CGFloat(24)
     static let panelBorderOpacity = 0.18
-    static let imagePreviewHeight = CGFloat(320)
 }
 
 @MainActor
@@ -160,8 +160,13 @@ final class HistoryWindowController: NSWindowController {
         )
 
         let panel = HistoryPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 500),
-            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: HistoryWindowStyle.panelSize.width,
+                height: HistoryWindowStyle.panelSize.height
+            ),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -248,11 +253,18 @@ final class HistoryWindowController: NSWindowController {
         panel.hidesOnDeactivate = false
         panel.animationBehavior = .none
 
+        panel.setContentSize(HistoryWindowStyle.panelSize)
+        panel.minSize = HistoryWindowStyle.panelSize
+        panel.maxSize = HistoryWindowStyle.panelSize
+
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
         panel.isOpaque = false
         panel.backgroundColor = .clear
+
+        panel.isMovable = false
         panel.isMovableByWindowBackground = false
+
         panel.hasShadow = false
 
         panel.contentView?.wantsLayer = true
