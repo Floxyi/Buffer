@@ -28,11 +28,10 @@
 ## ⚙️ Settings
 
 - **General** — Control launch at login, saved history size, and the global keyboard shortcut
+- **Behaviour** — Control app behaviour like item selection or text appereance
 - **Privacy** — Exclude specific apps so their copied content never appears in Buffer history
 
-<p align="center">
-  <img width="1633" height="614" alt="SCR-20260505-qaxi" src="https://github.com/user-attachments/assets/f1dc3598-5b27-4a1b-95a3-3114a97efe82" />
-</p>
+<img width="1960" height="1544" alt="image" src="https://github.com/user-attachments/assets/51529f98-9813-4682-8f20-ba8fcab13cee" />
 
 ---
 
