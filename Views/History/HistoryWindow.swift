@@ -65,7 +65,9 @@ struct HistoryContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             guard shouldRefocusSearchOnActivate else { return }
+
             focusSearchField()
+
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 shouldRefocusSearchOnActivate = false
@@ -149,8 +151,10 @@ struct HistoryContentView: View {
                     selectedItemID: viewModel.selectedID,
                     openScrollRequest: viewModel.openListScrollRequest,
                     openScrollRequestToken: viewModel.openListScrollRequestToken,
-                    jumpScrollTargetID: viewModel.pendingJumpToHistoryItemID,
-                    onJumpScrollCompleted: viewModel.completePendingJumpToHistoryScroll,
+                    isShowingFullHistory: viewModel.isShowingFullHistory,
+                    jumpScrollRequest: viewModel.activeJumpToHistoryRequest,
+                    onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
+                    onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
                     onScrollOffsetChanged: viewModel.updateLastListScrollOffset
                 )
             }
@@ -189,6 +193,7 @@ struct HistoryContentView: View {
             onSaveImage: {
                 guard let item = viewModel.selectedItem,
                       let image = viewModel.previewImage ?? store.image(for: item) else { return }
+
                 PasteImageSupport.saveImageToDisk(image)
             },
             onExtractText: {
@@ -221,6 +226,7 @@ struct HistoryContentView: View {
 
     private func performCopyOnlyAction() {
         guard let item = viewModel.selectedItem else { return }
+
         viewModel.clearSearchAfterCommittedAction()
         onCopyToClipboard(item)
         onDismiss()
@@ -228,6 +234,7 @@ struct HistoryContentView: View {
 
     private func jumpToHistorySelection() {
         guard let item = viewModel.selectedItem else { return }
+
         viewModel.jumpToHistory(for: item)
     }
 

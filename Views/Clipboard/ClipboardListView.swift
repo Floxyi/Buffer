@@ -19,15 +19,24 @@ private struct PendingMeasuredScrollTarget: Equatable {
     let requestID: UInt
 }
 
+private struct JumpScrollTaskKey: Equatable {
+    let request: HistoryViewModel.JumpToHistoryRequest?
+    let itemCount: Int
+    let isShowingFullHistory: Bool
+}
+
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
     @State private var scrollController = ScrollController()
     @State private var contextMenuHighlightedItemID: UUID?
     @State private var scrollRequestID: UInt = 0
     @State private var pendingMeasuredScrollTarget: PendingMeasuredScrollTarget?
+    @State private var pendingMeasuredScrollCompletion: ((Bool) -> Void)?
+    @State private var measuredScrollTask: Task<Void, Never>?
     @State private var measuredTargetFrame: CGRect?
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmTask: Task<Void, Never>?
+    @State private var activeJumpScrollRequest: HistoryViewModel.JumpToHistoryRequest?
 
     let items: [ClipboardItem]
 
@@ -54,16 +63,25 @@ struct ClipboardListView: View {
     var selectedItemID: UUID? = nil
     var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
     var openScrollRequestToken: Int = 0
-    var jumpScrollTargetID: UUID? = nil
-    var onJumpScrollCompleted: (UUID) -> Void = { _ in }
+    var isShowingFullHistory = false
+
+    /// Dedicated jump-to-history request. This must stay separate from open/keyboard scrolling.
+    var jumpScrollRequest: HistoryViewModel.JumpToHistoryRequest? = nil
+    var onJumpScrollStarted: (HistoryViewModel.JumpToHistoryRequest) -> Void = { _ in }
+    var onJumpScrollCompleted: (HistoryViewModel.JumpToHistoryRequest, Bool) -> Void = { _, _ in }
+
     var onScrollOffsetChanged: (CGFloat) -> Void = { _ in }
 
     private var itemIDs: [UUID] {
         items.map(\.id)
     }
 
-    private var jumpScrollTaskKey: String {
-        "\(jumpScrollTargetID?.uuidString ?? "nil")-\(items.count)-\(store.items.count)"
+    private var jumpScrollTaskKey: JumpScrollTaskKey {
+        JumpScrollTaskKey(
+            request: jumpScrollRequest,
+            itemCount: items.count,
+            isShowingFullHistory: isShowingFullHistory
+        )
     }
 
     private var displayRowsForRendering: [ClipboardListStructure.DisplayRow] {
@@ -149,8 +167,11 @@ struct ClipboardListView: View {
                 .onPreferenceChange(ClipboardScrollTargetFramePreferenceKey.self) { frame in
                     measuredTargetFrame = frame
 
-                    guard let pendingMeasuredScrollTarget,
-                          pendingMeasuredScrollTarget.requestID == scrollRequestID else {
+                    guard let pendingMeasuredScrollTarget else {
+                        return
+                    }
+
+                    guard pendingMeasuredScrollTarget.requestID == scrollRequestID else {
                         return
                     }
 
@@ -158,7 +179,10 @@ struct ClipboardListView: View {
                         to: pendingMeasuredScrollTarget.itemID,
                         centered: pendingMeasuredScrollTarget.centered
                     ) {
-                        self.pendingMeasuredScrollTarget = nil
+                        finishMeasuredScroll(
+                            requestID: pendingMeasuredScrollTarget.requestID,
+                            succeeded: true
+                        )
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
@@ -172,6 +196,7 @@ struct ClipboardListView: View {
                 .onDisappear {
                     assetPrewarmTask?.cancel()
                     assetPrewarmTask = nil
+                    cancelPendingMeasuredScroll()
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
@@ -180,10 +205,12 @@ struct ClipboardListView: View {
                 }
                 .onChange(of: openScrollRequestToken) { _ in
                     guard let openScrollRequest else { return }
+
                     applyOpenScrollRequest(openScrollRequest, using: scrollProxy)
                 }
                 .onChange(of: selectedIndex) { newValue in
                     guard scrollTrigger else { return }
+
                     scrollTrigger = false
 
                     if newValue == 0 {
@@ -199,7 +226,7 @@ struct ClipboardListView: View {
                 .onChange(of: selectionNavigationToken) { _ in
                     guard let selectedItemID else { return }
 
-                    if jumpScrollTargetID == selectedItemID {
+                    if jumpScrollRequest?.itemID == selectedItemID {
                         return
                     }
 
@@ -209,13 +236,19 @@ struct ClipboardListView: View {
                         using: scrollProxy
                     )
                 }
+                .onChange(of: jumpScrollRequest) { newRequest in
+                    if activeJumpScrollRequest != nil,
+                       activeJumpScrollRequest != newRequest {
+                        activeJumpScrollRequest = nil
+                    }
+                }
                 .task(id: jumpScrollTaskKey) {
-                    guard let jumpScrollTargetID else {
+                    guard let jumpScrollRequest else {
                         return
                     }
 
                     await waitAndStartJumpScrollIfReady(
-                        to: jumpScrollTargetID,
+                        jumpScrollRequest,
                         using: scrollProxy
                     )
                 }
@@ -322,11 +355,14 @@ struct ClipboardListView: View {
     }
 
     private func waitAndStartJumpScrollIfReady(
-        to itemID: UUID,
+        _ request: HistoryViewModel.JumpToHistoryRequest,
         using scrollProxy: ScrollViewProxy
     ) async {
+        // Jump-to-history intentionally waits until the full-history list is rendered.
+        // Do not route this through openListScrollRequest; that can fire before the
+        // search result list has transitioned back to the full list.
         for attempt in 0..<12 {
-            guard jumpScrollTargetID == itemID else {
+            guard jumpScrollRequest == request else {
                 return
             }
 
@@ -336,39 +372,69 @@ struct ClipboardListView: View {
                 try? await Task.sleep(nanoseconds: 70_000_000)
             }
 
+            guard !Task.isCancelled else {
+                return
+            }
+
             rebuildListCache()
             updateContentHeightOverride()
             scrollController.syncMetricsImmediately()
 
-            guard items.count == store.items.count else {
+            let fullHistoryReady = isShowingFullHistory
+            let targetExists = itemExists(request.itemID)
+
+            logScrollDiagnostics(
+                "Jump list check item=\(request.itemID.uuidString) generation=\(request.generation) attempt=\(attempt) fullHistoryReady=\(fullHistoryReady) targetExists=\(targetExists)"
+            )
+
+            guard fullHistoryReady else {
                 continue
             }
 
-            guard itemExists(itemID) else {
+            guard targetExists else {
                 continue
             }
+
+            activeJumpScrollRequest = request
+            onJumpScrollStarted(request)
 
             scheduleMeasuredScroll(
-                to: itemID,
+                to: request.itemID,
                 centered: true,
                 using: scrollProxy,
-                completion: {
-                    onJumpScrollCompleted(itemID)
+                completion: { succeeded in
+                    finishJumpScroll(request, succeeded: succeeded)
                 }
             )
 
             return
         }
+
+        onJumpScrollCompleted(request, false)
+    }
+
+    private func finishJumpScroll(
+        _ request: HistoryViewModel.JumpToHistoryRequest,
+        succeeded: Bool
+    ) {
+        guard activeJumpScrollRequest == request else {
+            return
+        }
+
+        activeJumpScrollRequest = nil
+        onJumpScrollCompleted(request, succeeded)
     }
 
     private func scheduleMeasuredScroll(
         to itemID: UUID,
         centered: Bool,
         using scrollProxy: ScrollViewProxy,
-        completion: (() -> Void)? = nil
+        completion: ((Bool) -> Void)? = nil
     ) {
         scrollRequestID &+= 1
         let requestID = scrollRequestID
+
+        cancelPendingMeasuredScroll()
 
         measuredTargetFrame = nil
         pendingMeasuredScrollTarget = PendingMeasuredScrollTarget(
@@ -376,18 +442,30 @@ struct ClipboardListView: View {
             centered: centered,
             requestID: requestID
         )
+        pendingMeasuredScrollCompletion = completion
 
-        Task { @MainActor in
+        measuredScrollTask = Task { @MainActor in
             let attemptCount = centered ? 16 : 5
             let anchor: UnitPoint = centered ? .center : UnitPoint(x: 0.5, y: 0.5)
 
             for attempt in 0..<attemptCount {
-                guard requestID == scrollRequestID else { return }
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                guard requestID == scrollRequestID else {
+                    finishMeasuredScroll(requestID: requestID, succeeded: false)
+                    return
+                }
 
                 if attempt == 0 {
                     await Task.yield()
                 } else {
                     try? await Task.sleep(nanoseconds: 35_000_000)
+                }
+
+                guard !Task.isCancelled else {
+                    return
                 }
 
                 guard itemExists(itemID) else {
@@ -420,16 +498,48 @@ struct ClipboardListView: View {
                 await Task.yield()
                 try? await Task.sleep(nanoseconds: 14_000_000)
 
+                guard !Task.isCancelled else {
+                    return
+                }
+
                 if performExactMeasuredScroll(to: itemID, centered: centered) {
-                    pendingMeasuredScrollTarget = nil
-                    completion?()
+                    logScrollDiagnostics("Measured scroll succeeded for \(itemID.uuidString)")
+                    finishMeasuredScroll(requestID: requestID, succeeded: true)
                     return
                 }
             }
 
-            pendingMeasuredScrollTarget = nil
-            completion?()
+            logScrollDiagnostics("Measured scroll failed for \(itemID.uuidString)")
+            finishMeasuredScroll(requestID: requestID, succeeded: false)
         }
+    }
+
+    private func finishMeasuredScroll(requestID: UInt, succeeded: Bool) {
+        guard pendingMeasuredScrollTarget?.requestID == requestID else {
+            return
+        }
+
+        pendingMeasuredScrollTarget = nil
+        measuredTargetFrame = nil
+        measuredScrollTask = nil
+
+        let completion = pendingMeasuredScrollCompletion
+        pendingMeasuredScrollCompletion = nil
+
+        completion?(succeeded)
+    }
+
+    private func cancelPendingMeasuredScroll() {
+        measuredScrollTask?.cancel()
+        measuredScrollTask = nil
+
+        pendingMeasuredScrollTarget = nil
+        measuredTargetFrame = nil
+
+        let completion = pendingMeasuredScrollCompletion
+        pendingMeasuredScrollCompletion = nil
+
+        completion?(false)
     }
 
     private func scrollToEstimatedPosition(itemID: UUID, centered: Bool) {
@@ -447,6 +557,10 @@ struct ClipboardListView: View {
         let viewportHeight = max(1, scrollController.viewportHeight)
         let targetY = centered ? viewportHeight / 2 : viewportHeight * 0.35
         let targetOffset = estimatedMidY - targetY
+
+        logScrollDiagnostics(
+            "Estimated jump scroll item=\(itemID.uuidString) targetOffset=\(targetOffset)"
+        )
 
         scrollController.scrollTo(offset: targetOffset)
         scrollController.syncMetricsImmediately()
@@ -503,8 +617,7 @@ struct ClipboardListView: View {
         scrollRequestID &+= 1
         let requestID = scrollRequestID
 
-        pendingMeasuredScrollTarget = nil
-        measuredTargetFrame = nil
+        cancelPendingMeasuredScroll()
 
         Task { @MainActor in
             for attempt in 0..<12 {
@@ -527,8 +640,7 @@ struct ClipboardListView: View {
         scrollRequestID &+= 1
         let requestID = scrollRequestID
 
-        pendingMeasuredScrollTarget = nil
-        measuredTargetFrame = nil
+        cancelPendingMeasuredScroll()
 
         Task { @MainActor in
             for attempt in 0..<12 {
@@ -638,6 +750,13 @@ struct ClipboardListView: View {
         }
 
         return items[nextIndex].id
+    }
+
+    private func logScrollDiagnostics(_ message: @autoclosure () -> String) {
+    #if DEBUG
+        let resolvedMessage = message()
+        BufferLogger.ui.debug("\(resolvedMessage, privacy: .public)")
+    #endif
     }
 }
 

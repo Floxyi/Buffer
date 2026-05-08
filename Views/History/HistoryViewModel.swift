@@ -14,12 +14,37 @@ final class HistoryViewModel: ObservableObject {
         let mode: Mode
     }
 
+    struct JumpToHistoryRequest: Equatable {
+        let itemID: UUID
+        let generation: UInt
+    }
+
+    enum JumpToHistoryState: Equatable {
+        case idle
+        case pending(JumpToHistoryRequest)
+        case scrolling(JumpToHistoryRequest)
+
+        var request: JumpToHistoryRequest? {
+            switch self {
+            case .idle:
+                return nil
+            case .pending(let request), .scrolling(let request):
+                return request
+            }
+        }
+
+        var itemID: UUID? {
+            request?.itemID
+        }
+    }
+
     @Published var searchText = "" {
         didSet {
             guard !isApplyingProgrammaticSearchChange else {
                 isApplyingProgrammaticSearchChange = false
                 return
             }
+
             rebuildFilteredItems(preferredID: filteredItems.first?.id)
         }
     }
@@ -38,9 +63,7 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var selectionNavigationToken = 0
     @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(0))
     @Published private(set) var openListScrollRequestToken = 0
-
-    @Published private(set) var pendingJumpToHistoryItemID: UUID?
-    @Published private(set) var pendingJumpToHistoryToken = 0
+    @Published private(set) var jumpToHistoryState = JumpToHistoryState.idle
 
     @Published var scrollTrigger = false
     @Published var hoveredItemID: UUID?
@@ -48,12 +71,17 @@ final class HistoryViewModel: ObservableObject {
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
     private let ocrService: OCRServicing
+
     private var selectionAnchor: UUID?
     private var quickPasteNeedsModifierReset = false
     private var isApplyingProgrammaticSearchChange = false
     private var pendingPreferredSelectionID: UUID?
     private var lastListScrollOffset = CGFloat.zero
     private var cancellables: Set<AnyCancellable> = []
+
+    private var jumpToHistoryGenerationCounter: UInt = 0
+    private var jumpToHistoryFailureCount = 0
+    private let maxJumpToHistoryRetryCount = 2
 
     private static let copiedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -133,6 +161,14 @@ final class HistoryViewModel: ObservableObject {
         return Self.copiedAtFormatter.string(from: timestamp)
     }
 
+    var activeJumpToHistoryRequest: JumpToHistoryRequest? {
+        jumpToHistoryState.request
+    }
+
+    var isShowingFullHistory: Bool {
+        searchText.isEmpty && filteredItems.count == store.items.count
+    }
+
     func handleWindowOpen(
         focusSearch: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
@@ -174,6 +210,7 @@ final class HistoryViewModel: ObservableObject {
             if relevantFlags.isEmpty {
                 quickPasteNeedsModifierReset = false
             }
+
             showsQuickPasteNumbers = false
             return
         }
@@ -191,6 +228,7 @@ final class HistoryViewModel: ObservableObject {
     func clearSearchAfterCommittedAction() {
         guard !settingsManager.keepSearchTextAfterPaste else { return }
         guard !searchText.isEmpty else { return }
+
         searchText = ""
     }
 
@@ -238,6 +276,7 @@ final class HistoryViewModel: ObservableObject {
 
     func navigateUp() {
         guard selectedIndex > 0 else { return }
+
         scrollTrigger = true
         selectedIndex -= 1
         syncSelection(preferredID: filteredItems[safe: selectedIndex]?.id)
@@ -245,6 +284,7 @@ final class HistoryViewModel: ObservableObject {
 
     func navigateDown() {
         guard selectedIndex < filteredItems.count - 1 else { return }
+
         scrollTrigger = true
         selectedIndex += 1
         syncSelection(preferredID: filteredItems[safe: selectedIndex]?.id)
@@ -252,6 +292,7 @@ final class HistoryViewModel: ObservableObject {
 
     func extendSelectionUp() {
         guard selectedIndex > 0 else { return }
+
         scrollTrigger = true
 
         let currentItem = filteredItems[selectedIndex]
@@ -271,6 +312,7 @@ final class HistoryViewModel: ObservableObject {
 
     func extendSelectionDown() {
         guard selectedIndex < filteredItems.count - 1 else { return }
+
         scrollTrigger = true
 
         let currentItem = filteredItems[selectedIndex]
@@ -290,6 +332,7 @@ final class HistoryViewModel: ObservableObject {
 
     func togglePinForSelectedItem() {
         guard let item = selectedItem else { return }
+
         let selectedItemID = item.id
         store.togglePin(for: item)
         syncSelection(preferredID: selectedItemID)
@@ -297,6 +340,7 @@ final class HistoryViewModel: ObservableObject {
 
     func deleteSelectedItem() {
         guard let item = selectedItem else { return }
+
         pendingPreferredSelectionID = preferredSelectionID(afterDeleting: item)
         store.delete(item)
     }
@@ -316,8 +360,19 @@ final class HistoryViewModel: ObservableObject {
     func jumpToHistory(for item: ClipboardItem) {
         let targetID = item.id
 
-        pendingJumpToHistoryItemID = targetID
-        pendingJumpToHistoryToken &+= 1
+        jumpToHistoryGenerationCounter &+= 1
+        jumpToHistoryFailureCount = 0
+
+        let request = JumpToHistoryRequest(
+            itemID: targetID,
+            generation: jumpToHistoryGenerationCounter
+        )
+
+        jumpToHistoryState = .pending(request)
+
+        logJumpToHistory(
+            "Jump to history requested item=\(targetID.uuidString) generation=\(request.generation)"
+        )
 
         if !searchText.isEmpty {
             isApplyingProgrammaticSearchChange = true
@@ -328,12 +383,80 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
-    func completePendingJumpToHistoryScroll(for itemID: UUID) {
-        guard pendingJumpToHistoryItemID == itemID else {
+    func markJumpToHistoryScrollStarted(_ request: JumpToHistoryRequest) {
+        guard jumpToHistoryState.request == request else {
             return
         }
 
-        pendingJumpToHistoryItemID = nil
+        jumpToHistoryState = .scrolling(request)
+
+        logJumpToHistory(
+            "Jump to history scroll started item=\(request.itemID.uuidString) generation=\(request.generation)"
+        )
+    }
+
+    func completeJumpToHistoryScroll(_ request: JumpToHistoryRequest, succeeded: Bool) {
+        guard jumpToHistoryState.request == request else {
+            return
+        }
+
+        if succeeded {
+            logJumpToHistory(
+                "Jump to history completed item=\(request.itemID.uuidString) generation=\(request.generation)"
+            )
+
+            jumpToHistoryState = .idle
+            jumpToHistoryFailureCount = 0
+            return
+        }
+
+        switch jumpToHistoryState {
+        case .idle:
+            return
+
+        case .scrolling:
+            /*
+             The list already attempted the jump. Even if measured verification failed,
+             do not re-pend the jump here. Retrying after a visible scroll causes the
+             list to snap back to the selected item and blocks normal user scrolling.
+             */
+            logJumpToHistory(
+                "Jump to history finished without verification item=\(request.itemID.uuidString) generation=\(request.generation)"
+            )
+
+            jumpToHistoryState = .idle
+            jumpToHistoryFailureCount = 0
+
+        case .pending:
+            /*
+             Retry only when the list never actually started the jump, for example if
+             the full-history list was not ready yet.
+             */
+            jumpToHistoryFailureCount += 1
+
+            logJumpToHistory(
+                "Jump to history pending retry item=\(request.itemID.uuidString) attempt=\(jumpToHistoryFailureCount)"
+            )
+
+            guard jumpToHistoryFailureCount <= maxJumpToHistoryRetryCount else {
+                logJumpToHistory(
+                    "Jump to history abandoned item=\(request.itemID.uuidString)"
+                )
+
+                jumpToHistoryState = .idle
+                jumpToHistoryFailureCount = 0
+                return
+            }
+
+            jumpToHistoryGenerationCounter &+= 1
+
+            let retryRequest = JumpToHistoryRequest(
+                itemID: request.itemID,
+                generation: jumpToHistoryGenerationCounter
+            )
+
+            jumpToHistoryState = .pending(retryRequest)
+        }
     }
 
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
@@ -346,6 +469,7 @@ final class HistoryViewModel: ObservableObject {
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {
         guard let item = filteredItems[safe: index] else { return nil }
+
         selectSingle(item.id)
         return item
     }
@@ -369,6 +493,7 @@ final class HistoryViewModel: ObservableObject {
 
     func extractSelectedImageText() async {
         guard let item = selectedItem else { return }
+
         isExtractingText = true
 
         let image = previewImage ?? loadPreviewImage(for: item)
@@ -482,6 +607,13 @@ final class HistoryViewModel: ObservableObject {
         let preferredID = pendingPreferredSelectionID
         pendingPreferredSelectionID = nil
         return preferredID
+    }
+
+    private func logJumpToHistory(_ message: @autoclosure () -> String) {
+    #if DEBUG
+        let resolvedMessage = message()
+        BufferLogger.ui.debug("\(resolvedMessage, privacy: .public)")
+    #endif
     }
 
     private static func makeFilteredItems(from items: [ClipboardItem], query: String, store: ClipboardStore) -> [ClipboardItem] {
