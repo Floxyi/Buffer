@@ -27,7 +27,7 @@ private struct JumpScrollTaskKey: Equatable {
 
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
-    @State private var scrollController = ScrollController()
+    @StateObject private var scrollController = ScrollController()
     @State private var contextMenuHighlightedItemID: UUID?
     @State private var scrollRequestID: UInt = 0
     @State private var pendingMeasuredScrollTarget: PendingMeasuredScrollTarget?
@@ -93,8 +93,25 @@ struct ClipboardListView: View {
         return ClipboardListStructure.displayRows(from: items)
     }
 
+    private var estimatedRenderedContentHeight: CGFloat {
+        ClipboardListStructure.estimatedContentHeight(for: displayRowsForRendering)
+    }
+
+    private var hasVisibleScrollbar: Bool {
+        let viewportHeight = scrollController.viewportHeight
+        guard viewportHeight > 1 else {
+            return false
+        }
+
+        return max(0, estimatedRenderedContentHeight - viewportHeight) > 1
+    }
+
     private var contentTrailingPadding: CGFloat {
-        ClipboardListStructure.LayoutMetrics.scrollbarWidth + 2 * ClipboardListStructure.LayoutMetrics.contentPadding
+        if hasVisibleScrollbar {
+            return ClipboardListStructure.LayoutMetrics.scrollbarWidth + 2 * ClipboardListStructure.LayoutMetrics.contentPadding
+        }
+
+        return ClipboardListStructure.LayoutMetrics.contentPadding
     }
 
     private var highlightedItemID: UUID? {
