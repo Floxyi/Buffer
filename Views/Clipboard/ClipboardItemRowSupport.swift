@@ -11,6 +11,16 @@ struct ClipboardItemRowAssets {
         sourceAppIcon: nil,
         imageDimensionsText: nil
     )
+
+    func shouldTreatAsLoaded(for item: ClipboardItem) -> Bool {
+        switch item.type {
+        case .text:
+            return true
+
+        case .image:
+            return thumbnail != nil || imageDimensionsText != nil
+        }
+    }
 }
 
 @MainActor
@@ -27,9 +37,7 @@ enum ClipboardItemRowAssetLoader {
         return cache
     }()
 
-    private static var missingThumbnailKeys = Set<String>()
     private static var imageDimensionsTextCache: [UUID: String] = [:]
-    private static var missingImageDimensionsTextIDs = Set<UUID>()
     private static var missingSourceIconKeys = Set<String>()
 
     static func loadAssets(
@@ -77,17 +85,11 @@ enum ClipboardItemRowAssetLoader {
             return cachedThumbnail
         }
 
-        if missingThumbnailKeys.contains(key) {
-            return nil
-        }
-
         guard let thumbnail = store.thumbnail(for: item, maxPixelSize: pixelSize) else {
-            missingThumbnailKeys.insert(key)
             return nil
         }
 
         thumbnailCache.setObject(thumbnail, forKey: key as NSString)
-        missingThumbnailKeys.remove(key)
 
         return thumbnail
     }
@@ -100,17 +102,11 @@ enum ClipboardItemRowAssetLoader {
             return cachedText
         }
 
-        if missingImageDimensionsTextIDs.contains(item.id) {
-            return nil
-        }
-
         guard let dimensionsText = store.imageDimensions(for: item) else {
-            missingImageDimensionsTextIDs.insert(item.id)
             return nil
         }
 
         imageDimensionsTextCache[item.id] = dimensionsText
-        missingImageDimensionsTextIDs.remove(item.id)
 
         return dimensionsText
     }
@@ -181,22 +177,12 @@ enum ClipboardItemRowAssetLoader {
     static func clearCaches() {
         thumbnailCache.removeAllObjects()
         sourceIconCache.removeAllObjects()
-        missingThumbnailKeys.removeAll()
         imageDimensionsTextCache.removeAll()
-        missingImageDimensionsTextIDs.removeAll()
         missingSourceIconKeys.removeAll()
     }
 
     static func removeCachedAssets(for itemID: UUID) {
-        let itemIDPrefix = itemID.uuidString
-        let thumbnailKeysToRemove = missingThumbnailKeys.filter { $0.hasPrefix(itemIDPrefix) }
-
-        for key in thumbnailKeysToRemove {
-            missingThumbnailKeys.remove(key)
-        }
-
         imageDimensionsTextCache.removeValue(forKey: itemID)
-        missingImageDimensionsTextIDs.remove(itemID)
     }
 
     private static func thumbnailCacheKey(for item: ClipboardItem, pixelSize: CGFloat) -> String {
