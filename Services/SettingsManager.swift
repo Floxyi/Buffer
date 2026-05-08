@@ -197,6 +197,14 @@ final class SettingsManager: ObservableObject {
     static let defaultHotkeyModifiers = HotkeyModifiers(shift: true, command: true)
     static let defaultHotkeyKeyCode: UInt16 = 9
 
+    static let defaultHistoryLimit: HistoryLimit = .essential
+    static let defaultPreferInitialSelectionFromFirstNonPinnedItem = false
+    static let defaultKeepSearchTextAfterPaste = false
+    static let defaultTextDetailFontStyle: TextDetailFontStyle = .monospaced
+    static let defaultTextDetailFontSize: TextDetailFontSize = .medium
+    static let defaultHistoryRetentionPeriod: HistoryRetentionPeriod = .never
+    static let defaultMenuBarIcon: MenuBarIcon = .clipboard
+
     private enum Key {
         static let hotkeyModifiers = "hotkeyModifiers"
         static let hotkeyKeyCode = "hotkeyKeyCode"
@@ -222,9 +230,9 @@ final class SettingsManager: ObservableObject {
     @Published var textDetailFontStyle: TextDetailFontStyle
     @Published var textDetailFontSize: TextDetailFontSize
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
+    @Published var menuBarIcon: MenuBarIcon
     @Published private(set) var excludedApps: [ExcludedApp]
     @Published private(set) var persistedHistoryLimit: HistoryLimit
-    @Published var menuBarIcon: MenuBarIcon
 
     var hotkeyPublisher: AnyPublisher<(UInt16, HotkeyModifiers), Never> {
         Publishers.CombineLatest($hotkeyKeyCode.removeDuplicates(), $hotkeyModifiers.removeDuplicates())
@@ -248,27 +256,30 @@ final class SettingsManager: ObservableObject {
         self.hotkeyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : Self.defaultHotkeyKeyCode
 
         let rawLimit = defaults.integer(forKey: Key.historyLimit)
-        let initialHistoryLimit = HistoryLimit(rawValue: rawLimit) ?? .essential
+        let initialHistoryLimit = HistoryLimit(rawValue: rawLimit) ?? Self.defaultHistoryLimit
         self.historyLimit = initialHistoryLimit
         self.persistedHistoryLimit = initialHistoryLimit
+
         self.preferInitialSelectionFromFirstNonPinnedItem = defaults.bool(
             forKey: Key.preferInitialSelectionFromFirstNonPinnedItem
         )
+
         self.keepSearchTextAfterPaste = defaults.bool(forKey: Key.keepSearchTextAfterPaste)
 
         let rawTextDetailFontStyle =
-            defaults.string(forKey: Key.textDetailFontStyle) ?? TextDetailFontStyle.monospaced.rawValue
-        self.textDetailFontStyle = TextDetailFontStyle(rawValue: rawTextDetailFontStyle) ?? .monospaced
+            defaults.string(forKey: Key.textDetailFontStyle) ?? Self.defaultTextDetailFontStyle.rawValue
+        self.textDetailFontStyle = TextDetailFontStyle(rawValue: rawTextDetailFontStyle) ?? Self.defaultTextDetailFontStyle
 
         let rawTextDetailFontSize = defaults.integer(forKey: Key.textDetailFontSize)
-        self.textDetailFontSize = TextDetailFontSize(rawValue: rawTextDetailFontSize) ?? .medium
-        
-        let rawMenuBarIcon = defaults.string(forKey: Key.menuBarIcon) ?? MenuBarIcon.clipboard.rawValue
-        self.menuBarIcon = MenuBarIcon(rawValue: rawMenuBarIcon) ?? .clipboard
+        self.textDetailFontSize = TextDetailFontSize(rawValue: rawTextDetailFontSize) ?? Self.defaultTextDetailFontSize
 
         let rawHistoryRetentionPeriod =
-            defaults.string(forKey: Key.historyRetentionPeriod) ?? HistoryRetentionPeriod.never.rawValue
-        self.historyRetentionPeriod = HistoryRetentionPeriod(rawValue: rawHistoryRetentionPeriod) ?? .never
+            defaults.string(forKey: Key.historyRetentionPeriod) ?? Self.defaultHistoryRetentionPeriod.rawValue
+        self.historyRetentionPeriod =
+            HistoryRetentionPeriod(rawValue: rawHistoryRetentionPeriod) ?? Self.defaultHistoryRetentionPeriod
+
+        let rawMenuBarIcon = defaults.string(forKey: Key.menuBarIcon) ?? Self.defaultMenuBarIcon.rawValue
+        self.menuBarIcon = MenuBarIcon(rawValue: rawMenuBarIcon) ?? Self.defaultMenuBarIcon
 
         if let data = defaults.data(forKey: Key.excludedApps) {
             do {
@@ -330,9 +341,28 @@ final class SettingsManager: ObservableObject {
         historyRetentionPeriod = period
         persist()
     }
-    
+
     func setMenuBarIcon(_ icon: MenuBarIcon) {
         menuBarIcon = icon
+        persist()
+    }
+
+    func resetUserPreferencesToDefaults() {
+        hotkeyModifiers = Self.defaultHotkeyModifiers
+        hotkeyKeyCode = Self.defaultHotkeyKeyCode
+
+        historyLimit = Self.defaultHistoryLimit
+        persistedHistoryLimit = Self.defaultHistoryLimit
+
+        preferInitialSelectionFromFirstNonPinnedItem = Self.defaultPreferInitialSelectionFromFirstNonPinnedItem
+        keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
+
+        textDetailFontStyle = Self.defaultTextDetailFontStyle
+        textDetailFontSize = Self.defaultTextDetailFontSize
+        historyRetentionPeriod = Self.defaultHistoryRetentionPeriod
+
+        menuBarIcon = Self.defaultMenuBarIcon
+
         persist()
     }
 

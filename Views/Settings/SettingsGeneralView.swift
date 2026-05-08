@@ -7,6 +7,8 @@ struct SettingsGeneralView: View {
     @Binding var showingTrimAlert: Bool
     @Binding var pendingTier: HistoryLimit?
 
+    @State private var showingResetAlert = false
+
     var body: some View {
         Form {
             Section("Launch at Login") {
@@ -21,7 +23,7 @@ struct SettingsGeneralView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            
+
             Section("Menu Bar") {
                 Picker(
                     "Menu Bar Icon",
@@ -36,10 +38,6 @@ struct SettingsGeneralView: View {
                     }
                 }
                 .pickerStyle(.menu)
-
-                Text("Choose the icon shown in the macOS menu bar.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("History Size") {
@@ -57,6 +55,7 @@ struct SettingsGeneralView: View {
                 .pickerStyle(.radioGroup)
                 .onChange(of: settings.historyLimit) { newValue in
                     guard newValue != settings.persistedHistoryLimit else { return }
+
                     if newValue.rawValue < settings.persistedHistoryLimit.rawValue {
                         pendingTier = newValue
                         settings.historyLimit = settings.persistedHistoryLimit
@@ -97,11 +96,40 @@ struct SettingsGeneralView: View {
                     }
                 }
 
-                Text(isRecording ? "Press your new shortcut... (use at least one modifier key)" : "Keyboard Shortcut to open clipboard history.")
-                    .font(.caption)
-                    .foregroundStyle(isRecording ? Color.accentColor : .secondary)
+                Text(
+                    isRecording
+                        ? "Press your new shortcut... (use at least one modifier key)"
+                        : "Keyboard Shortcut to open clipboard history."
+                )
+                .font(.caption)
+                .foregroundStyle(isRecording ? Color.accentColor : .secondary)
+            }
+
+            Section {
+                EmptyView()
+            } footer: {
+                HStack {
+                    Spacer()
+
+                    Button("Restore Default Settings", role: .destructive) {
+                        showingResetAlert = true
+                    }
+                }
+                .padding(.top, 10)
             }
         }
         .formStyle(.grouped)
+        .alert("Restore Default Settings?", isPresented: $showingResetAlert) {
+            Button("Restore Defaults", role: .destructive) {
+                settings.resetUserPreferencesToDefaults()
+                isRecording = false
+                pendingTier = nil
+                showingTrimAlert = false
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will reset your preferences to their default values. Your clipboard history and excluded apps will not be deleted.")
+        }
     }
 }

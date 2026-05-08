@@ -56,7 +56,7 @@ struct SettingsView: View {
             .id(detailIdentity)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 760, minHeight: 560)
         .task {
             await performInitialNavigationRefreshIfNeeded()
         }
