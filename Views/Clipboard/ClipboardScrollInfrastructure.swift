@@ -28,7 +28,7 @@ final class ScrollController: ObservableObject {
         }
     }
 
-    func configure(scrollView: NSScrollView) {
+    func configure(scrollView: NSScrollView, enablesWheelSmoothing: Bool = true) {
         let documentViewChanged = observedDocumentView !== scrollView.documentView
 
         if self.scrollView === scrollView, !documentViewChanged {
@@ -42,15 +42,19 @@ final class ScrollController: ObservableObject {
         observedDocumentView = scrollView.documentView
 
         startObserving(scrollView: scrollView)
-        smoothWheelScroller.configure(
-            scrollView: scrollView,
-            onScroll: { [weak self] targetOffset in
-                self?.scrollToOffset(targetOffset)
-            },
-            metrics: { [weak self] in
-                self?.metricsSnapshot() ?? .zero
-            }
-        )
+        if enablesWheelSmoothing {
+            smoothWheelScroller.configure(
+                scrollView: scrollView,
+                onScroll: { [weak self] targetOffset in
+                    self?.scrollToOffset(targetOffset)
+                },
+                metrics: { [weak self] in
+                    self?.metricsSnapshot() ?? .zero
+                }
+            )
+        } else {
+            smoothWheelScroller.disable()
+        }
         scheduleMetricsSync(from: scrollView)
     }
 
@@ -90,6 +94,10 @@ final class ScrollController: ObservableObject {
         syncMetricsNow(from: scrollView)
     }
 
+    func scrollTo(offset: CGFloat) {
+        scrollToOffset(offset)
+    }
+
     func scrollToTop(retryCount: Int = 4) {
         scheduleScrollToTop(remainingPasses: retryCount)
     }
@@ -101,6 +109,14 @@ final class ScrollController: ObservableObject {
     func syncMetrics() {
         guard let scrollView else { return }
         scheduleMetricsSync(from: scrollView)
+    }
+
+    func syncMetricsImmediately() {
+        guard let scrollView else { return }
+
+        scrollView.layoutSubtreeIfNeeded()
+        scrollView.documentView?.layoutSubtreeIfNeeded()
+        syncMetricsNow(from: scrollView)
     }
 
     func setContentHeightOverride(_ contentHeight: CGFloat?) {
@@ -150,6 +166,20 @@ final class ScrollController: ObservableObject {
     private func scrollToOffset(_ targetOffset: CGFloat) {
         guard let scrollView else {
             return
+        }
+
+        let viewportHeight = max(
+            scrollView.contentView.bounds.height,
+            scrollView.contentView.frame.height
+        )
+        let contentHeight: CGFloat
+        if let documentView = scrollView.documentView {
+            contentHeight = resolvedContentHeight(
+                scrollView: scrollView,
+                documentView: documentView
+            )
+        } else {
+            contentHeight = self.contentHeight
         }
 
         let maxOffset = max(0, contentHeight - viewportHeight)
@@ -353,6 +383,16 @@ private final class SmoothWheelScroller {
             guard let self else { return event }
             return self.handleScrollWheel(event)
         }
+    }
+
+    func disable() {
+        if let monitor {
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
+
+        animationTask?.cancel()
+        animationTask = nil
     }
 
     private func handleScrollWheel(_ event: NSEvent) -> NSEvent? {

@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 
 struct ClipboardStoragePaths: Sendable {
     let storageDirectory: URL
@@ -80,6 +81,8 @@ final class ClipboardHistoryPersistence: @unchecked Sendable {
 final class ClipboardAssetStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let paths: ClipboardStoragePaths
+    private let thumbnailCache = NSCache<NSString, NSImage>()
+    private let imageDimensionsCache = NSCache<NSString, NSString>()
 
     init(fileManager: FileManager = .default, paths: ClipboardStoragePaths) {
         self.fileManager = fileManager
@@ -104,6 +107,58 @@ final class ClipboardAssetStore: @unchecked Sendable {
         guard item.type == .image, let filename = item.imageFilename else { return nil }
         let url = paths.imagesDirectory.appendingPathComponent(filename)
         return NSImage(contentsOf: url)
+    }
+
+    func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? {
+        guard item.type == .image, let filename = item.imageFilename else { return nil }
+
+        let pixelSize = max(1, Int(maxPixelSize.rounded()))
+        let cacheKey = "\(filename)-\(pixelSize)" as NSString
+        if let cachedThumbnail = thumbnailCache.object(forKey: cacheKey) {
+            return cachedThumbnail
+        }
+
+        let url = paths.imagesDirectory.appendingPathComponent(filename)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: pixelSize
+        ]
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+
+        let image = NSImage(cgImage: cgImage, size: .zero)
+        thumbnailCache.setObject(image, forKey: cacheKey)
+        return image
+    }
+
+    func imageDimensions(for item: ClipboardItem) -> String? {
+        guard item.type == .image, let filename = item.imageFilename else { return nil }
+
+        let cacheKey = filename as NSString
+        if let cachedDimensions = imageDimensionsCache.object(forKey: cacheKey) {
+            return cachedDimensions as String
+        }
+
+        let url = paths.imagesDirectory.appendingPathComponent(filename)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0,
+              height > 0 else {
+            return nil
+        }
+
+        let dimensions = "\(width)x\(height)" as NSString
+        imageDimensionsCache.setObject(dimensions, forKey: cacheKey)
+        return dimensions as String
     }
 
     func saveImage(_ data: Data) -> String? {

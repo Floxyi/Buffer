@@ -80,15 +80,15 @@ struct ScrollbarThumbInteractionState {
 
         guard thumbRect.height > 0 else { return nil }
 
-        if thumbRect.contains(NSPoint(x: 0, y: mouseY)) {
+        if thumbRect.minY...thumbRect.maxY ~= mouseY {
             dragOffsetWithinThumb = mouseY - thumbRect.minY
         } else {
-            dragOffsetWithinThumb = thumbRect.height / 2
+            dragOffsetWithinThumb = (mouseY - thumbRect.minY).clamped(to: 0...thumbRect.height)
         }
 
         isDraggingThumb = true
 
-        guard !thumbRect.contains(NSPoint(x: 0, y: mouseY)) else {
+        guard !(thumbRect.minY...thumbRect.maxY ~= mouseY) else {
             return nil
         }
 

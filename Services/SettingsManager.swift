@@ -125,6 +125,20 @@ enum HistoryRetentionPeriod: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum HistoryWindowOpenBehavior: String, CaseIterable, Codable, Sendable {
+    case keepLastSelection
+    case selectFirstNonPinnedItem
+    case selectAnyFirstItem
+
+    var label: String {
+        switch self {
+        case .keepLastSelection: return "Keep last selection"
+        case .selectFirstNonPinnedItem: return "Select first non-pinned item"
+        case .selectAnyFirstItem: return "Select any first item"
+        }
+    }
+}
+
 struct HotkeyModifiers: Codable, Equatable, Sendable {
     var shift: Bool
     var command: Bool
@@ -198,8 +212,8 @@ final class SettingsManager: ObservableObject {
     static let defaultHotkeyKeyCode: UInt16 = 9
 
     static let defaultHistoryLimit: HistoryLimit = .essential
-    static let defaultPreferInitialSelectionFromFirstNonPinnedItem = false
     static let defaultKeepSearchTextAfterPaste = false
+    static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let defaultTextDetailFontStyle: TextDetailFontStyle = .monospaced
     static let defaultTextDetailFontSize: TextDetailFontSize = .medium
     static let defaultHistoryRetentionPeriod: HistoryRetentionPeriod = .never
@@ -210,8 +224,8 @@ final class SettingsManager: ObservableObject {
         static let hotkeyKeyCode = "hotkeyKeyCode"
         static let historyLimit = "historyLimit"
         static let excludedApps = "excludedApps"
-        static let preferInitialSelectionFromFirstNonPinnedItem = "preferInitialSelectionFromFirstNonPinnedItem"
         static let keepSearchTextAfterPaste = "keepSearchTextAfterPaste"
+        static let historyWindowOpenBehavior = "historyWindowOpenBehavior"
         static let textDetailFontStyle = "textDetailFontStyle"
         static let textDetailFontSize = "textDetailFontSize"
         static let historyRetentionPeriod = "historyRetentionPeriod"
@@ -225,8 +239,8 @@ final class SettingsManager: ObservableObject {
     @Published var hotkeyKeyCode: UInt16
     @Published private(set) var launchAtLogin: Bool
     @Published var historyLimit: HistoryLimit
-    @Published var preferInitialSelectionFromFirstNonPinnedItem: Bool
     @Published var keepSearchTextAfterPaste: Bool
+    @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
     @Published var textDetailFontStyle: TextDetailFontStyle
     @Published var textDetailFontSize: TextDetailFontSize
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
@@ -260,11 +274,12 @@ final class SettingsManager: ObservableObject {
         self.historyLimit = initialHistoryLimit
         self.persistedHistoryLimit = initialHistoryLimit
 
-        self.preferInitialSelectionFromFirstNonPinnedItem = defaults.bool(
-            forKey: Key.preferInitialSelectionFromFirstNonPinnedItem
-        )
-
         self.keepSearchTextAfterPaste = defaults.bool(forKey: Key.keepSearchTextAfterPaste)
+
+        let rawHistoryWindowOpenBehavior =
+            defaults.string(forKey: Key.historyWindowOpenBehavior) ?? Self.defaultHistoryWindowOpenBehavior.rawValue
+        self.historyWindowOpenBehavior =
+            HistoryWindowOpenBehavior(rawValue: rawHistoryWindowOpenBehavior) ?? Self.defaultHistoryWindowOpenBehavior
 
         let rawTextDetailFontStyle =
             defaults.string(forKey: Key.textDetailFontStyle) ?? Self.defaultTextDetailFontStyle.rawValue
@@ -317,13 +332,13 @@ final class SettingsManager: ObservableObject {
         }
     }
 
-    func setPreferInitialSelectionFromFirstNonPinnedItem(_ enabled: Bool) {
-        preferInitialSelectionFromFirstNonPinnedItem = enabled
+    func setKeepSearchTextAfterPaste(_ enabled: Bool) {
+        keepSearchTextAfterPaste = enabled
         persist()
     }
 
-    func setKeepSearchTextAfterPaste(_ enabled: Bool) {
-        keepSearchTextAfterPaste = enabled
+    func setHistoryWindowOpenBehavior(_ behavior: HistoryWindowOpenBehavior) {
+        historyWindowOpenBehavior = behavior
         persist()
     }
 
@@ -354,8 +369,8 @@ final class SettingsManager: ObservableObject {
         historyLimit = Self.defaultHistoryLimit
         persistedHistoryLimit = Self.defaultHistoryLimit
 
-        preferInitialSelectionFromFirstNonPinnedItem = Self.defaultPreferInitialSelectionFromFirstNonPinnedItem
         keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
+        historyWindowOpenBehavior = Self.defaultHistoryWindowOpenBehavior
 
         textDetailFontStyle = Self.defaultTextDetailFontStyle
         textDetailFontSize = Self.defaultTextDetailFontSize
@@ -394,8 +409,8 @@ final class SettingsManager: ObservableObject {
         defaults.set(hotkeyModifiers.toArray(), forKey: Key.hotkeyModifiers)
         defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
         defaults.set(historyLimit.rawValue, forKey: Key.historyLimit)
-        defaults.set(preferInitialSelectionFromFirstNonPinnedItem, forKey: Key.preferInitialSelectionFromFirstNonPinnedItem)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
+        defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
         defaults.set(textDetailFontStyle.rawValue, forKey: Key.textDetailFontStyle)
         defaults.set(textDetailFontSize.rawValue, forKey: Key.textDetailFontSize)
         defaults.set(historyRetentionPeriod.rawValue, forKey: Key.historyRetentionPeriod)

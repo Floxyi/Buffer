@@ -2,6 +2,8 @@ import SwiftUI
 
 struct HistoryActionBar: View {
     let showsSaveShortcut: Bool
+    let showsJumpToHistory: Bool
+    let onJumpToHistory: () -> Void
     let onPaste: () -> Void
 
     var body: some View {
@@ -20,6 +22,27 @@ struct HistoryActionBar: View {
 
             HStack {
                 Spacer()
+
+                if showsJumpToHistory {
+                    Button(action: onJumpToHistory) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.turn.down.right")
+                                .font(.system(size: 10, weight: .medium))
+
+                            Text("history")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .foregroundColor(.secondary.opacity(0.82))
+                        .padding(.horizontal, 12)
+                        .frame(height: 28)
+                        .contentShape(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .frame(height: 28)
+                    .bufferGlassSurface(cornerRadius: 14, interactive: true)
+                }
 
                 Button(action: onPaste) {
                     HStack(spacing: 5) {

@@ -8,42 +8,15 @@ enum ClipboardItemRowAssetLoader {
         store: ClipboardStore,
         leadingVisualSize: CGFloat
     ) async -> NSImage? {
-        guard let original = store.image(for: item) else {
-            return nil
-        }
-
         let pixelSize = leadingVisualSize * 2
-        let thumbSize = NSSize(width: pixelSize, height: pixelSize)
-        let thumb = NSImage(size: thumbSize)
-        thumb.lockFocus()
-        original.draw(
-            in: NSRect(origin: .zero, size: thumbSize),
-            from: NSRect(origin: .zero, size: original.size),
-            operation: .copy,
-            fraction: 1.0
-        )
-        thumb.unlockFocus()
-
-        return thumb
+        return store.thumbnail(for: item, maxPixelSize: pixelSize)
     }
 
     static func loadImageDimensionsText(
         for item: ClipboardItem,
         store: ClipboardStore
     ) async -> String? {
-        guard let original = store.image(for: item) else {
-            return nil
-        }
-
-        if let representation = original.representations.compactMap({ $0 as? NSBitmapImageRep }).first,
-           representation.pixelsWide > 0,
-           representation.pixelsHigh > 0 {
-            return "\(representation.pixelsWide)x\(representation.pixelsHigh)"
-        }
-
-        let width = Int(original.size.width.rounded())
-        let height = Int(original.size.height.rounded())
-        return width > 0 && height > 0 ? "\(width)x\(height)" : nil
+        store.imageDimensions(for: item)
     }
 
     static func loadSourceApplicationIcon(for item: ClipboardItem) async -> NSImage? {

@@ -44,13 +44,13 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [inlineItem.id])
     }
 
-    func testHandleWindowOpenSelectsFirstNonPinnedItemWhenPreferenceEnabled() async {
+    func testHandleWindowOpenSelectsFirstNonPinnedItemWhenConfigured() async {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
-        settings.setPreferInitialSelectionFromFirstNonPinnedItem(true)
+        settings.setHistoryWindowOpenBehavior(.selectFirstNonPinnedItem)
 
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
 
@@ -86,6 +86,74 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedItem?.id, newerUnpinned.id)
     }
 
+    func testHandleWindowOpenRestoresLastListStateWhenConfigured() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let first = ClipboardItem.text("first")
+        let second = ClipboardItem.text("second")
+        store.add(first)
+        store.add(second)
+
+        await eventually {
+            store.items.count == 2
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(first.id)
+        viewModel.updateLastListScrollOffset(172)
+        viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
+
+        XCTAssertEqual(viewModel.selectedItem?.id, first.id)
+        XCTAssertEqual(viewModel.openListScrollRequest, .init(mode: .restoreOffset(172)))
+    }
+
+    func testHandleWindowOpenCanSelectAnyFirstItemWhenConfigured() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setHistoryWindowOpenBehavior(.selectAnyFirstItem)
+
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let older = ClipboardItem.text("older")
+        let newer = ClipboardItem.text("newer")
+        store.add(older)
+        store.add(newer)
+
+        await eventually {
+            store.items.count == 2
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(older.id)
+        viewModel.updateLastListScrollOffset(240)
+        viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
+
+        XCTAssertEqual(viewModel.selectedItem?.id, newer.id)
+        XCTAssertEqual(viewModel.openListScrollRequest, .init(mode: .scrollToTop))
+    }
+
     func testClearSearchAfterCommittedActionKeepsSearchWhenPreferenceEnabled() {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
@@ -107,5 +175,43 @@ final class HistoryViewModelTests: XCTestCase {
         viewModel.clearSearchAfterCommittedAction()
 
         XCTAssertEqual(viewModel.searchText, "needle")
+    }
+
+    func testDeleteSelectedItemPrefersNextVisibleItem() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem.text("oldest")
+        let middle = ClipboardItem.text("middle")
+        let newest = ClipboardItem.text("newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(middle.id)
+        viewModel.deleteSelectedItem()
+
+        await eventually {
+            viewModel.selectedItem?.id == oldest.id
+        }
+
+        XCTAssertEqual(viewModel.selectedItem?.id, oldest.id)
     }
 }

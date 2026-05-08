@@ -124,6 +124,28 @@ enum ClipboardListStructure {
         return 2 * LayoutMetrics.contentPadding + rowsHeight + spacingHeight
     }
 
+    static func estimatedMidY(forItemID itemID: UUID, in rows: [DisplayRow]) -> CGFloat? {
+        guard !rows.isEmpty else { return nil }
+
+        var currentY = LayoutMetrics.contentPadding
+
+        for (index, row) in rows.enumerated() {
+            let rowHeight = estimatedRowHeight(for: row)
+
+            if case .item(let item) = row.kind, item.id == itemID {
+                return currentY + rowHeight / 2
+            }
+
+            currentY += rowHeight
+
+            if index < rows.count - 1 {
+                currentY += LayoutMetrics.rowSpacing
+            }
+        }
+
+        return nil
+    }
+
     private static func estimatedRowHeight(for row: DisplayRow) -> CGFloat {
         switch row.kind {
         case .header:

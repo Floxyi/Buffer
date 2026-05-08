@@ -39,6 +39,8 @@ struct HistoryContentView: View {
 
             HistoryActionBar(
                 showsSaveShortcut: viewModel.selectedItem?.type == .image,
+                showsJumpToHistory: viewModel.canJumpToHistorySelection,
+                onJumpToHistory: jumpToHistorySelection,
                 onPaste: performPrimaryPasteAction
             )
         }
@@ -130,7 +132,24 @@ struct HistoryContentView: View {
                     onSelectSingle: viewModel.selectSingle,
                     onToggleSelection: viewModel.toggleSelection,
                     onExtendSelectionTo: viewModel.extendSelectionTo,
-                    resetScrollToken: viewModel.windowOpenToken
+                    onCopyItem: { item in
+                        onCopyToClipboard(item)
+                    },
+                    onTogglePinItem: { item in
+                        viewModel.togglePin(for: item)
+                    },
+                    onDeleteItem: { item in
+                        viewModel.delete(item)
+                    },
+                    onJumpToHistoryItem: viewModel.canJumpToHistorySelection ? { item in
+                        viewModel.jumpToHistory(for: item)
+                    } : nil,
+                    showsJumpToHistoryAction: viewModel.canJumpToHistorySelection,
+                    selectionNavigationToken: viewModel.selectionNavigationToken,
+                    selectedItemID: viewModel.selectedID,
+                    openScrollRequest: viewModel.openListScrollRequest,
+                    openScrollRequestToken: viewModel.openListScrollRequestToken,
+                    onScrollOffsetChanged: viewModel.updateLastListScrollOffset
                 )
             }
         }
@@ -148,6 +167,7 @@ struct HistoryContentView: View {
             selectedItemIsPinned: viewModel.selectedItemIsPinned,
             canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
             isExtractingText: viewModel.isExtractingText,
+            showsJumpToHistory: viewModel.canJumpToHistorySelection,
             selectedItemSourceName: viewModel.selectedItemSourceName,
             selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
             selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
@@ -174,6 +194,7 @@ struct HistoryContentView: View {
                     await viewModel.extractSelectedImageText()
                 }
             },
+            onJumpToHistory: jumpToHistorySelection,
             onTogglePin: viewModel.togglePinForSelectedItem,
             onDelete: viewModel.deleteSelectedItem,
             onDownloadAllImages: downloadAllImages,
@@ -200,6 +221,11 @@ struct HistoryContentView: View {
         viewModel.clearSearchAfterCommittedAction()
         onCopyToClipboard(item)
         onDismiss()
+    }
+
+    private func jumpToHistorySelection() {
+        guard let item = viewModel.selectedItem else { return }
+        viewModel.jumpToHistory(for: item)
     }
 
     private func focusSearchField() {

@@ -40,7 +40,7 @@ struct ScrollbarMetrics {
             thumbRect: NSRect(
                 x: 0,
                 y: thumbOrigin,
-                width: 0,
+                width: 1,
                 height: thumbHeight
             ),
             availableTravel: availableTravel

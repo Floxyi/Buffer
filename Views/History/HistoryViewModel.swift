@@ -4,8 +4,22 @@ import SwiftUI
 
 @MainActor
 final class HistoryViewModel: ObservableObject {
+    struct OpenListScrollRequest: Equatable {
+        enum Mode: Equatable {
+            case restoreOffset(CGFloat)
+            case scrollToTop
+            case scrollToItem(UUID)
+        }
+
+        let mode: Mode
+    }
+
     @Published var searchText = "" {
         didSet {
+            guard !isApplyingProgrammaticSearchChange else {
+                isApplyingProgrammaticSearchChange = false
+                return
+            }
             rebuildFilteredItems(preferredID: filteredItems.first?.id)
         }
     }
@@ -20,6 +34,9 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var windowOpenToken = 0
     @Published private(set) var shouldFocusSearchOnOpen = true
     @Published private(set) var searchSelectionToken = 0
+    @Published private(set) var selectionNavigationToken = 0
+    @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(0))
+    @Published private(set) var openListScrollRequestToken = 0
     @Published var scrollTrigger = false
     @Published var hoveredItemID: UUID?
 
@@ -28,6 +45,9 @@ final class HistoryViewModel: ObservableObject {
     private let ocrService: OCRServicing
     private var selectionAnchor: UUID?
     private var quickPasteNeedsModifierReset = false
+    private var isApplyingProgrammaticSearchChange = false
+    private var pendingPreferredSelectionID: UUID?
+    private var lastListScrollOffset = CGFloat.zero
     private var cancellables: Set<AnyCancellable> = []
     private static let copiedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -48,7 +68,7 @@ final class HistoryViewModel: ObservableObject {
             .sink { [weak self] items in
                 guard let self else { return }
                 self.filteredItems = Self.makeFilteredItems(from: items, query: self.searchText, store: store)
-                self.syncSelection()
+                self.syncSelection(preferredID: self.consumePendingPreferredSelectionID())
             }
             .store(in: &cancellables)
     }
@@ -79,6 +99,10 @@ final class HistoryViewModel: ObservableObject {
 
     var selectedItemIsPinned: Bool {
         selectedItem?.isPinned == true
+    }
+
+    var canJumpToHistorySelection: Bool {
+        selectedItem != nil && !searchText.isEmpty
     }
 
     var textSelectionCount: Int {
@@ -114,7 +138,14 @@ final class HistoryViewModel: ObservableObject {
             using: NSEvent.modifierFlags,
             forceModifierReset: suppressQuickPasteUntilModifiersReleased
         )
-        syncSelection(preferredID: preferredInitialSelectionID())
+        if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
+            syncSelection(preferredID: selectedID ?? preferredTopSelectionID())
+            openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(lastListScrollOffset))
+        } else {
+            syncSelection(preferredID: preferredTopSelectionID())
+            openListScrollRequest = OpenListScrollRequest(mode: .scrollToTop)
+        }
+        openListScrollRequestToken &+= 1
         windowOpenToken += 1
     }
 
@@ -253,11 +284,44 @@ final class HistoryViewModel: ObservableObject {
 
     func deleteSelectedItem() {
         guard let item = selectedItem else { return }
+        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: item)
         store.delete(item)
+    }
+
+    func togglePin(for item: ClipboardItem) {
+        selectSingle(item.id)
+        store.togglePin(for: item)
+        syncSelection(preferredID: item.id)
+    }
+
+    func delete(_ item: ClipboardItem) {
+        selectSingle(item.id)
+        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: item)
+        store.delete(item)
+    }
+
+    func jumpToHistory(for item: ClipboardItem) {
+        let targetID = item.id
+
+        selectSingle(targetID)
+
+        if !searchText.isEmpty {
+            isApplyingProgrammaticSearchChange = true
+            searchText = ""
+            rebuildFilteredItems(preferredID: targetID)
+        }
+
+        openListScrollRequest = OpenListScrollRequest(mode: .scrollToItem(targetID))
+        openListScrollRequestToken &+= 1
+        selectionNavigationToken &+= 1
     }
 
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
         hoveredItemID = isHovered ? itemID : nil
+    }
+
+    func updateLastListScrollOffset(_ offset: CGFloat) {
+        lastListScrollOffset = max(0, offset)
     }
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {
@@ -338,10 +402,10 @@ final class HistoryViewModel: ObservableObject {
             return
         }
 
-        let targetID = preferredID ?? selectedID ?? selectedIDs.first ?? preferredInitialSelectionID()
+        let targetID = preferredID ?? selectedID ?? selectedIDs.first ?? preferredTopSelectionID()
         guard let targetID,
               let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
-            if let fallbackID = preferredInitialSelectionID(),
+            if let fallbackID = preferredTopSelectionID(),
                let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID }) {
                 selectedIDs = [fallbackID]
                 selectionAnchor = fallbackID
@@ -357,8 +421,8 @@ final class HistoryViewModel: ObservableObject {
         selectedIndex = index
     }
 
-    private func preferredInitialSelectionID() -> UUID? {
-        if settingsManager.preferInitialSelectionFromFirstNonPinnedItem {
+    private func preferredTopSelectionID() -> UUID? {
+        if settingsManager.historyWindowOpenBehavior == .selectFirstNonPinnedItem {
             return filteredItems.first(where: { !$0.isPinned })?.id ?? filteredItems.first?.id
         }
 
@@ -372,6 +436,29 @@ final class HistoryViewModel: ObservableObject {
     private func rebuildFilteredItems(preferredID: UUID? = nil) {
         filteredItems = Self.makeFilteredItems(from: store.items, query: searchText, store: store)
         syncSelection(preferredID: preferredID)
+    }
+
+    private func preferredSelectionID(afterDeleting item: ClipboardItem) -> UUID? {
+        guard let deletedIndex = filteredItems.firstIndex(where: { $0.id == item.id }) else {
+            return nil
+        }
+
+        let nextIndex = deletedIndex + 1
+        if let nextID = filteredItems[safe: nextIndex]?.id {
+            return nextID
+        }
+
+        if deletedIndex > 0 {
+            return filteredItems[safe: deletedIndex - 1]?.id
+        }
+
+        return nil
+    }
+
+    private func consumePendingPreferredSelectionID() -> UUID? {
+        let preferredID = pendingPreferredSelectionID
+        pendingPreferredSelectionID = nil
+        return preferredID
     }
 
     private static func makeFilteredItems(from items: [ClipboardItem], query: String, store: ClipboardStore) -> [ClipboardItem] {

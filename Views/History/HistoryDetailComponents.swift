@@ -7,6 +7,7 @@ struct HistoryDetailPane: View {
     let selectedItemIsPinned: Bool
     let canExtractSelectedImageText: Bool
     let isExtractingText: Bool
+    let showsJumpToHistory: Bool
     let selectedItemSourceName: String?
     let selectedItemCopiedAtText: String?
     let selectedItemsTotalSizeText: String
@@ -21,6 +22,7 @@ struct HistoryDetailPane: View {
     let onCopy: () -> Void
     let onSaveImage: () -> Void
     let onExtractText: () -> Void
+    let onJumpToHistory: () -> Void
     let onTogglePin: () -> Void
     let onDelete: () -> Void
     let onDownloadAllImages: () -> Void
@@ -35,11 +37,13 @@ struct HistoryDetailPane: View {
                 selectedItemIsPinned: selectedItemIsPinned,
                 canExtractSelectedImageText: canExtractSelectedImageText,
                 isExtractingText: isExtractingText,
+                showsJumpToHistory: showsJumpToHistory,
                 sourceAppName: selectedItemSourceName,
                 copiedAtText: selectedItemCopiedAtText,
                 onCopy: onCopy,
                 onSaveImage: onSaveImage,
                 onExtractText: onExtractText,
+                onJumpToHistory: onJumpToHistory,
                 onTogglePin: onTogglePin,
                 onDelete: onDelete
             )

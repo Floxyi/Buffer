@@ -5,10 +5,12 @@ import AppKit
 struct ClickModifierDetector: NSViewRepresentable {
     let onClickWithModifiers: (NSEvent.ModifierFlags) -> Void
     var onHoverChanged: ((Bool) -> Void)? = nil
+    var onSecondaryClick: (() -> Void)? = nil
     
     class ClickView: NSView {
         var onClickWithModifiers: ((NSEvent.ModifierFlags) -> Void)?
         var onHoverChanged: ((Bool) -> Void)?
+        var onSecondaryClick: (() -> Void)?
         private var trackingArea: NSTrackingArea?
 
         override func updateTrackingAreas() {
@@ -32,6 +34,11 @@ struct ClickModifierDetector: NSViewRepresentable {
             onClickWithModifiers?(event.modifierFlags)
         }
 
+        override func rightMouseDown(with event: NSEvent) {
+            onSecondaryClick?()
+            super.rightMouseDown(with: event)
+        }
+
         override func mouseEntered(with event: NSEvent) {
             onHoverChanged?(true)
         }
@@ -47,6 +54,7 @@ struct ClickModifierDetector: NSViewRepresentable {
         view.layer?.backgroundColor = .clear
         view.onClickWithModifiers = onClickWithModifiers
         view.onHoverChanged = onHoverChanged
+        view.onSecondaryClick = onSecondaryClick
         return view
     }
     
@@ -54,6 +62,7 @@ struct ClickModifierDetector: NSViewRepresentable {
         if let clickView = nsView as? ClickView {
             clickView.onClickWithModifiers = onClickWithModifiers
             clickView.onHoverChanged = onHoverChanged
+            clickView.onSecondaryClick = onSecondaryClick
         }
     }
 }

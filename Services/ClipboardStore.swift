@@ -218,6 +218,14 @@ final class ClipboardStore: ObservableObject {
         assetStore.image(for: item)
     }
 
+    func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? {
+        assetStore.thumbnail(for: item, maxPixelSize: maxPixelSize)
+    }
+
+    func imageDimensions(for item: ClipboardItem) -> String? {
+        assetStore.imageDimensions(for: item)
+    }
+
     func saveImage(_ data: Data) -> String? {
         assetStore.saveImage(data)
     }

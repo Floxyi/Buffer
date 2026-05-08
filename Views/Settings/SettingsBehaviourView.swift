@@ -16,14 +16,18 @@ struct SettingsBehaviourView: View {
     var body: some View {
         Form {
             Section("History Window") {
-                Toggle(
-                    "Select the first non-pinned item on open",
-                    isOn: Binding(
-                        get: { settings.preferInitialSelectionFromFirstNonPinnedItem },
-                        set: { settings.setPreferInitialSelectionFromFirstNonPinnedItem($0) }
+                Picker(
+                    "Reopen behavior",
+                    selection: Binding(
+                        get: { settings.historyWindowOpenBehavior },
+                        set: { settings.setHistoryWindowOpenBehavior($0) }
                     )
-                )
-                Text("When off, Buffer keeps the current behavior and selects the first item.")
+                ) {
+                    ForEach(HistoryWindowOpenBehavior.allCases, id: \.self) { behavior in
+                        Text(behavior.label).tag(behavior)
+                    }
+                }
+                Text("Choose whether Buffer restores the previous list selection or opens from the top.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

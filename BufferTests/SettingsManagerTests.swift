@@ -34,19 +34,6 @@ final class SettingsManagerTests: XCTestCase {
         )))
     }
 
-    func testInitialSelectionPreferencePersistsChanges() {
-        let defaults = makeTestDefaults()
-        let settings = SettingsManager(
-            defaults: defaults,
-            launchAtLoginController: FakeLaunchAtLoginController()
-        )
-
-        settings.setPreferInitialSelectionFromFirstNonPinnedItem(true)
-
-        XCTAssertTrue(settings.preferInitialSelectionFromFirstNonPinnedItem)
-        XCTAssertTrue(defaults.bool(forKey: "preferInitialSelectionFromFirstNonPinnedItem"))
-    }
-
     func testBehaviourPreferencesPersistChanges() {
         let defaults = makeTestDefaults()
         let settings = SettingsManager(
@@ -55,13 +42,19 @@ final class SettingsManagerTests: XCTestCase {
         )
 
         settings.setKeepSearchTextAfterPaste(true)
+        settings.setHistoryWindowOpenBehavior(.selectFirstNonPinnedItem)
         settings.setTextDetailFontStyle(.regular)
         settings.setTextDetailFontSize(.large)
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
+        XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
         XCTAssertEqual(settings.textDetailFontStyle, .regular)
         XCTAssertEqual(settings.textDetailFontSize, .large)
         XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
+        XCTAssertEqual(
+            defaults.string(forKey: "historyWindowOpenBehavior"),
+            HistoryWindowOpenBehavior.selectFirstNonPinnedItem.rawValue
+        )
         XCTAssertEqual(defaults.string(forKey: "textDetailFontStyle"), TextDetailFontStyle.regular.rawValue)
         XCTAssertEqual(defaults.integer(forKey: "textDetailFontSize"), TextDetailFontSize.large.rawValue)
     }
