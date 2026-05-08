@@ -23,6 +23,7 @@ final class HistoryViewModel: ObservableObject {
             rebuildFilteredItems(preferredID: filteredItems.first?.id)
         }
     }
+
     @Published private(set) var filteredItems: [ClipboardItem] = []
     @Published private(set) var selectedIDs: Set<UUID> = []
     @Published private(set) var selectedIndex = 0
@@ -37,6 +38,10 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var selectionNavigationToken = 0
     @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(0))
     @Published private(set) var openListScrollRequestToken = 0
+
+    @Published private(set) var pendingJumpToHistoryItemID: UUID?
+    @Published private(set) var pendingJumpToHistoryToken = 0
+
     @Published var scrollTrigger = false
     @Published var hoveredItemID: UUID?
 
@@ -49,6 +54,7 @@ final class HistoryViewModel: ObservableObject {
     private var pendingPreferredSelectionID: UUID?
     private var lastListScrollOffset = CGFloat.zero
     private var cancellables: Set<AnyCancellable> = []
+
     private static let copiedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.doesRelativeDateFormatting = true
@@ -61,6 +67,7 @@ final class HistoryViewModel: ObservableObject {
         self.store = store
         self.settingsManager = settingsManager
         self.ocrService = ocrService
+
         filteredItems = Self.makeFilteredItems(from: store.items, query: "", store: store)
         syncSelection()
 
@@ -133,11 +140,13 @@ final class HistoryViewModel: ObservableObject {
         if !searchText.isEmpty {
             searchSelectionToken &+= 1
         }
+
         shouldFocusSearchOnOpen = focusSearch
         prepareQuickPasteForWindowOpen(
             using: NSEvent.modifierFlags,
             forceModifierReset: suppressQuickPasteUntilModifiersReleased
         )
+
         if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
             syncSelection(preferredID: selectedID ?? preferredTopSelectionID())
             openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(lastListScrollOffset))
@@ -145,6 +154,7 @@ final class HistoryViewModel: ObservableObject {
             syncSelection(preferredID: preferredTopSelectionID())
             openListScrollRequest = OpenListScrollRequest(mode: .scrollToTop)
         }
+
         openListScrollRequestToken &+= 1
         windowOpenToken += 1
     }
@@ -188,6 +198,7 @@ final class HistoryViewModel: ObservableObject {
         selectedIDs = [id]
         selectionAnchor = id
         selectedID = id
+
         if let index = filteredItems.firstIndex(where: { $0.id == id }) {
             selectedIndex = index
         }
@@ -199,7 +210,9 @@ final class HistoryViewModel: ObservableObject {
         } else {
             selectedIDs.insert(id)
         }
+
         selectionAnchor = id
+
         if let index = filteredItems.firstIndex(where: { $0.id == id }) {
             selectedIndex = index
             selectedID = id
@@ -303,17 +316,24 @@ final class HistoryViewModel: ObservableObject {
     func jumpToHistory(for item: ClipboardItem) {
         let targetID = item.id
 
-        selectSingle(targetID)
+        pendingJumpToHistoryItemID = targetID
+        pendingJumpToHistoryToken &+= 1
 
         if !searchText.isEmpty {
             isApplyingProgrammaticSearchChange = true
             searchText = ""
             rebuildFilteredItems(preferredID: targetID)
+        } else {
+            syncSelection(preferredID: targetID)
+        }
+    }
+
+    func completePendingJumpToHistoryScroll(for itemID: UUID) {
+        guard pendingJumpToHistoryItemID == itemID else {
+            return
         }
 
-        openListScrollRequest = OpenListScrollRequest(mode: .scrollToItem(targetID))
-        openListScrollRequestToken &+= 1
-        selectionNavigationToken &+= 1
+        pendingJumpToHistoryItemID = nil
     }
 
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
@@ -375,6 +395,7 @@ final class HistoryViewModel: ObservableObject {
             chunkedText.loadedCharCount = result.text.count
             chunkedText.reachedEOF = result.reachedEOF
         }
+
         chunkedText.isLoadingMore = false
     }
 
@@ -384,12 +405,14 @@ final class HistoryViewModel: ObservableObject {
 
     private func loadInitialChunk(for item: ClipboardItem) async {
         chunkedText.isLoadingMore = true
+
         if let result = store.textChunk(for: item, charCount: ChunkedTextState.initialChars) {
             chunkedText.visibleText = result.text
             chunkedText.totalBytes = result.totalBytes
             chunkedText.loadedCharCount = result.text.count
             chunkedText.reachedEOF = result.reachedEOF
         }
+
         chunkedText.isLoadingMore = false
     }
 
@@ -463,6 +486,7 @@ final class HistoryViewModel: ObservableObject {
 
     private static func makeFilteredItems(from items: [ClipboardItem], query: String, store: ClipboardStore) -> [ClipboardItem] {
         let baseItems: [ClipboardItem]
+
         if query.isEmpty {
             baseItems = items
         } else {
@@ -475,13 +499,16 @@ final class HistoryViewModel: ObservableObject {
             if lhs.isPinned != rhs.isPinned {
                 return lhs.isPinned && !rhs.isPinned
             }
+
             if lhs.isPinned, rhs.isPinned {
                 let lhsPinnedAt = lhs.pinnedAt ?? lhs.timestamp
                 let rhsPinnedAt = rhs.pinnedAt ?? rhs.timestamp
+
                 if lhsPinnedAt != rhsPinnedAt {
                     return lhsPinnedAt < rhsPinnedAt
                 }
             }
+
             return lhs.timestamp > rhs.timestamp
         }
     }

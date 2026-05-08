@@ -27,10 +27,7 @@ struct ClipboardListView: View {
     @State private var pendingMeasuredScrollTarget: PendingMeasuredScrollTarget?
     @State private var measuredTargetFrame: CGRect?
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
-    @State private var rowAssetsByID: [UUID: ClipboardItemRowAssets] = [:]
-    @State private var loadedAssetItemIDs: Set<UUID> = []
-    @State private var assetLoadAttemptCountByID: [UUID: Int] = [:]
-    @State private var rowAssetLoadTask: Task<Void, Never>?
+    @State private var assetPrewarmTask: Task<Void, Never>?
 
     let items: [ClipboardItem]
 
@@ -42,9 +39,9 @@ struct ClipboardListView: View {
     let onSelect: (ClipboardItem) -> Void
     let onDismiss: () -> Void
 
-    // Multi-select support
     @Binding var selectedIDs: Set<UUID>
     @Binding var hoveredItemID: UUID?
+
     var onSelectSingle: (UUID) -> Void = { _ in }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
@@ -57,10 +54,16 @@ struct ClipboardListView: View {
     var selectedItemID: UUID? = nil
     var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
     var openScrollRequestToken: Int = 0
+    var jumpScrollTargetID: UUID? = nil
+    var onJumpScrollCompleted: (UUID) -> Void = { _ in }
     var onScrollOffsetChanged: (CGFloat) -> Void = { _ in }
 
     private var itemIDs: [UUID] {
         items.map(\.id)
+    }
+
+    private var jumpScrollTaskKey: String {
+        "\(jumpScrollTargetID?.uuidString ?? "nil")-\(items.count)-\(store.items.count)"
     }
 
     private var displayRowsForRendering: [ClipboardListStructure.DisplayRow] {
@@ -120,6 +123,8 @@ struct ClipboardListView: View {
                                     scrollView: scrollView,
                                     enablesWheelSmoothing: false
                                 )
+
+                                updateContentHeightOverride()
                             },
                             searchStrategy: .nearestAncestorOnly
                         )
@@ -136,22 +141,10 @@ struct ClipboardListView: View {
                     ClipboardScrollbarOverlay(scrollController: scrollController)
                 }
                 .background {
-                    ZStack {
-                        ClipboardScrollOffsetObserver(
-                            scrollController: scrollController,
-                            onScrollOffsetChanged: onScrollOffsetChanged,
-                            onScrollOffsetChangedForAssets: {
-                                scheduleRowAssetLoadForCurrentViewport()
-                            }
-                        )
-
-                        ClipboardScrollActivityObserver(
-                            scrollActivityTracker: scrollController.activityTracker
-                        ) { isScrolling in
-                            guard !isScrolling else { return }
-                            scheduleRowAssetLoadForCurrentViewport()
-                        }
-                    }
+                    ClipboardScrollOffsetObserver(
+                        scrollController: scrollController,
+                        onScrollOffsetChanged: onScrollOffsetChanged
+                    )
                 }
                 .onPreferenceChange(ClipboardScrollTargetFramePreferenceKey.self) { frame in
                     measuredTargetFrame = frame
@@ -173,27 +166,17 @@ struct ClipboardListView: View {
                 }
                 .onAppear {
                     rebuildListCache()
-                    pruneRowAssetState()
-                    scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 140_000_000)
-                    scrollController.setContentHeightOverride(nil)
+                    updateContentHeightOverride()
+                    prewarmVisibleAssets()
                 }
                 .onDisappear {
-                    rowAssetLoadTask?.cancel()
-                    rowAssetLoadTask = nil
+                    assetPrewarmTask?.cancel()
+                    assetPrewarmTask = nil
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
-                    pruneRowAssetState()
-                    scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 140_000_000)
-
-                    guard let openScrollRequest else { return }
-                    guard case .scrollToItem(let itemID) = openScrollRequest.mode else { return }
-
-                    scheduleMeasuredScroll(
-                        to: itemID,
-                        centered: true,
-                        using: scrollProxy
-                    )
+                    updateContentHeightOverride()
+                    prewarmVisibleAssets()
                 }
                 .onChange(of: openScrollRequestToken) { _ in
                     guard let openScrollRequest else { return }
@@ -216,9 +199,23 @@ struct ClipboardListView: View {
                 .onChange(of: selectionNavigationToken) { _ in
                     guard let selectedItemID else { return }
 
+                    if jumpScrollTargetID == selectedItemID {
+                        return
+                    }
+
                     scheduleMeasuredScroll(
                         to: selectedItemID,
                         centered: true,
+                        using: scrollProxy
+                    )
+                }
+                .task(id: jumpScrollTaskKey) {
+                    guard let jumpScrollTargetID else {
+                        return
+                    }
+
+                    await waitAndStartJumpScrollIfReady(
+                        to: jumpScrollTargetID,
                         using: scrollProxy
                     )
                 }
@@ -233,8 +230,9 @@ struct ClipboardListView: View {
 
         return ClipboardItemRow(
             item: item,
+            store: store,
             primaryLabelText: primaryLabelText(for: item),
-            assets: rowAssets(for: item),
+            scrollActivityTracker: scrollController.activityTracker,
             isMultiSelected: selectedIDs.contains(item.id),
             joinsSelectionAbove: previousItemID.map { selectedIDs.contains($0) } ?? false,
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
@@ -242,7 +240,7 @@ struct ClipboardListView: View {
             quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil,
             isHovered: highlightedItemID == item.id
         )
-        .id(item.id)
+        .id(scrollID(forItemID: item.id))
         .background {
             if pendingMeasuredScrollTarget?.itemID == item.id {
                 GeometryReader { proxy in
@@ -323,10 +321,51 @@ struct ClipboardListView: View {
         }
     }
 
+    private func waitAndStartJumpScrollIfReady(
+        to itemID: UUID,
+        using scrollProxy: ScrollViewProxy
+    ) async {
+        for attempt in 0..<12 {
+            guard jumpScrollTargetID == itemID else {
+                return
+            }
+
+            if attempt == 0 {
+                await Task.yield()
+            } else {
+                try? await Task.sleep(nanoseconds: 70_000_000)
+            }
+
+            rebuildListCache()
+            updateContentHeightOverride()
+            scrollController.syncMetricsImmediately()
+
+            guard items.count == store.items.count else {
+                continue
+            }
+
+            guard itemExists(itemID) else {
+                continue
+            }
+
+            scheduleMeasuredScroll(
+                to: itemID,
+                centered: true,
+                using: scrollProxy,
+                completion: {
+                    onJumpScrollCompleted(itemID)
+                }
+            )
+
+            return
+        }
+    }
+
     private func scheduleMeasuredScroll(
         to itemID: UUID,
         centered: Bool,
-        using scrollProxy: ScrollViewProxy
+        using scrollProxy: ScrollViewProxy,
+        completion: (() -> Void)? = nil
     ) {
         scrollRequestID &+= 1
         let requestID = scrollRequestID
@@ -339,7 +378,7 @@ struct ClipboardListView: View {
         )
 
         Task { @MainActor in
-            let attemptCount = centered ? 10 : 5
+            let attemptCount = centered ? 16 : 5
             let anchor: UnitPoint = centered ? .center : UnitPoint(x: 0.5, y: 0.5)
 
             for attempt in 0..<attemptCount {
@@ -355,33 +394,62 @@ struct ClipboardListView: View {
                     continue
                 }
 
+                updateContentHeightOverride()
                 scrollController.syncMetricsImmediately()
+
+                if centered, attempt < 3 {
+                    scrollToEstimatedPosition(
+                        itemID: itemID,
+                        centered: centered
+                    )
+                }
 
                 let shouldUseProxyScroll: Bool
                 if centered {
-                    shouldUseProxyScroll = measuredTargetFrame == nil || attempt < 2
+                    shouldUseProxyScroll = measuredTargetFrame == nil || attempt < 4
                 } else {
                     shouldUseProxyScroll = measuredTargetFrame == nil && attempt >= 2
                 }
 
                 if shouldUseProxyScroll {
                     withAnimation(nil) {
-                        scrollProxy.scrollTo(itemID, anchor: anchor)
+                        scrollProxy.scrollTo(scrollID(forItemID: itemID), anchor: anchor)
                     }
                 }
 
                 await Task.yield()
-                try? await Task.sleep(nanoseconds: 12_000_000)
+                try? await Task.sleep(nanoseconds: 14_000_000)
 
                 if performExactMeasuredScroll(to: itemID, centered: centered) {
                     pendingMeasuredScrollTarget = nil
-                    scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 120_000_000)
+                    completion?()
                     return
                 }
             }
 
-            scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 120_000_000)
+            pendingMeasuredScrollTarget = nil
+            completion?()
         }
+    }
+
+    private func scrollToEstimatedPosition(itemID: UUID, centered: Bool) {
+        let rows = listCache.matches(items: items)
+            ? listCache.displayRows
+            : ClipboardListStructure.displayRows(from: items)
+
+        guard let estimatedMidY = ClipboardListStructure.estimatedMidY(
+            forItemID: itemID,
+            in: rows
+        ) else {
+            return
+        }
+
+        let viewportHeight = max(1, scrollController.viewportHeight)
+        let targetY = centered ? viewportHeight / 2 : viewportHeight * 0.35
+        let targetOffset = estimatedMidY - targetY
+
+        scrollController.scrollTo(offset: targetOffset)
+        scrollController.syncMetricsImmediately()
     }
 
     @discardableResult
@@ -419,7 +487,7 @@ struct ClipboardListView: View {
             }
         }
 
-        let clampedTargetOffset = targetOffset.clamped(to: 0...maxOffset)
+        let clampedTargetOffset = targetOffset.clamped(to: 0...max(0, maxOffset))
 
         guard abs(scrollController.scrollOffset - clampedTargetOffset) > 1 else {
             return true
@@ -448,11 +516,10 @@ struct ClipboardListView: View {
                     try? await Task.sleep(nanoseconds: 35_000_000)
                 }
 
+                updateContentHeightOverride()
                 scrollController.scrollToTopImmediately()
                 scrollController.syncMetricsImmediately()
             }
-
-            scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 120_000_000)
         }
     }
 
@@ -473,11 +540,10 @@ struct ClipboardListView: View {
                     try? await Task.sleep(nanoseconds: 35_000_000)
                 }
 
+                updateContentHeightOverride()
                 scrollController.scrollTo(offset: offset)
                 scrollController.syncMetricsImmediately()
             }
-
-            scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 120_000_000)
         }
     }
 
@@ -518,194 +584,30 @@ struct ClipboardListView: View {
         listCache = ClipboardListStructure.makeDisplayCache(from: items)
     }
 
-    private func scheduleRowAssetLoadForCurrentViewport(
-        debounceNanoseconds: UInt64 = 80_000_000
-    ) {
-        rowAssetLoadTask?.cancel()
-
-        rowAssetLoadTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: debounceNanoseconds)
-
-            guard !Task.isCancelled else { return }
-
-            if scrollController.activityTracker.isScrolling {
-                scheduleRowAssetLoadForCurrentViewport(debounceNanoseconds: 140_000_000)
-                return
-            }
-
-            scrollController.syncMetricsImmediately()
-
-            let candidates = assetLoadCandidates(limit: 90)
-            await loadAssets(for: candidates)
-        }
-    }
-
-    private func loadAssets(for candidates: [ClipboardItem]) async {
-        guard !candidates.isEmpty else { return }
-
-        var nextAssetsByID = rowAssetsByID
-        var nextLoadedAssetItemIDs = loadedAssetItemIDs
-        var nextAssetLoadAttemptCountByID = assetLoadAttemptCountByID
-        var pendingUpdates = 0
-
-        for item in candidates {
-            guard !Task.isCancelled else { return }
-            guard !scrollController.activityTracker.isScrolling else { return }
-            guard !nextLoadedAssetItemIDs.contains(item.id) else { continue }
-
-            let assets = await ClipboardItemRowAssetLoader.loadAssets(
-                for: item,
-                store: store,
-                leadingVisualSize: 28
-            )
-
-            guard !Task.isCancelled else { return }
-            guard !scrollController.activityTracker.isScrolling else { return }
-
-            let attemptCount = (nextAssetLoadAttemptCountByID[item.id] ?? 0) + 1
-            nextAssetLoadAttemptCountByID[item.id] = attemptCount
-
-            nextAssetsByID[item.id] = assets
-
-            if assets.shouldTreatAsLoaded(for: item) || attemptCount >= 3 {
-                nextLoadedAssetItemIDs.insert(item.id)
-            }
-
-            pendingUpdates += 1
-
-            if pendingUpdates >= 12 {
-                rowAssetsByID = nextAssetsByID
-                loadedAssetItemIDs = nextLoadedAssetItemIDs
-                assetLoadAttemptCountByID = nextAssetLoadAttemptCountByID
-                pendingUpdates = 0
-                await Task.yield()
-            }
-        }
-
-        if pendingUpdates > 0 {
-            rowAssetsByID = nextAssetsByID
-            loadedAssetItemIDs = nextLoadedAssetItemIDs
-            assetLoadAttemptCountByID = nextAssetLoadAttemptCountByID
-        }
-    }
-
-    private func assetLoadCandidates(limit: Int) -> [ClipboardItem] {
+    private func updateContentHeightOverride() {
         let rows = listCache.matches(items: items)
             ? listCache.displayRows
             : ClipboardListStructure.displayRows(from: items)
 
-        let visibleIDs = ClipboardListStructure.visibleItemIDs(
-            in: rows,
-            scrollOffset: scrollController.scrollOffset,
-            viewportHeight: scrollController.viewportHeight,
-            overscan: 320
-        )
+        let estimatedContentHeight = ClipboardListStructure.estimatedContentHeight(for: rows)
+        scrollController.setContentHeightOverride(estimatedContentHeight)
+    }
 
-        var result: [ClipboardItem] = []
-        var seenIDs = Set<UUID>()
+    private func prewarmVisibleAssets() {
+        assetPrewarmTask?.cancel()
 
-        for id in visibleIDs {
-            appendCandidate(
-                id: id,
-                to: &result,
-                seenIDs: &seenIDs,
-                limit: limit
+        let prewarmItems = Array(items.prefix(100))
+
+        assetPrewarmTask = Task { @MainActor in
+            await ClipboardItemRowAssetLoader.prewarmSourceIcons(
+                for: prewarmItems,
+                limit: 40
             )
         }
-
-        if let selectedItemID {
-            appendCandidateWindow(
-                around: selectedItemID,
-                radius: 16,
-                to: &result,
-                seenIDs: &seenIDs,
-                limit: limit
-            )
-        }
-
-        for item in items.prefix(30) {
-            appendCandidate(
-                item,
-                to: &result,
-                seenIDs: &seenIDs,
-                limit: limit
-            )
-        }
-
-        return result
     }
 
-    private func appendCandidateWindow(
-        around itemID: UUID,
-        radius: Int,
-        to result: inout [ClipboardItem],
-        seenIDs: inout Set<UUID>,
-        limit: Int
-    ) {
-        guard let index = listCache.itemIndexByID[itemID],
-              items.indices.contains(index) else {
-            return
-        }
-
-        let lowerBound = max(items.startIndex, index - radius)
-        let upperBound = min(items.index(before: items.endIndex), index + radius)
-
-        for itemIndex in lowerBound...upperBound {
-            appendCandidate(
-                items[itemIndex],
-                to: &result,
-                seenIDs: &seenIDs,
-                limit: limit
-            )
-
-            if result.count >= limit {
-                return
-            }
-        }
-    }
-
-    private func appendCandidate(
-        id itemID: UUID,
-        to result: inout [ClipboardItem],
-        seenIDs: inout Set<UUID>,
-        limit: Int
-    ) {
-        guard let index = listCache.itemIndexByID[itemID],
-              items.indices.contains(index) else {
-            return
-        }
-
-        appendCandidate(
-            items[index],
-            to: &result,
-            seenIDs: &seenIDs,
-            limit: limit
-        )
-    }
-
-    private func appendCandidate(
-        _ item: ClipboardItem,
-        to result: inout [ClipboardItem],
-        seenIDs: inout Set<UUID>,
-        limit: Int
-    ) {
-        guard result.count < limit else { return }
-        guard seenIDs.insert(item.id).inserted else { return }
-        guard !loadedAssetItemIDs.contains(item.id) else { return }
-
-        result.append(item)
-    }
-
-    private func pruneRowAssetState() {
-        let currentItemIDs = Set(items.map(\.id))
-
-        rowAssetsByID = rowAssetsByID.filter { currentItemIDs.contains($0.key) }
-        loadedAssetItemIDs = loadedAssetItemIDs.intersection(currentItemIDs)
-        assetLoadAttemptCountByID = assetLoadAttemptCountByID.filter { currentItemIDs.contains($0.key) }
-    }
-
-    private func rowAssets(for item: ClipboardItem) -> ClipboardItemRowAssets {
-        rowAssetsByID[item.id] ?? .empty
+    private func scrollID(forItemID itemID: UUID) -> String {
+        "item-\(itemID.uuidString)"
     }
 
     private func primaryLabelText(for item: ClipboardItem) -> String {
@@ -742,27 +644,12 @@ struct ClipboardListView: View {
 private struct ClipboardScrollOffsetObserver: View {
     @ObservedObject var scrollController: ScrollController
     let onScrollOffsetChanged: (CGFloat) -> Void
-    let onScrollOffsetChangedForAssets: () -> Void
 
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .onChange(of: scrollController.scrollOffset) { newValue in
                 onScrollOffsetChanged(newValue)
-                onScrollOffsetChangedForAssets()
-            }
-    }
-}
-
-private struct ClipboardScrollActivityObserver: View {
-    @ObservedObject var scrollActivityTracker: ScrollActivityTracker
-    let onScrollingChanged: (Bool) -> Void
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onChange(of: scrollActivityTracker.isScrolling) { isScrolling in
-                onScrollingChanged(isScrolling)
             }
     }
 }

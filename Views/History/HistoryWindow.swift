@@ -149,6 +149,8 @@ struct HistoryContentView: View {
                     selectedItemID: viewModel.selectedID,
                     openScrollRequest: viewModel.openListScrollRequest,
                     openScrollRequestToken: viewModel.openListScrollRequestToken,
+                    jumpScrollTargetID: viewModel.pendingJumpToHistoryItemID,
+                    onJumpScrollCompleted: viewModel.completePendingJumpToHistoryScroll,
                     onScrollOffsetChanged: viewModel.updateLastListScrollOffset
                 )
             }
@@ -209,6 +211,7 @@ struct HistoryContentView: View {
 
     private func performPrimaryPasteAction() {
         viewModel.clearSearchAfterCommittedAction()
+
         if !viewModel.selectedItems.isEmpty {
             onPasteMultiple(viewModel.selectedItems)
         } else if let item = viewModel.selectedItem {
@@ -230,6 +233,7 @@ struct HistoryContentView: View {
 
     private func focusSearchField() {
         isSearchFocused = false
+
         Task { @MainActor in
             isSearchFocused = true
             try? await Task.sleep(nanoseconds: 50_000_000)
@@ -248,13 +252,18 @@ struct HistoryContentView: View {
         openPanel.prompt = "Select"
 
         guard let window = NSApplication.shared.windows.first else { return }
+
         openPanel.beginSheetModal(for: window) { response in
             guard response == .OK, let folderURL = openPanel.url else { return }
+
             let imageItems = self.viewModel.selectedItems.filter { $0.type == .image }
+
             for (index, item) in imageItems.enumerated() {
                 guard let image = store.image(for: item) else { continue }
+
                 let paddedNumber = String(format: "%04d", index + 1)
                 let fileURL = folderURL.appendingPathComponent("image-\(paddedNumber).png")
+
                 guard let tiffData = image.tiffRepresentation,
                       let bitmapImage = NSBitmapImageRep(data: tiffData),
                       let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
