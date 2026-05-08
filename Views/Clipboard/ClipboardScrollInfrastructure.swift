@@ -2,6 +2,33 @@ import AppKit
 import SwiftUI
 
 @MainActor
+final class ScrollActivityTracker: ObservableObject {
+    @Published private(set) var isScrolling = false
+
+    private var generation: UInt = 0
+    private let idleDelayNanoseconds: UInt64 = 120_000_000
+
+    func markScrolling() {
+        generation &+= 1
+        let currentGeneration = generation
+
+        if !isScrolling {
+            isScrolling = true
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            try? await Task.sleep(nanoseconds: self.idleDelayNanoseconds)
+
+            guard currentGeneration == self.generation else { return }
+
+            self.isScrolling = false
+        }
+    }
+}
+
+@MainActor
 final class ScrollController: ObservableObject {
     fileprivate enum SmoothScrollStyle {
         static let wheelStep = CGFloat(2)
@@ -13,6 +40,8 @@ final class ScrollController: ObservableObject {
     @Published private(set) var viewportHeight: CGFloat = 0
     @Published private(set) var contentHeight: CGFloat = 0
     @Published private(set) var scrollOffset: CGFloat = 0
+
+    let activityTracker = ScrollActivityTracker()
 
     weak var scrollView: NSScrollView?
 
@@ -96,6 +125,19 @@ final class ScrollController: ObservableObject {
 
     func scrollTo(offset: CGFloat) {
         scrollToOffset(offset)
+    }
+
+    func scrollBy(deltaY: CGFloat) {
+        guard abs(deltaY) > 0.5,
+              let scrollView else {
+            return
+        }
+
+        scrollView.layoutSubtreeIfNeeded()
+        scrollView.documentView?.layoutSubtreeIfNeeded()
+
+        let currentOffset = scrollView.contentView.bounds.minY
+        scrollToOffset(currentOffset + deltaY)
     }
 
     func scrollToTop(retryCount: Int = 4) {
@@ -321,8 +363,9 @@ final class ScrollController: ObservableObject {
             contentHeight = nextContentHeight
         }
 
-        if abs(scrollOffset - nextScrollOffset) > 0.5 {
+        if abs(scrollOffset - nextScrollOffset) > 2 {
             scrollOffset = nextScrollOffset
+            activityTracker.markScrolling()
         }
     }
 

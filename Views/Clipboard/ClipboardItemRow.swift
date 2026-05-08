@@ -7,17 +7,14 @@ struct ClipboardItemRow: View {
     private let appIconScale = CGFloat(1.16)
 
     let item: ClipboardItem
-    let store: ClipboardStore
+    let primaryLabelText: String
+    let assets: ClipboardItemRowAssets
     let isMultiSelected: Bool
     let joinsSelectionAbove: Bool
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
     let isHovered: Bool
-
-    @State private var thumbnail: NSImage?
-    @State private var sourceAppIcon: NSImage?
-    @State private var imageDimensionsText: String?
 
     private var backgroundColor: Color {
         if isMultiSelected {
@@ -38,27 +35,16 @@ struct ClipboardItemRow: View {
 
     private var selectionCornerRadius: CGFloat { 6 }
 
-    private var primaryLabelText: String {
-        switch item.type {
-        case .text:
-            let text = item.textContent ?? item.previewText
-            let singleLine = text
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespaces)
-
-            if singleLine.count > 50 {
-                return String(singleLine.prefix(50)) + "…"
-            }
-
-            return singleLine
-
-        case .image:
-            if let imageDimensionsText {
-                return "Image (\(imageDimensionsText))"
-            }
-
-            return "Image"
+    private var displayedPrimaryLabelText: String {
+        guard item.type == .image else {
+            return primaryLabelText
         }
+
+        if let imageDimensionsText = assets.imageDimensionsText {
+            return "Image (\(imageDimensionsText))"
+        }
+
+        return primaryLabelText
     }
 
     var body: some View {
@@ -79,15 +65,15 @@ struct ClipboardItemRow: View {
 
             ClipboardLeadingVisual(
                 item: item,
-                sourceAppIcon: sourceAppIcon,
-                thumbnail: thumbnail,
+                sourceAppIcon: assets.sourceAppIcon,
+                thumbnail: assets.thumbnail,
                 secondaryForegroundColor: secondaryForegroundColor,
                 leadingVisualSize: leadingVisualSize,
                 appIconScale: appIconScale
             )
             .frame(width: leadingVisualSize, height: leadingVisualSize)
 
-            Text(primaryLabelText)
+            Text(displayedPrimaryLabelText)
                 .font(.system(size: 13))
                 .foregroundColor(foregroundColor)
                 .lineLimit(1)
@@ -98,26 +84,9 @@ struct ClipboardItemRow: View {
         .padding(.vertical, 8)
         .frame(height: ClipboardListStructure.LayoutMetrics.itemRowHeight)
         .background(selectionBackground)
-        .animation(.easeInOut(duration: 0.16), value: isHovered)
-        .task(id: item.id) {
-            if item.type == .image && thumbnail == nil {
-                thumbnail = await ClipboardItemRowAssetLoader.loadThumbnail(
-                    for: item,
-                    store: store,
-                    leadingVisualSize: leadingVisualSize
-                )
-
-                imageDimensionsText = await ClipboardItemRowAssetLoader.loadImageDimensionsText(
-                    for: item,
-                    store: store
-                )
-            }
-
-            if sourceAppIcon == nil {
-                sourceAppIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(for: item)
-            }
+        .transaction { transaction in
+            transaction.animation = nil
         }
-        .animation(.spring(response: 0.22, dampingFraction: 0.9), value: quickPasteNumber != nil)
     }
 
     @ViewBuilder

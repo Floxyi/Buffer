@@ -1,45 +1,243 @@
 import AppKit
 import SwiftUI
 
+struct ClipboardItemRowAssets {
+    let thumbnail: NSImage?
+    let sourceAppIcon: NSImage?
+    let imageDimensionsText: String?
+
+    static let empty = ClipboardItemRowAssets(
+        thumbnail: nil,
+        sourceAppIcon: nil,
+        imageDimensionsText: nil
+    )
+}
+
 @MainActor
 enum ClipboardItemRowAssetLoader {
+    private static let thumbnailCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 500
+        return cache
+    }()
+
+    private static let sourceIconCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 120
+        return cache
+    }()
+
+    private static var missingThumbnailKeys = Set<String>()
+    private static var imageDimensionsTextCache: [UUID: String] = [:]
+    private static var missingImageDimensionsTextIDs = Set<UUID>()
+    private static var missingSourceIconKeys = Set<String>()
+
+    static func loadAssets(
+        for item: ClipboardItem,
+        store: ClipboardStore,
+        leadingVisualSize: CGFloat
+    ) async -> ClipboardItemRowAssets {
+        let thumbnail: NSImage?
+        let imageDimensionsText: String?
+
+        if item.type == .image {
+            thumbnail = await loadThumbnail(
+                for: item,
+                store: store,
+                leadingVisualSize: leadingVisualSize
+            )
+
+            imageDimensionsText = await loadImageDimensionsText(
+                for: item,
+                store: store
+            )
+        } else {
+            thumbnail = nil
+            imageDimensionsText = nil
+        }
+
+        let sourceAppIcon = await loadSourceApplicationIcon(for: item)
+
+        return ClipboardItemRowAssets(
+            thumbnail: thumbnail,
+            sourceAppIcon: sourceAppIcon,
+            imageDimensionsText: imageDimensionsText
+        )
+    }
+
     static func loadThumbnail(
         for item: ClipboardItem,
         store: ClipboardStore,
         leadingVisualSize: CGFloat
     ) async -> NSImage? {
         let pixelSize = leadingVisualSize * 2
-        return store.thumbnail(for: item, maxPixelSize: pixelSize)
+        let key = thumbnailCacheKey(for: item, pixelSize: pixelSize)
+
+        if let cachedThumbnail = thumbnailCache.object(forKey: key as NSString) {
+            return cachedThumbnail
+        }
+
+        if missingThumbnailKeys.contains(key) {
+            return nil
+        }
+
+        guard let thumbnail = store.thumbnail(for: item, maxPixelSize: pixelSize) else {
+            missingThumbnailKeys.insert(key)
+            return nil
+        }
+
+        thumbnailCache.setObject(thumbnail, forKey: key as NSString)
+        missingThumbnailKeys.remove(key)
+
+        return thumbnail
     }
 
     static func loadImageDimensionsText(
         for item: ClipboardItem,
         store: ClipboardStore
     ) async -> String? {
-        store.imageDimensions(for: item)
+        if let cachedText = imageDimensionsTextCache[item.id] {
+            return cachedText
+        }
+
+        if missingImageDimensionsTextIDs.contains(item.id) {
+            return nil
+        }
+
+        guard let dimensionsText = store.imageDimensions(for: item) else {
+            missingImageDimensionsTextIDs.insert(item.id)
+            return nil
+        }
+
+        imageDimensionsTextCache[item.id] = dimensionsText
+        missingImageDimensionsTextIDs.remove(item.id)
+
+        return dimensionsText
     }
 
     static func loadSourceApplicationIcon(for item: ClipboardItem) async -> NSImage? {
+        guard let key = sourceIconCacheKey(for: item) else {
+            return nil
+        }
+
+        if let cachedIcon = sourceIconCache.object(forKey: key as NSString) {
+            return cachedIcon
+        }
+
+        if missingSourceIconKeys.contains(key) {
+            return nil
+        }
+
+        let iconImage = await loadSourceApplicationIconWithoutCache(for: item)
+
+        guard let iconImage else {
+            missingSourceIconKeys.insert(key)
+            return nil
+        }
+
+        sourceIconCache.setObject(iconImage, forKey: key as NSString)
+        missingSourceIconKeys.remove(key)
+
+        return iconImage
+    }
+
+    static func prewarmSourceIcons(
+        for items: [ClipboardItem],
+        limit: Int = 40
+    ) async {
+        var seenKeys = Set<String>()
+        var loadedCount = 0
+
+        for item in items {
+            if Task.isCancelled {
+                return
+            }
+
+            guard let key = sourceIconCacheKey(for: item) else {
+                continue
+            }
+
+            guard seenKeys.insert(key).inserted else {
+                continue
+            }
+
+            if sourceIconCache.object(forKey: key as NSString) != nil {
+                continue
+            }
+
+            if missingSourceIconKeys.contains(key) {
+                continue
+            }
+
+            _ = await loadSourceApplicationIcon(for: item)
+
+            loadedCount += 1
+            if loadedCount >= limit {
+                return
+            }
+        }
+    }
+
+    static func clearCaches() {
+        thumbnailCache.removeAllObjects()
+        sourceIconCache.removeAllObjects()
+        missingThumbnailKeys.removeAll()
+        imageDimensionsTextCache.removeAll()
+        missingImageDimensionsTextIDs.removeAll()
+        missingSourceIconKeys.removeAll()
+    }
+
+    static func removeCachedAssets(for itemID: UUID) {
+        let itemIDPrefix = itemID.uuidString
+        let thumbnailKeysToRemove = missingThumbnailKeys.filter { $0.hasPrefix(itemIDPrefix) }
+
+        for key in thumbnailKeysToRemove {
+            missingThumbnailKeys.remove(key)
+        }
+
+        imageDimensionsTextCache.removeValue(forKey: itemID)
+        missingImageDimensionsTextIDs.remove(itemID)
+    }
+
+    private static func thumbnailCacheKey(for item: ClipboardItem, pixelSize: CGFloat) -> String {
+        "\(item.id.uuidString)-\(Int(pixelSize.rounded()))"
+    }
+
+    private static func sourceIconCacheKey(for item: ClipboardItem) -> String? {
+        if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty {
+            return "path:\(bundlePath)"
+        }
+
+        if let bundleIdentifier = item.sourceAppBundleIdentifier, !bundleIdentifier.isEmpty {
+            return "bundle:\(bundleIdentifier)"
+        }
+
+        return nil
+    }
+
+    private static func loadSourceApplicationIconWithoutCache(for item: ClipboardItem) async -> NSImage? {
         await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let iconImage: NSImage?
+            DispatchQueue.global(qos: .utility).async {
+                let resolvedIcon: NSImage?
 
                 if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty {
-                    iconImage = NSWorkspace.shared.icon(forFile: bundlePath)
+                    resolvedIcon = NSWorkspace.shared.icon(forFile: bundlePath)
                 } else if let bundleIdentifier = item.sourceAppBundleIdentifier,
                           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-                    iconImage = NSWorkspace.shared.icon(forFile: appURL.path)
+                    resolvedIcon = NSWorkspace.shared.icon(forFile: appURL.path)
                 } else {
-                    iconImage = nil
+                    resolvedIcon = nil
                 }
 
-                guard let iconImage else {
+                guard let resolvedIcon else {
                     continuation.resume(returning: nil)
                     return
                 }
 
-                iconImage.size = NSSize(width: 14, height: 14)
-                continuation.resume(returning: iconImage)
+                let iconCopy = resolvedIcon.copy() as? NSImage ?? resolvedIcon
+                iconCopy.size = NSSize(width: 14, height: 14)
+
+                continuation.resume(returning: iconCopy)
             }
         }
     }
@@ -169,16 +367,16 @@ enum ClipboardColorParser {
             var t = t
             if t < 0 { t += 1 }
             if t > 1 { t -= 1 }
-            if t < 1/6 { return p + (q - p) * 6 * t }
-            if t < 1/2 { return q }
-            if t < 2/3 { return p + (q - p) * (2/3 - t) * 6 }
+            if t < 1 / 6 { return p + (q - p) * 6 * t }
+            if t < 1 / 2 { return q }
+            if t < 2 / 3 { return p + (q - p) * (2 / 3 - t) * 6 }
             return p
         }
 
         let hNorm = h / 360
-        let r = hueToRGB(p, q, hNorm + 1/3)
+        let r = hueToRGB(p, q, hNorm + 1 / 3)
         let g = hueToRGB(p, q, hNorm)
-        let b = hueToRGB(p, q, hNorm - 1/3)
+        let b = hueToRGB(p, q, hNorm - 1 / 3)
 
         return (r, g, b)
     }

@@ -27,6 +27,88 @@ enum ClipboardListStructure {
         let kind: Kind
     }
 
+    struct DisplayCache {
+        let itemIDs: [UUID]
+        let displayRows: [DisplayRow]
+        let itemIndexByID: [UUID: Int]
+        let primaryLabelTextByID: [UUID: String]
+
+        static let empty = DisplayCache(
+            itemIDs: [],
+            displayRows: [],
+            itemIndexByID: [:],
+            primaryLabelTextByID: [:]
+        )
+
+        func matches(items: [ClipboardItem]) -> Bool {
+            guard itemIDs.count == items.count else {
+                return false
+            }
+
+            for index in items.indices {
+                guard itemIDs[index] == items[index].id else {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func index(for item: ClipboardItem, in items: [ClipboardItem]) -> Int {
+            if let cachedIndex = itemIndexByID[item.id],
+               items.indices.contains(cachedIndex),
+               items[cachedIndex].id == item.id {
+                return cachedIndex
+            }
+
+            return items.firstIndex(where: { $0.id == item.id }) ?? 0
+        }
+
+        func itemExists(_ itemID: UUID, in items: [ClipboardItem]) -> Bool {
+            if let cachedIndex = itemIndexByID[itemID],
+               items.indices.contains(cachedIndex),
+               items[cachedIndex].id == itemID {
+                return true
+            }
+
+            return items.contains { $0.id == itemID }
+        }
+
+        func primaryLabelText(for item: ClipboardItem) -> String {
+            primaryLabelTextByID[item.id] ?? ClipboardListStructure.primaryLabelText(for: item)
+        }
+    }
+
+    static func makeDisplayCache(from items: [ClipboardItem]) -> DisplayCache {
+        var primaryLabelTextByID: [UUID: String] = [:]
+        primaryLabelTextByID.reserveCapacity(items.count)
+
+        for item in items {
+            primaryLabelTextByID[item.id] = primaryLabelText(for: item)
+        }
+
+        return DisplayCache(
+            itemIDs: items.map(\.id),
+            displayRows: displayRows(from: items),
+            itemIndexByID: Dictionary(
+                uniqueKeysWithValues: items.enumerated().map { index, item in
+                    (item.id, index)
+                }
+            ),
+            primaryLabelTextByID: primaryLabelTextByID
+        )
+    }
+
+    static func primaryLabelText(for item: ClipboardItem) -> String {
+        switch item.type {
+        case .text:
+            return makeTextPreview(for: item)
+
+        case .image:
+            return "Image"
+        }
+    }
+
     static func pinnedItems(from items: [ClipboardItem]) -> [ClipboardItem] {
         items.filter(\.isPinned)
     }
@@ -62,6 +144,7 @@ enum ClipboardListStructure {
         let unpinnedSections = unpinnedSections(from: items)
 
         var rows: [DisplayRow] = []
+        rows.reserveCapacity(items.count + unpinnedSections.count + (pinnedItems.isEmpty ? 0 : 2))
 
         if !pinnedItems.isEmpty {
             rows.append(
@@ -111,6 +194,47 @@ enum ClipboardListStructure {
         return rows
     }
 
+    static func visibleItemIDs(
+        in rows: [DisplayRow],
+        scrollOffset: CGFloat,
+        viewportHeight: CGFloat,
+        overscan: CGFloat
+    ) -> [UUID] {
+        guard viewportHeight > 0 else {
+            return []
+        }
+
+        let visibleMinY = max(0, scrollOffset - overscan)
+        let visibleMaxY = scrollOffset + viewportHeight + overscan
+
+        var result: [UUID] = []
+        var currentY = LayoutMetrics.contentPadding
+
+        for (index, row) in rows.enumerated() {
+            let rowHeight = estimatedRowHeight(for: row)
+            let rowMinY = currentY
+            let rowMaxY = currentY + rowHeight
+
+            if rowMaxY >= visibleMinY, rowMinY <= visibleMaxY {
+                if case .item(let item) = row.kind {
+                    result.append(item.id)
+                }
+            }
+
+            if rowMinY > visibleMaxY {
+                break
+            }
+
+            currentY += rowHeight
+
+            if index < rows.count - 1 {
+                currentY += LayoutMetrics.rowSpacing
+            }
+        }
+
+        return result
+    }
+
     static func estimatedContentHeight(for rows: [DisplayRow]) -> CGFloat {
         guard !rows.isEmpty else {
             return 2 * LayoutMetrics.contentPadding
@@ -155,5 +279,28 @@ enum ClipboardListStructure {
         case .item:
             return LayoutMetrics.itemRowHeight
         }
+    }
+
+    private static func makeTextPreview(for item: ClipboardItem) -> String {
+        let rawText: String
+
+        if !item.previewText.isEmpty {
+            rawText = item.previewText
+        } else if let textContent = item.textContent {
+            rawText = String(textContent.prefix(160))
+        } else {
+            rawText = ""
+        }
+
+        let collapsed = rawText
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if collapsed.count > 50 {
+            return String(collapsed.prefix(50)) + "…"
+        }
+
+        return collapsed
     }
 }
