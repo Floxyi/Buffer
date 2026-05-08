@@ -52,6 +52,7 @@ struct ClipboardListView: View {
     @Binding var hoveredItemID: UUID?
 
     var onSelectSingle: (UUID) -> Void = { _ in }
+    var onSelectPreferredTopItem: () -> UUID? = { nil }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
     var onCopyItem: (ClipboardItem) -> Void = { _ in }
@@ -152,7 +153,7 @@ struct ClipboardListView: View {
                 }
                 .overlay(alignment: .bottom) {
                     ClipboardScrollToTopOverlay(scrollController: scrollController) {
-                        selectFirstItemAndScrollToTop()
+                        selectFirstItemAndScrollToTop(using: scrollProxy)
                     }
                 }
                 .overlay(alignment: .topTrailing) {
@@ -659,17 +660,24 @@ struct ClipboardListView: View {
         }
     }
 
-    private func selectFirstItemAndScrollToTop() {
-        guard let firstItem = items.first else {
+    private func selectFirstItemAndScrollToTop(using scrollProxy: ScrollViewProxy) {
+        contextMenuHighlightedItemID = nil
+        hoveredItemID = nil
+
+        guard let preferredTopItemID = onSelectPreferredTopItem() else {
             scheduleOpenScrollToTop()
             return
         }
 
-        contextMenuHighlightedItemID = nil
-        hoveredItemID = nil
-        selectedIndex = 0
-        onSelectSingle(firstItem.id)
-        scheduleOpenScrollToTop()
+        if items.first?.id == preferredTopItemID {
+            scheduleOpenScrollToTop()
+        } else {
+            scheduleMeasuredScroll(
+                to: preferredTopItemID,
+                centered: false,
+                using: scrollProxy
+            )
+        }
     }
 
     private func applyOpenScrollRequest(
@@ -753,10 +761,10 @@ struct ClipboardListView: View {
     }
 
     private func logScrollDiagnostics(_ message: @autoclosure () -> String) {
-    #if DEBUG
+#if DEBUG
         let resolvedMessage = message()
         BufferLogger.ui.debug("\(resolvedMessage, privacy: .public)")
-    #endif
+#endif
     }
 }
 

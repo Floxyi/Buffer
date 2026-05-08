@@ -242,6 +242,20 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    func selectPreferredTopItem() -> UUID? {
+        guard let preferredTopSelectionID = preferredTopSelectionID() else {
+            selectedIDs = []
+            selectionAnchor = nil
+            selectedID = nil
+            selectedIndex = 0
+            return nil
+        }
+
+        syncSelection(preferredID: preferredTopSelectionID)
+        return preferredTopSelectionID
+    }
+
     func toggleSelection(_ id: UUID) {
         if selectedIDs.contains(id) {
             selectedIDs.remove(id)
@@ -610,10 +624,10 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func logJumpToHistory(_ message: @autoclosure () -> String) {
-    #if DEBUG
+#if DEBUG
         let resolvedMessage = message()
         BufferLogger.ui.debug("\(resolvedMessage, privacy: .public)")
-    #endif
+#endif
     }
 
     private static func makeFilteredItems(from items: [ClipboardItem], query: String, store: ClipboardStore) -> [ClipboardItem] {

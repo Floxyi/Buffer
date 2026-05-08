@@ -132,6 +132,7 @@ struct HistoryContentView: View {
                     ),
                     hoveredItemID: $viewModel.hoveredItemID,
                     onSelectSingle: viewModel.selectSingle,
+                    onSelectPreferredTopItem: viewModel.selectPreferredTopItem,
                     onToggleSelection: viewModel.toggleSelection,
                     onExtendSelectionTo: viewModel.extendSelectionTo,
                     onCopyItem: { item in
