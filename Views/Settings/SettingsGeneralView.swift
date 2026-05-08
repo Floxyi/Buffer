@@ -3,10 +3,10 @@ import SwiftUI
 
 struct SettingsGeneralView: View {
     @ObservedObject var settings: SettingsManager
-    @Binding var isRecording: Bool
-    @Binding var showingTrimAlert: Bool
-    @Binding var pendingTier: HistoryLimit?
 
+    @State private var isRecording = false
+    @State private var showingTrimAlert = false
+    @State private var pendingTier: HistoryLimit?
     @State private var showingResetAlert = false
 
     var body: some View {
@@ -19,6 +19,7 @@ struct SettingsGeneralView: View {
                         set: { settings.toggleLaunchAtLogin($0) }
                     )
                 )
+
                 Text("Keep clipboard history running automatically in the background.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -45,6 +46,7 @@ struct SettingsGeneralView: View {
                     ForEach(HistoryLimit.allCases, id: \.self) { tier in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(tier.label)
+
                             Text(tier.subtitle)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -77,7 +79,11 @@ struct SettingsGeneralView: View {
                     .padding(.vertical, 4)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isRecording ? Color.accentColor.opacity(0.15) : Color(nsColor: .controlBackgroundColor))
+                            .fill(
+                                isRecording
+                                    ? Color.accentColor.opacity(0.15)
+                                    : Color(nsColor: .controlBackgroundColor)
+                            )
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -119,6 +125,21 @@ struct SettingsGeneralView: View {
             }
         }
         .formStyle(.grouped)
+        .alert("Reduce History Limit?", isPresented: $showingTrimAlert) {
+            Button("Cancel", role: .cancel) {
+                pendingTier = nil
+            }
+
+            Button("Reduce & Delete", role: .destructive) {
+                if let tier = pendingTier {
+                    settings.setHistoryLimit(tier)
+                }
+
+                pendingTier = nil
+            }
+        } message: {
+            Text("This will permanently delete your oldest unpinned items to fit the new size. This action cannot be undone.")
+        }
         .alert("Restore Default Settings?", isPresented: $showingResetAlert) {
             Button("Restore Defaults", role: .destructive) {
                 settings.resetUserPreferencesToDefaults()
@@ -131,5 +152,11 @@ struct SettingsGeneralView: View {
         } message: {
             Text("This will reset your preferences to their default values. Your clipboard history and excluded apps will not be deleted.")
         }
+        .background(
+            KeyRecorder(isRecording: $isRecording) { keyCode, modifiers in
+                settings.setHotkey(keyCode: keyCode, modifiers: modifiers)
+                isRecording = false
+            }
+        )
     }
 }

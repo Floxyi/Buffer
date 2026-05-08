@@ -70,7 +70,6 @@
 		AAA00074 /* SettingsGeneralView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00076 /* SettingsGeneralView.swift */; };
 		AAA00075 /* SettingsPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00077 /* SettingsPrivacyView.swift */; };
 		AAA00076 /* SettingsAboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00078 /* SettingsAboutView.swift */; };
-		AAA00077 /* ExcludedAppRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00079 /* ExcludedAppRow.swift */; };
 		AAA00078 /* SettingsBehaviourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00080 /* SettingsBehaviourView.swift */; };
 		ABC10001 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20001 /* SettingsManagerTests.swift */; };
 		ABC10002 /* ClipboardHistoryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20002 /* ClipboardHistoryPersistenceTests.swift */; };
@@ -163,7 +162,6 @@
 		BBB00076 /* SettingsGeneralView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGeneralView.swift; sourceTree = "<group>"; };
 		BBB00077 /* SettingsPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPrivacyView.swift; sourceTree = "<group>"; };
 		BBB00078 /* SettingsAboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutView.swift; sourceTree = "<group>"; };
-		BBB00079 /* ExcludedAppRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExcludedAppRow.swift; sourceTree = "<group>"; };
 		BBB00080 /* SettingsBehaviourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBehaviourView.swift; sourceTree = "<group>"; };
 		D87736112F8ECC6B00392A0B /* ClickDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -346,7 +344,6 @@
 				BBB00080 /* SettingsBehaviourView.swift */,
 				BBB00077 /* SettingsPrivacyView.swift */,
 				BBB00078 /* SettingsAboutView.swift */,
-				BBB00079 /* ExcludedAppRow.swift */,
 				BBB00033 /* SettingsSupport.swift */,
 			);
 			path = Settings;
@@ -540,7 +537,6 @@
 				AAA00078 /* SettingsBehaviourView.swift in Sources */,
 				AAA00075 /* SettingsPrivacyView.swift in Sources */,
 				AAA00076 /* SettingsAboutView.swift in Sources */,
-				AAA00077 /* ExcludedAppRow.swift in Sources */,
 				AAA00031 /* SettingsSupport.swift in Sources */,
 				AAA00032 /* HistoryContentState.swift in Sources */,
 				AAA00036 /* ClipboardStorageSupport.swift in Sources */,

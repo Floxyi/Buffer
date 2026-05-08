@@ -11,10 +11,6 @@ struct SettingsView: View {
     @State private var detailRefreshToken = 0
     @State private var didPerformInitialNavigationRefresh = false
 
-    @State private var isRecording = false
-    @State private var showingTrimAlert = false
-    @State private var pendingTier: HistoryLimit?
-
     private let about = AppMetadata.current
 
     private var activeCategory: SettingsCategory {
@@ -63,23 +59,6 @@ struct SettingsView: View {
         .onChange(of: selectedCategory) { _ in
             publishActiveCategoryTitle()
         }
-        .alert("Reduce History Limit?", isPresented: $showingTrimAlert) {
-            Button("Cancel", role: .cancel) { }
-
-            Button("Reduce & Delete", role: .destructive) {
-                if let tier = pendingTier {
-                    settings.setHistoryLimit(tier)
-                }
-            }
-        } message: {
-            Text("This will permanently delete your oldest unpinned items to fit the new size. This action cannot be undone.")
-        }
-        .background(
-            KeyRecorder(isRecording: $isRecording) { keyCode, modifiers in
-                settings.setHotkey(keyCode: keyCode, modifiers: modifiers)
-                isRecording = false
-            }
-        )
     }
 
     @ViewBuilder
@@ -87,21 +66,13 @@ struct SettingsView: View {
         Group {
             switch category {
             case .general:
-                SettingsGeneralView(
-                    settings: settings,
-                    isRecording: $isRecording,
-                    showingTrimAlert: $showingTrimAlert,
-                    pendingTier: $pendingTier
-                )
+                SettingsGeneralView(settings: settings)
 
             case .behaviour:
                 SettingsBehaviourView(settings: settings)
 
             case .privacy:
-                SettingsPrivacyView(
-                    settings: settings,
-                    onPickExcludedApp: pickExcludedApp
-                )
+                SettingsPrivacyView(settings: settings)
 
             case .about:
                 SettingsAboutView(about: about)
@@ -151,32 +122,6 @@ struct SettingsView: View {
                 to: nil,
                 from: nil
             )
-        }
-    }
-
-    private func pickExcludedApp() {
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else {
-            return
-        }
-
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = true
-        panel.resolvesAliases = true
-        panel.treatsFilePackagesAsDirectories = false
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Add"
-        panel.message = "Select an app whose copied content Buffer should ignore."
-
-        let pickerDelegate = AppBundleOpenPanelDelegate()
-        panel.delegate = pickerDelegate
-
-        panel.beginSheetModal(for: window) { response in
-            guard response == .OK, let url = panel.url else { return }
-            guard let app = ExcludedApp(url: url) else { return }
-
-            settings.addExcludedApp(app)
         }
     }
 }
