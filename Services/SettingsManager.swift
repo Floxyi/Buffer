@@ -2,6 +2,34 @@ import Combine
 import Foundation
 import ServiceManagement
 
+enum MenuBarIcon: String, CaseIterable, Codable, Sendable {
+    case clipboard
+    case clipboardDocument
+    case stack
+    case tray
+    case bolt
+
+    var label: String {
+        switch self {
+        case .clipboard: return "Clipboard"
+        case .clipboardDocument: return "Clipboard Document"
+        case .stack: return "Stack"
+        case .tray: return "Tray"
+        case .bolt: return "Bolt"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .clipboard: return "clipboard.fill"
+        case .clipboardDocument: return "doc.on.clipboard"
+        case .stack: return "square.stack.3d.up.fill"
+        case .tray: return "tray.fill"
+        case .bolt: return "bolt.fill"
+        }
+    }
+}
+
 struct ExcludedApp: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -179,6 +207,7 @@ final class SettingsManager: ObservableObject {
         static let textDetailFontStyle = "textDetailFontStyle"
         static let textDetailFontSize = "textDetailFontSize"
         static let historyRetentionPeriod = "historyRetentionPeriod"
+        static let menuBarIcon = "menuBarIcon"
     }
 
     private let defaults: UserDefaults
@@ -195,6 +224,7 @@ final class SettingsManager: ObservableObject {
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published private(set) var excludedApps: [ExcludedApp]
     @Published private(set) var persistedHistoryLimit: HistoryLimit
+    @Published var menuBarIcon: MenuBarIcon
 
     var hotkeyPublisher: AnyPublisher<(UInt16, HotkeyModifiers), Never> {
         Publishers.CombineLatest($hotkeyKeyCode.removeDuplicates(), $hotkeyModifiers.removeDuplicates())
@@ -232,6 +262,9 @@ final class SettingsManager: ObservableObject {
 
         let rawTextDetailFontSize = defaults.integer(forKey: Key.textDetailFontSize)
         self.textDetailFontSize = TextDetailFontSize(rawValue: rawTextDetailFontSize) ?? .medium
+        
+        let rawMenuBarIcon = defaults.string(forKey: Key.menuBarIcon) ?? MenuBarIcon.clipboard.rawValue
+        self.menuBarIcon = MenuBarIcon(rawValue: rawMenuBarIcon) ?? .clipboard
 
         let rawHistoryRetentionPeriod =
             defaults.string(forKey: Key.historyRetentionPeriod) ?? HistoryRetentionPeriod.never.rawValue
@@ -297,6 +330,11 @@ final class SettingsManager: ObservableObject {
         historyRetentionPeriod = period
         persist()
     }
+    
+    func setMenuBarIcon(_ icon: MenuBarIcon) {
+        menuBarIcon = icon
+        persist()
+    }
 
     func addExcludedApp(_ app: ExcludedApp) {
         guard !excludedApps.contains(where: { $0.id == app.id }) else { return }
@@ -326,14 +364,12 @@ final class SettingsManager: ObservableObject {
         defaults.set(hotkeyModifiers.toArray(), forKey: Key.hotkeyModifiers)
         defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
         defaults.set(historyLimit.rawValue, forKey: Key.historyLimit)
-        defaults.set(
-            preferInitialSelectionFromFirstNonPinnedItem,
-            forKey: Key.preferInitialSelectionFromFirstNonPinnedItem
-        )
+        defaults.set(preferInitialSelectionFromFirstNonPinnedItem, forKey: Key.preferInitialSelectionFromFirstNonPinnedItem)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
         defaults.set(textDetailFontStyle.rawValue, forKey: Key.textDetailFontStyle)
         defaults.set(textDetailFontSize.rawValue, forKey: Key.textDetailFontSize)
         defaults.set(historyRetentionPeriod.rawValue, forKey: Key.historyRetentionPeriod)
+        defaults.set(menuBarIcon.rawValue, forKey: Key.menuBarIcon)
 
         do {
             let data = try JSONEncoder().encode(excludedApps)

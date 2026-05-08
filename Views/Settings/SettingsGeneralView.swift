@@ -21,6 +21,26 @@ struct SettingsGeneralView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            
+            Section("Menu Bar") {
+                Picker(
+                    "Menu Bar Icon",
+                    selection: Binding(
+                        get: { settings.menuBarIcon },
+                        set: { settings.setMenuBarIcon($0) }
+                    )
+                ) {
+                    ForEach(MenuBarIcon.allCases, id: \.self) { icon in
+                        Label(icon.label, systemImage: icon.symbolName)
+                            .tag(icon)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text("Choose the icon shown in the macOS menu bar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Section("History Size") {
                 Picker("Saved History", selection: $settings.historyLimit) {

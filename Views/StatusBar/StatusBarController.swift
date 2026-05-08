@@ -1,4 +1,5 @@
 import Cocoa
+import Combine
 import SwiftUI
 
 @MainActor
@@ -11,6 +12,7 @@ final class StatusBarController {
     private let onToggleHistory: () -> Void
     private var settingsWindowController: NSWindowController?
     private let statusItem: NSStatusItem
+    private var cancellables = Set<AnyCancellable>()
 
     init(
         store: ClipboardStore,
@@ -25,18 +27,29 @@ final class StatusBarController {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         setupButton()
+        observeSettings()
     }
 
     private func setupButton() {
         guard let button = statusItem.button else { return }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        let image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Buffer")
-        image?.isTemplate = true
-        button.image = image?.withSymbolConfiguration(config)
+        updateIcon(paused: watcher.isPaused)
+
         button.action = #selector(handleClick)
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+    
+    private func observeSettings() {
+        settingsManager.$menuBarIcon
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.updateIcon(paused: self.watcher.isPaused)
+                }
+            }
+            .store(in: &cancellables)
     }
 
     @objc private func handleClick(_ sender: NSStatusBarButton) {
@@ -61,22 +74,24 @@ final class StatusBarController {
         let shortcutItem = NSMenuItem(title: "Shortcut: \(shortcutDisplay)", action: nil, keyEquivalent: "")
         shortcutItem.isEnabled = false
         menu.addItem(shortcutItem)
-        menu.addItem(.separator())
 
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
         menu.addItem(.separator())
 
         let pauseTitle = watcher.isPaused ? "Resume Capture" : "Pause Capture"
         let pauseItem = NSMenuItem(title: pauseTitle, action: #selector(togglePause), keyEquivalent: "")
         pauseItem.target = self
         menu.addItem(pauseItem)
-        menu.addItem(.separator())
 
         let clearItem = NSMenuItem(title: "Clear History", action: #selector(clearHistory), keyEquivalent: "")
         clearItem.target = self
         menu.addItem(clearItem)
+
+        menu.addItem(.separator())
+        
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+        
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit Buffer", action: #selector(quit), keyEquivalent: "q")
@@ -166,10 +181,13 @@ final class StatusBarController {
     private func updateIcon(paused: Bool) {
         guard let button = statusItem.button else { return }
 
-        let symbolName = paused ? "doc.on.clipboard.fill" : "doc.on.clipboard"
+        let symbolName = paused ? "pause.circle.fill" : settingsManager.menuBarIcon.symbolName
+        let accessibilityDescription = paused ? "Buffer Paused" : "Buffer"
+
         let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Buffer")
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDescription)
         image?.isTemplate = true
+
         button.image = image?.withSymbolConfiguration(config)
     }
 }
