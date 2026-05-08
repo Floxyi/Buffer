@@ -124,7 +124,7 @@ struct HistoryContentView: View {
                     scrollTrigger: $viewModel.scrollTrigger,
                     store: store,
                     showsQuickPasteNumbers: viewModel.showsQuickPasteNumbers,
-                    onSelect: onCopyToClipboard,
+                    onCommitSelection: performPrimaryPasteAction,
                     onDismiss: onDismiss,
                     selectedIDs: Binding(
                         get: { viewModel.selectedIDs },

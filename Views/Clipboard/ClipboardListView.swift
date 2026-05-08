@@ -45,7 +45,7 @@ struct ClipboardListView: View {
 
     let store: ClipboardStore
     let showsQuickPasteNumbers: Bool
-    let onSelect: (ClipboardItem) -> Void
+    let onCommitSelection: () -> Void
     let onDismiss: () -> Void
 
     @Binding var selectedIDs: Set<UUID>
@@ -319,8 +319,8 @@ struct ClipboardListView: View {
             TapGesture(count: 2)
                 .onEnded { _ in
                     selectedIndex = index
-                    onSelect(item)
-                    onDismiss()
+                    onSelectSingle(item.id)
+                    onCommitSelection()
                 }
         )
         .contextMenu {
