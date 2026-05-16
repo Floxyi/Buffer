@@ -33,6 +33,7 @@ struct ClipboardListView: View {
     @State private var pendingMeasuredScrollTarget: PendingMeasuredScrollTarget?
     @State private var pendingMeasuredScrollCompletion: ((Bool) -> Void)?
     @State private var measuredScrollTask: Task<Void, Never>?
+    @State private var keyboardNavigationScrollTask: Task<Void, Never>?
     @State private var measuredTargetFrame: CGRect?
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmTask: Task<Void, Never>?
@@ -212,6 +213,7 @@ struct ClipboardListView: View {
                     assetPrewarmTask?.cancel()
                     assetPrewarmTask = nil
                     cancelPendingMeasuredScroll()
+                    cancelKeyboardNavigationScroll()
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
@@ -232,11 +234,7 @@ struct ClipboardListView: View {
                     } else if newValue == items.count - 1 {
                         scheduleScrollToBottom()
                     } else if let itemID = items[safe: newValue]?.id {
-                        scheduleMeasuredScroll(
-                            to: itemID,
-                            centered: false,
-                            using: scrollProxy
-                        )
+                        scheduleKeyboardNavigationScroll(to: itemID)
                     }
                 }
                 .onChange(of: selectionNavigationToken) { _ in
@@ -556,6 +554,34 @@ struct ClipboardListView: View {
         completion?(false)
     }
 
+    private func scheduleKeyboardNavigationScroll(to itemID: UUID) {
+        scrollRequestID &+= 1
+        let requestID = scrollRequestID
+
+        cancelPendingMeasuredScroll()
+        cancelKeyboardNavigationScroll()
+
+        keyboardNavigationScrollTask = Task { @MainActor in
+            await Task.yield()
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            guard requestID == scrollRequestID else {
+                return
+            }
+
+            performKeyboardNavigationScroll(to: itemID)
+            keyboardNavigationScrollTask = nil
+        }
+    }
+
+    private func cancelKeyboardNavigationScroll() {
+        keyboardNavigationScrollTask?.cancel()
+        keyboardNavigationScrollTask = nil
+    }
+
     private func scrollToEstimatedPosition(itemID: UUID, centered: Bool) {
         let rows = listCache.matches(items: items)
             ? listCache.displayRows
@@ -577,6 +603,49 @@ struct ClipboardListView: View {
         )
 
         scrollController.scrollTo(offset: targetOffset)
+        scrollController.syncMetricsImmediately()
+    }
+
+    private func performKeyboardNavigationScroll(to itemID: UUID) {
+        let rows = listCache.matches(items: items)
+            ? listCache.displayRows
+            : ClipboardListStructure.displayRows(from: items)
+
+        guard let estimatedFrame = ClipboardListStructure.estimatedFrame(
+            forItemID: itemID,
+            in: rows
+        ) else {
+            return
+        }
+
+        scrollController.syncMetricsImmediately()
+
+        let viewportHeight = max(1, scrollController.viewportHeight)
+        let currentOffset = scrollController.scrollOffset
+        let maxOffset = max(0, scrollController.contentHeight - viewportHeight)
+        let edgePadding = CGFloat(12)
+        let visibleMinY = currentOffset + edgePadding
+        let visibleMaxY = currentOffset + viewportHeight - edgePadding
+
+        let targetOffset: CGFloat?
+        if estimatedFrame.minY < visibleMinY {
+            targetOffset = estimatedFrame.minY - edgePadding
+        } else if estimatedFrame.maxY > visibleMaxY {
+            targetOffset = estimatedFrame.maxY - viewportHeight + edgePadding
+        } else {
+            targetOffset = nil
+        }
+
+        guard let targetOffset else {
+            return
+        }
+
+        let clampedTargetOffset = targetOffset.clamped(to: 0...maxOffset)
+        guard abs(clampedTargetOffset - currentOffset) > 0.5 else {
+            return
+        }
+
+        scrollController.scrollTo(offset: clampedTargetOffset)
         scrollController.syncMetricsImmediately()
     }
 
@@ -636,6 +705,7 @@ struct ClipboardListView: View {
         let requestID = scrollRequestID
 
         cancelPendingMeasuredScroll()
+        cancelKeyboardNavigationScroll()
 
         Task { @MainActor in
             for attempt in 0..<12 {
@@ -658,6 +728,7 @@ struct ClipboardListView: View {
         let requestID = scrollRequestID
 
         cancelPendingMeasuredScroll()
+        cancelKeyboardNavigationScroll()
 
         Task { @MainActor in
             for attempt in 0..<12 {
@@ -680,6 +751,7 @@ struct ClipboardListView: View {
         let requestID = scrollRequestID
 
         cancelPendingMeasuredScroll()
+        cancelKeyboardNavigationScroll()
 
         Task { @MainActor in
             for attempt in 0..<12 {

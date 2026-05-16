@@ -270,6 +270,33 @@ enum ClipboardListStructure {
         return nil
     }
 
+    static func estimatedFrame(forItemID itemID: UUID, in rows: [DisplayRow]) -> CGRect? {
+        guard !rows.isEmpty else { return nil }
+
+        var currentY = LayoutMetrics.contentPadding
+
+        for (index, row) in rows.enumerated() {
+            let rowHeight = estimatedRowHeight(for: row)
+
+            if case .item(let item) = row.kind, item.id == itemID {
+                return CGRect(
+                    x: 0,
+                    y: currentY,
+                    width: 0,
+                    height: rowHeight
+                )
+            }
+
+            currentY += rowHeight
+
+            if index < rows.count - 1 {
+                currentY += LayoutMetrics.rowSpacing
+            }
+        }
+
+        return nil
+    }
+
     private static func estimatedRowHeight(for row: DisplayRow) -> CGFloat {
         switch row.kind {
         case .header:
