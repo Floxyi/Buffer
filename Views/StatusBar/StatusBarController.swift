@@ -3,12 +3,13 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class StatusBarController {
+final class StatusBarController: NSObject {
     private static let settingsToolbarIdentifier = NSToolbar.Identifier("BufferSettingsToolbar")
 
     private let store: ClipboardStore
     private let watcher: ClipboardWatcher
     private let settingsManager: SettingsManager
+    private let hotkeyManager: HotkeyManager
     private let onToggleHistory: () -> Void
     private var settingsWindowController: NSWindowController?
     private let statusItem: NSStatusItem
@@ -18,13 +19,17 @@ final class StatusBarController {
         store: ClipboardStore,
         watcher: ClipboardWatcher,
         settingsManager: SettingsManager,
+        hotkeyManager: HotkeyManager,
         onShowHistory: @escaping () -> Void
     ) {
         self.store = store
         self.watcher = watcher
         self.settingsManager = settingsManager
+        self.hotkeyManager = hotkeyManager
         self.onToggleHistory = onShowHistory
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+
+        super.init()
 
         setupButton()
         observeSettings()
@@ -113,7 +118,7 @@ final class StatusBarController {
 
         var settingsWindow: NSWindow?
         let hostingController = NSHostingController(
-            rootView: SettingsView(settings: settingsManager) { title in
+            rootView: SettingsView(settings: settingsManager, store: store) { title in
                 settingsWindow?.title = title
             }
         )
@@ -141,6 +146,7 @@ final class StatusBarController {
         window.animationBehavior = .documentWindow
         window.setContentSize(NSSize(width: 780, height: 560))
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
@@ -189,5 +195,19 @@ final class StatusBarController {
         image?.isTemplate = true
 
         button.image = image?.withSymbolConfiguration(config)
+    }
+}
+
+extension StatusBarController: NSWindowDelegate {
+    func windowDidBecomeKey(_ notification: Notification) {
+        hotkeyManager.setSuspended(true)
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        hotkeyManager.setSuspended(false)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        hotkeyManager.setSuspended(false)
     }
 }

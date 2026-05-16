@@ -71,6 +71,10 @@
 		AAA00075 /* SettingsPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00077 /* SettingsPrivacyView.swift */; };
 		AAA00076 /* SettingsAboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00078 /* SettingsAboutView.swift */; };
 		AAA00078 /* SettingsBehaviourView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00080 /* SettingsBehaviourView.swift */; };
+		AAA00079 /* SettingsGeneralSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00081 /* SettingsGeneralSections.swift */; };
+		AAA00080 /* SettingsBehaviourSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00082 /* SettingsBehaviourSections.swift */; };
+		AAA00081 /* SettingsPrivacySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00083 /* SettingsPrivacySections.swift */; };
+		AAA00082 /* SettingsAboutSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00084 /* SettingsAboutSections.swift */; };
 		ABC10001 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20001 /* SettingsManagerTests.swift */; };
 		ABC10002 /* ClipboardHistoryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20002 /* ClipboardHistoryPersistenceTests.swift */; };
 		ABC10003 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20003 /* HistoryViewModelTests.swift */; };
@@ -163,6 +167,10 @@
 		BBB00077 /* SettingsPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPrivacyView.swift; sourceTree = "<group>"; };
 		BBB00078 /* SettingsAboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutView.swift; sourceTree = "<group>"; };
 		BBB00080 /* SettingsBehaviourView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBehaviourView.swift; sourceTree = "<group>"; };
+		BBB00081 /* SettingsGeneralSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGeneralSections.swift; sourceTree = "<group>"; };
+		BBB00082 /* SettingsBehaviourSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBehaviourSections.swift; sourceTree = "<group>"; };
+		BBB00083 /* SettingsPrivacySections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPrivacySections.swift; sourceTree = "<group>"; };
+		BBB00084 /* SettingsAboutSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutSections.swift; sourceTree = "<group>"; };
 		D87736112F8ECC6B00392A0B /* ClickDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -339,14 +347,66 @@
 		DDD00009 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				BBB00016 /* SettingsView.swift */,
-				BBB00076 /* SettingsGeneralView.swift */,
-				BBB00080 /* SettingsBehaviourView.swift */,
-				BBB00077 /* SettingsPrivacyView.swift */,
-				BBB00078 /* SettingsAboutView.swift */,
-				BBB00033 /* SettingsSupport.swift */,
+				DDD00013 /* Core */,
+				DDD00014 /* General */,
+				DDD00015 /* Behaviour */,
+				DDD00016 /* Privacy */,
+				DDD00017 /* About */,
+				DDD00018 /* Support */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		DDD00013 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00016 /* SettingsView.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		DDD00014 /* General */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00076 /* SettingsGeneralView.swift */,
+				BBB00081 /* SettingsGeneralSections.swift */,
+			);
+			path = General;
+			sourceTree = "<group>";
+		};
+		DDD00015 /* Behaviour */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00080 /* SettingsBehaviourView.swift */,
+				BBB00082 /* SettingsBehaviourSections.swift */,
+			);
+			path = Behaviour;
+			sourceTree = "<group>";
+		};
+		DDD00016 /* Privacy */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00077 /* SettingsPrivacyView.swift */,
+				BBB00083 /* SettingsPrivacySections.swift */,
+			);
+			path = Privacy;
+			sourceTree = "<group>";
+		};
+		DDD00017 /* About */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00078 /* SettingsAboutView.swift */,
+				BBB00084 /* SettingsAboutSections.swift */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
+		DDD00018 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00033 /* SettingsSupport.swift */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		DDD00010 /* StatusBar */ = {
@@ -534,9 +594,13 @@
 				AAA00072 /* HistoryImageDetailContent.swift in Sources */,
 				AAA00073 /* HistoryDetailScrollView.swift in Sources */,
 				AAA00074 /* SettingsGeneralView.swift in Sources */,
+				AAA00079 /* SettingsGeneralSections.swift in Sources */,
 				AAA00078 /* SettingsBehaviourView.swift in Sources */,
+				AAA00080 /* SettingsBehaviourSections.swift in Sources */,
 				AAA00075 /* SettingsPrivacyView.swift in Sources */,
+				AAA00081 /* SettingsPrivacySections.swift in Sources */,
 				AAA00076 /* SettingsAboutView.swift in Sources */,
+				AAA00082 /* SettingsAboutSections.swift in Sources */,
 				AAA00031 /* SettingsSupport.swift in Sources */,
 				AAA00032 /* HistoryContentState.swift in Sources */,
 				AAA00036 /* ClipboardStorageSupport.swift in Sources */,

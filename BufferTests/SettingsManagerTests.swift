@@ -71,4 +71,20 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertEqual(settings.historyRetentionPeriod, .oneWeek)
         XCTAssertEqual(defaults.string(forKey: "historyRetentionPeriod"), HistoryRetentionPeriod.oneWeek.rawValue)
     }
+
+    func testHistoryLimitIsClampedAndPersistedAsInteger() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setHistoryLimit(0)
+        XCTAssertEqual(settings.historyLimit, SettingsManager.historyLimitRange.lowerBound)
+        XCTAssertEqual(defaults.integer(forKey: "historyLimit"), SettingsManager.historyLimitRange.lowerBound)
+
+        settings.setHistoryLimit(25_000)
+        XCTAssertEqual(settings.historyLimit, SettingsManager.historyLimitRange.upperBound)
+        XCTAssertEqual(defaults.integer(forKey: "historyLimit"), SettingsManager.historyLimitRange.upperBound)
+    }
 }

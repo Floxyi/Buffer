@@ -90,6 +90,67 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
     }
 
     @MainActor
+    func testStoreAllowsHistoryToGrowAfterIncreasingLimit() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setHistoryLimit(2)
+
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+        let first = ClipboardItem.text("one")
+        let second = ClipboardItem.text("two")
+        let third = ClipboardItem.text("three")
+        let fourth = ClipboardItem.text("four")
+
+        store.add(first)
+        store.add(second)
+        await eventually {
+            store.items.map(\.textContent) == ["two", "one"]
+        }
+
+        settings.setHistoryLimit(4)
+        store.add(third)
+        store.add(fourth)
+
+        await eventually {
+            store.items.map(\.textContent) == ["four", "three", "two", "one"]
+        }
+    }
+
+    @MainActor
+    func testStoreTrimsHistoryWhenLimitShrinks() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setHistoryLimit(4)
+
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+        let first = ClipboardItem.text("one")
+        let second = ClipboardItem.text("two")
+        let third = ClipboardItem.text("three")
+        let fourth = ClipboardItem.text("four")
+
+        store.add(first)
+        store.add(second)
+        store.add(third)
+        store.add(fourth)
+
+        await eventually {
+            store.items.map(\.textContent) == ["four", "three", "two", "one"]
+        }
+
+        settings.setHistoryLimit(2)
+
+        await eventually {
+            store.items.map(\.textContent) == ["four", "three"]
+        }
+    }
+
+    @MainActor
     func testPendingFileBackedTextAssetSurvivesUntilItemIsAdded() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(

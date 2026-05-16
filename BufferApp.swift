@@ -7,7 +7,7 @@ struct BufferApp: App {
     
     var body: some Scene {
         Settings {
-            SettingsView(settings: appDelegate.settingsManager)
+            SettingsView(settings: appDelegate.settingsManager, store: appDelegate.clipboardStore)
         }
     }
 }

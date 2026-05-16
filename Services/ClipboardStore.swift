@@ -142,7 +142,7 @@ final class ClipboardStore: ObservableObject {
             }
         }
 
-        self.currentMaxItems = settingsManager.historyLimit.rawValue
+        self.currentMaxItems = settingsManager.historyLimit
 
         let assetStore = ClipboardAssetStore(paths: paths)
         let persistence = ClipboardHistoryPersistence(paths: paths)
@@ -272,9 +272,9 @@ final class ClipboardStore: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] limit in
                 guard let self else { return }
-                self.currentMaxItems = limit.rawValue
+                self.currentMaxItems = limit
                 Task {
-                    let trimmed = await self.repository.trim(to: limit.rawValue)
+                    let trimmed = await self.repository.trim(to: limit)
                     self.applySnapshot(trimmed)
                 }
             }

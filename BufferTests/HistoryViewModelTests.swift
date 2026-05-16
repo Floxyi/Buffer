@@ -91,6 +91,8 @@ final class HistoryViewModelTests: XCTestCase {
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
+        settings.setHistoryWindowOpenBehavior(.keepLastSelection)
+
         let store = ClipboardStore(
             settingsManager: settings,
             storagePaths: TestStorageFactory.makePaths()

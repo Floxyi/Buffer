@@ -52,28 +52,6 @@ struct ExcludedApp: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-enum HistoryLimit: Int, CaseIterable, Codable, Sendable {
-    case essential = 100
-    case deep = 500
-    case unlimited = 1000
-
-    var label: String {
-        switch self {
-        case .essential: return "Essential"
-        case .deep: return "Deep"
-        case .unlimited: return "Unlimited"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .essential: return "100 items"
-        case .deep: return "500 items"
-        case .unlimited: return "1,000 items"
-        }
-    }
-}
-
 enum TextDetailFontStyle: String, CaseIterable, Codable, Sendable {
     case regular
     case monospaced
@@ -211,7 +189,8 @@ final class SettingsManager: ObservableObject {
     static let defaultHotkeyModifiers = HotkeyModifiers(shift: true, command: true)
     static let defaultHotkeyKeyCode: UInt16 = 9
 
-    static let defaultHistoryLimit: HistoryLimit = .essential
+    static let historyLimitRange = 1...10_000
+    static let defaultHistoryLimit = 100
     static let defaultKeepSearchTextAfterPaste = false
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let defaultTextDetailFontStyle: TextDetailFontStyle = .monospaced
@@ -238,7 +217,7 @@ final class SettingsManager: ObservableObject {
     @Published var hotkeyModifiers: HotkeyModifiers
     @Published var hotkeyKeyCode: UInt16
     @Published private(set) var launchAtLogin: Bool
-    @Published var historyLimit: HistoryLimit
+    @Published var historyLimit: Int
     @Published var keepSearchTextAfterPaste: Bool
     @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
     @Published var textDetailFontStyle: TextDetailFontStyle
@@ -246,7 +225,7 @@ final class SettingsManager: ObservableObject {
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published var menuBarIcon: MenuBarIcon
     @Published private(set) var excludedApps: [ExcludedApp]
-    @Published private(set) var persistedHistoryLimit: HistoryLimit
+    @Published private(set) var persistedHistoryLimit: Int
 
     var hotkeyPublisher: AnyPublisher<(UInt16, HotkeyModifiers), Never> {
         Publishers.CombineLatest($hotkeyKeyCode.removeDuplicates(), $hotkeyModifiers.removeDuplicates())
@@ -269,8 +248,8 @@ final class SettingsManager: ObservableObject {
         let savedKeyCode = defaults.integer(forKey: Key.hotkeyKeyCode)
         self.hotkeyKeyCode = savedKeyCode > 0 ? UInt16(savedKeyCode) : Self.defaultHotkeyKeyCode
 
-        let rawLimit = defaults.integer(forKey: Key.historyLimit)
-        let initialHistoryLimit = HistoryLimit(rawValue: rawLimit) ?? Self.defaultHistoryLimit
+        let rawLimit = defaults.object(forKey: Key.historyLimit) as? Int ?? Self.defaultHistoryLimit
+        let initialHistoryLimit = Self.normalizedHistoryLimit(rawLimit)
         self.historyLimit = initialHistoryLimit
         self.persistedHistoryLimit = initialHistoryLimit
 
@@ -316,9 +295,14 @@ final class SettingsManager: ObservableObject {
         persist()
     }
 
-    func setHistoryLimit(_ limit: HistoryLimit) {
-        historyLimit = limit
-        persistedHistoryLimit = limit
+    static func normalizedHistoryLimit(_ limit: Int) -> Int {
+        limit.clamped(to: historyLimitRange)
+    }
+
+    func setHistoryLimit(_ limit: Int) {
+        let normalizedLimit = Self.normalizedHistoryLimit(limit)
+        historyLimit = normalizedLimit
+        persistedHistoryLimit = normalizedLimit
         persist()
     }
 
@@ -408,7 +392,7 @@ final class SettingsManager: ObservableObject {
     private func persist() {
         defaults.set(hotkeyModifiers.toArray(), forKey: Key.hotkeyModifiers)
         defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
-        defaults.set(historyLimit.rawValue, forKey: Key.historyLimit)
+        defaults.set(historyLimit, forKey: Key.historyLimit)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
         defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
         defaults.set(textDetailFontStyle.rawValue, forKey: Key.textDetailFontStyle)

@@ -1,11 +1,12 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 @MainActor
 struct SettingsView: View {
     let onCategoryTitleChange: (String) -> Void
 
     @ObservedObject private var settings: SettingsManager
+    @ObservedObject private var store: ClipboardStore
 
     @State private var selectedCategory: SettingsCategory? = nil
     @State private var detailRefreshToken = 0
@@ -21,31 +22,26 @@ struct SettingsView: View {
         "\(activeCategory.title)-\(detailRefreshToken)"
     }
 
-    init(settings: SettingsManager, onCategoryTitleChange: @escaping (String) -> Void = { _ in }) {
+    init(
+        settings: SettingsManager,
+        store: ClipboardStore,
+        onCategoryTitleChange: @escaping (String) -> Void = { _ in }
+    ) {
         self._settings = ObservedObject(wrappedValue: settings)
+        self._store = ObservedObject(wrappedValue: store)
         self.onCategoryTitleChange = onCategoryTitleChange
     }
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsCategory.allCases, selection: $selectedCategory) { category in
-                Label(category.title, systemImage: category.icon)
-                    .tag(category)
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
-            .listStyle(.sidebar)
+            SettingsCategoryList(selectedCategory: $selectedCategory)
         } detail: {
             NavigationStack {
                 detailView(for: activeCategory)
                     .navigationTitle(activeCategory.title)
                     .toolbar {
                         ToolbarItem(placement: .navigation) {
-                            Button {
-                                toggleNativeSidebar()
-                            } label: {
-                                Label("Toggle Sidebar", systemImage: "sidebar.left")
-                            }
-                            .help("Toggle Sidebar")
+                            SettingsSidebarToggleButton(action: toggleNativeSidebar)
                         }
                     }
             }
@@ -66,14 +62,11 @@ struct SettingsView: View {
         Group {
             switch category {
             case .general:
-                SettingsGeneralView(settings: settings)
-
+                SettingsGeneralView(settings: settings, store: store)
             case .behaviour:
                 SettingsBehaviourView(settings: settings)
-
             case .privacy:
                 SettingsPrivacyView(settings: settings)
-
             case .about:
                 SettingsAboutView(about: about)
             }
@@ -123,5 +116,29 @@ struct SettingsView: View {
                 from: nil
             )
         }
+    }
+}
+
+private struct SettingsCategoryList: View {
+    @Binding var selectedCategory: SettingsCategory?
+
+    var body: some View {
+        List(SettingsCategory.allCases, selection: $selectedCategory) { category in
+            Label(category.title, systemImage: category.icon)
+                .tag(category)
+        }
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+        .listStyle(.sidebar)
+    }
+}
+
+private struct SettingsSidebarToggleButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Toggle Sidebar", systemImage: "sidebar.left")
+        }
+        .help("Toggle Sidebar")
     }
 }

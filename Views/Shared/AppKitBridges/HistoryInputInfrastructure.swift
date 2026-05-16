@@ -77,6 +77,10 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             guard let window else { return }
 
             monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
+                if event.window !== window {
+                    return event
+                }
+
                 let relevantFlags = event.modifierFlags.intersection([.command, .shift, .option, .control])
                 let isCommandOnlyPressed = relevantFlags == .command
 

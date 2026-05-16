@@ -14,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         container.settingsManager
     }
 
+    var clipboardStore: ClipboardStore {
+        container.clipboardStore
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
@@ -49,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store: container.clipboardStore,
             watcher: container.clipboardWatcher,
             settingsManager: container.settingsManager,
+            hotkeyManager: container.hotkeyManager,
             onShowHistory: { [weak self] in
                 self?.showHistoryWindow(openedViaHotkey: false)
             }
