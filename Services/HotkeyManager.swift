@@ -14,7 +14,6 @@ final class HotkeyManager: HotkeyService {
     private var hotKeyRef: EventHotKeyRef?
     nonisolated(unsafe) private var eventHandlerRef: EventHandlerRef?
     private var callback: (@MainActor () -> Void)?
-    private var isSuspended = false
 
     init(settingsManager: SettingsManager) {
         self.settingsManager = settingsManager
@@ -57,10 +56,6 @@ final class HotkeyManager: HotkeyService {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
         }
-    }
-
-    func setSuspended(_ suspended: Bool) {
-        isSuspended = suspended
     }
 
     deinit {
@@ -109,7 +104,7 @@ final class HotkeyManager: HotkeyService {
             &hotKeyID
         )
 
-        guard hotKeyID.id == 1, let callback, !isSuspended else { return noErr }
+        guard hotKeyID.id == 1, let callback else { return noErr }
 
         Task { @MainActor in
             callback()

@@ -289,6 +289,125 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.scrollTrigger)
     }
 
+    func testQuickPasteUsesPinnedSectionByDefault() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setQuickPasteEntryCount(3)
+
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let pinned = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "pinned")
+        let first = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "first")
+        let second = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "second")
+
+        store.add(pinned)
+        store.add(first)
+        store.add(second)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        store.togglePin(for: pinned)
+
+        await eventually {
+            store.items.first(where: { $0.id == pinned.id })?.isPinned == true
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[pinned.id], 1)
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[second.id], 2)
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[first.id], 3)
+        XCTAssertEqual(viewModel.performQuickPaste(at: 0)?.id, pinned.id)
+    }
+
+    func testQuickPasteCanStartAtNormalEntries() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setQuickPasteNumberingStart(.normalEntries)
+        settings.setQuickPasteEntryCount(2)
+
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let pinned = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "pinned")
+        let first = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "first")
+        let second = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "second")
+
+        store.add(pinned)
+        store.add(first)
+        store.add(second)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        store.togglePin(for: pinned)
+
+        await eventually {
+            store.items.first(where: { $0.id == pinned.id })?.isPinned == true
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        XCTAssertNil(viewModel.quickPasteBadgeNumberByItemID[pinned.id])
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[second.id], 1)
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[first.id], 2)
+        XCTAssertEqual(viewModel.performQuickPaste(at: 0)?.id, second.id)
+        XCTAssertEqual(viewModel.performQuickPaste(at: 1)?.id, first.id)
+        XCTAssertNil(viewModel.performQuickPaste(at: 2))
+    }
+
+    func testQuickPasteCanBeDisabled() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setQuickPasteEnabled(false)
+
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let item = ClipboardItem.text("only")
+        store.add(item)
+
+        await eventually {
+            store.items.count == 1
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.handleQuickPasteModifierFlagsChange(.command)
+
+        XCTAssertTrue(viewModel.quickPasteBadgeNumberByItemID.isEmpty)
+        XCTAssertNil(viewModel.performQuickPaste(at: 0))
+        XCTAssertFalse(viewModel.showsQuickPasteNumbers)
+    }
+
     func testExtendSelectionToFirstItemSelectsRangeToNewestVisibleItem() async {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),

@@ -43,11 +43,17 @@ final class SettingsManagerTests: XCTestCase {
 
         settings.setKeepSearchTextAfterPaste(true)
         settings.setHistoryWindowOpenBehavior(.selectFirstNonPinnedItem)
+        settings.setQuickPasteEnabled(false)
+        settings.setQuickPasteNumberingStart(.normalEntries)
+        settings.setQuickPasteEntryCount(10)
         settings.setTextDetailFontStyle(.regular)
         settings.setTextDetailFontSize(.large)
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
+        XCTAssertFalse(settings.quickPasteEnabled)
+        XCTAssertEqual(settings.quickPasteNumberingStart, .normalEntries)
+        XCTAssertEqual(settings.quickPasteEntryCount, 10)
         XCTAssertEqual(settings.textDetailFontStyle, .regular)
         XCTAssertEqual(settings.textDetailFontSize, .large)
         XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
@@ -55,6 +61,12 @@ final class SettingsManagerTests: XCTestCase {
             defaults.string(forKey: "historyWindowOpenBehavior"),
             HistoryWindowOpenBehavior.selectFirstNonPinnedItem.rawValue
         )
+        XCTAssertFalse(defaults.bool(forKey: "quickPasteEnabled"))
+        XCTAssertEqual(
+            defaults.string(forKey: "quickPasteNumberingStart"),
+            QuickPasteNumberingStart.normalEntries.rawValue
+        )
+        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), 10)
         XCTAssertEqual(defaults.string(forKey: "textDetailFontStyle"), TextDetailFontStyle.regular.rawValue)
         XCTAssertEqual(defaults.integer(forKey: "textDetailFontSize"), TextDetailFontSize.large.rawValue)
     }
@@ -86,5 +98,21 @@ final class SettingsManagerTests: XCTestCase {
         settings.setHistoryLimit(25_000)
         XCTAssertEqual(settings.historyLimit, SettingsManager.historyLimitRange.upperBound)
         XCTAssertEqual(defaults.integer(forKey: "historyLimit"), SettingsManager.historyLimitRange.upperBound)
+    }
+
+    func testQuickPasteEntryCountIsClamped() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setQuickPasteEntryCount(0)
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.lowerBound)
+        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.lowerBound)
+
+        settings.setQuickPasteEntryCount(25)
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.upperBound)
     }
 }

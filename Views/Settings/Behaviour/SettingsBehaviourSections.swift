@@ -44,6 +44,54 @@ struct SettingsBehaviourPasteSection: View {
     }
 }
 
+struct SettingsBehaviourQuickPasteSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    private let entryCountOptions = Array(SettingsManager.quickPasteEntryCountRange)
+
+    var body: some View {
+        Section("Quick Paste Shortcuts") {
+            Toggle(
+                "Enable Command-number quick paste",
+                isOn: Binding(
+                    get: { settings.quickPasteEnabled },
+                    set: { settings.setQuickPasteEnabled($0) }
+                )
+            )
+
+            Picker(
+                "Start numbers at",
+                selection: Binding(
+                    get: { settings.quickPasteNumberingStart },
+                    set: { settings.setQuickPasteNumberingStart($0) }
+                )
+            ) {
+                ForEach(QuickPasteNumberingStart.allCases, id: \.self) { start in
+                    Text(start.label).tag(start)
+                }
+            }
+            .disabled(!settings.quickPasteEnabled)
+
+            Picker(
+                "Addressable entries",
+                selection: Binding(
+                    get: { settings.quickPasteEntryCount },
+                    set: { settings.setQuickPasteEntryCount($0) }
+                )
+            ) {
+                ForEach(entryCountOptions, id: \.self) { count in
+                    Text("\(count)").tag(count)
+                }
+            }
+            .disabled(!settings.quickPasteEnabled)
+
+            Text("Choose whether Command-number quick paste starts in the pinned section or at the first normal history item, and how many entries it can address.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SettingsBehaviourTextDetailSection: View {
     @ObservedObject var settings: SettingsManager
     let previewFont: Font

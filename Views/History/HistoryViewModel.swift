@@ -169,6 +169,16 @@ final class HistoryViewModel: ObservableObject {
         searchText.isEmpty && filteredItems.count == store.items.count
     }
 
+    var quickPasteBadgeNumberByItemID: [UUID: Int] {
+        guard settingsManager.quickPasteEnabled else { return [:] }
+
+        var result: [UUID: Int] = [:]
+        for (index, item) in quickPasteAddressableItems.enumerated() {
+            result[item.id] = quickPasteBadgeNumber(for: index)
+        }
+        return result
+    }
+
     func handleWindowOpen(
         focusSearch: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
@@ -216,7 +226,7 @@ final class HistoryViewModel: ObservableObject {
         }
 
         withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
-            showsQuickPasteNumbers = relevantFlags == .command
+            showsQuickPasteNumbers = settingsManager.quickPasteEnabled && relevantFlags == .command
         }
     }
 
@@ -514,7 +524,8 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {
-        guard let item = filteredItems[safe: index] else { return nil }
+        guard settingsManager.quickPasteEnabled,
+              let item = quickPasteAddressableItems[safe: index] else { return nil }
 
         selectSingle(item.id)
         return item
@@ -625,6 +636,28 @@ final class HistoryViewModel: ObservableObject {
 
     private func quickPasteRelevantFlags(from flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         flags.intersection([.command, .shift, .option, .control])
+    }
+
+    private var quickPasteAddressableItems: [ClipboardItem] {
+        let itemsToAddress: [ClipboardItem]
+
+        switch settingsManager.quickPasteNumberingStart {
+        case .pinnedSection:
+            itemsToAddress = filteredItems
+        case .normalEntries:
+            let unpinnedItems = filteredItems.filter { !$0.isPinned }
+            itemsToAddress = unpinnedItems.isEmpty ? filteredItems : unpinnedItems
+        }
+
+        return Array(itemsToAddress.prefix(settingsManager.quickPasteEntryCount))
+    }
+
+    private func quickPasteBadgeNumber(for index: Int) -> Int {
+        if index == 9 {
+            return 0
+        }
+
+        return index + 1
     }
 
     private func rebuildFilteredItems(preferredID: UUID? = nil) {

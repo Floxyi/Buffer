@@ -150,9 +150,12 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                     guard event.modifierFlags.contains(.command) else { return event }
                     onSaveImage()
                     return nil
-                case 18...23:
+                case 18, 19, 20, 21, 22, 23, 25, 26, 28, 29:
                     guard isCommandOnlyPressed else { return event }
-                    let quickPasteIndexByKeyCode: [UInt16: Int] = [18: 0, 19: 1, 20: 2, 21: 3, 23: 4]
+                    let quickPasteIndexByKeyCode: [UInt16: Int] = [
+                        18: 0, 19: 1, 20: 2, 21: 3, 23: 4,
+                        22: 5, 26: 6, 28: 7, 25: 8, 29: 9
+                    ]
                     guard let quickPasteIndex = quickPasteIndexByKeyCode[event.keyCode] else { return event }
                     onQuickPaste(quickPasteIndex)
                     return nil

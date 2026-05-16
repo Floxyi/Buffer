@@ -117,6 +117,18 @@ enum HistoryWindowOpenBehavior: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum QuickPasteNumberingStart: String, CaseIterable, Codable, Sendable {
+    case pinnedSection
+    case normalEntries
+
+    var label: String {
+        switch self {
+        case .pinnedSection: return "Pinned section"
+        case .normalEntries: return "Normal entries"
+        }
+    }
+}
+
 struct HotkeyModifiers: Codable, Equatable, Sendable {
     var shift: Bool
     var command: Bool
@@ -193,6 +205,10 @@ final class SettingsManager: ObservableObject {
     static let defaultHistoryLimit = 100
     static let defaultKeepSearchTextAfterPaste = false
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
+    static let quickPasteEntryCountRange = 1...5
+    static let defaultQuickPasteEnabled = true
+    static let defaultQuickPasteNumberingStart: QuickPasteNumberingStart = .pinnedSection
+    static let defaultQuickPasteEntryCount = 5
     static let defaultTextDetailFontStyle: TextDetailFontStyle = .monospaced
     static let defaultTextDetailFontSize: TextDetailFontSize = .medium
     static let defaultHistoryRetentionPeriod: HistoryRetentionPeriod = .never
@@ -205,6 +221,9 @@ final class SettingsManager: ObservableObject {
         static let excludedApps = "excludedApps"
         static let keepSearchTextAfterPaste = "keepSearchTextAfterPaste"
         static let historyWindowOpenBehavior = "historyWindowOpenBehavior"
+        static let quickPasteEnabled = "quickPasteEnabled"
+        static let quickPasteNumberingStart = "quickPasteNumberingStart"
+        static let quickPasteEntryCount = "quickPasteEntryCount"
         static let textDetailFontStyle = "textDetailFontStyle"
         static let textDetailFontSize = "textDetailFontSize"
         static let historyRetentionPeriod = "historyRetentionPeriod"
@@ -220,6 +239,9 @@ final class SettingsManager: ObservableObject {
     @Published var historyLimit: Int
     @Published var keepSearchTextAfterPaste: Bool
     @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
+    @Published var quickPasteEnabled: Bool
+    @Published var quickPasteNumberingStart: QuickPasteNumberingStart
+    @Published var quickPasteEntryCount: Int
     @Published var textDetailFontStyle: TextDetailFontStyle
     @Published var textDetailFontSize: TextDetailFontSize
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
@@ -260,6 +282,21 @@ final class SettingsManager: ObservableObject {
         self.historyWindowOpenBehavior =
             HistoryWindowOpenBehavior(rawValue: rawHistoryWindowOpenBehavior) ?? Self.defaultHistoryWindowOpenBehavior
 
+        if defaults.object(forKey: Key.quickPasteEnabled) != nil {
+            self.quickPasteEnabled = defaults.bool(forKey: Key.quickPasteEnabled)
+        } else {
+            self.quickPasteEnabled = Self.defaultQuickPasteEnabled
+        }
+
+        let rawQuickPasteNumberingStart =
+            defaults.string(forKey: Key.quickPasteNumberingStart) ?? Self.defaultQuickPasteNumberingStart.rawValue
+        self.quickPasteNumberingStart =
+            QuickPasteNumberingStart(rawValue: rawQuickPasteNumberingStart) ?? Self.defaultQuickPasteNumberingStart
+
+        let rawQuickPasteEntryCount =
+            defaults.object(forKey: Key.quickPasteEntryCount) as? Int ?? Self.defaultQuickPasteEntryCount
+        self.quickPasteEntryCount = Self.normalizedQuickPasteEntryCount(rawQuickPasteEntryCount)
+
         let rawTextDetailFontStyle =
             defaults.string(forKey: Key.textDetailFontStyle) ?? Self.defaultTextDetailFontStyle.rawValue
         self.textDetailFontStyle = TextDetailFontStyle(rawValue: rawTextDetailFontStyle) ?? Self.defaultTextDetailFontStyle
@@ -299,6 +336,10 @@ final class SettingsManager: ObservableObject {
         limit.clamped(to: historyLimitRange)
     }
 
+    static func normalizedQuickPasteEntryCount(_ count: Int) -> Int {
+        count.clamped(to: quickPasteEntryCountRange)
+    }
+
     func setHistoryLimit(_ limit: Int) {
         let normalizedLimit = Self.normalizedHistoryLimit(limit)
         historyLimit = normalizedLimit
@@ -323,6 +364,21 @@ final class SettingsManager: ObservableObject {
 
     func setHistoryWindowOpenBehavior(_ behavior: HistoryWindowOpenBehavior) {
         historyWindowOpenBehavior = behavior
+        persist()
+    }
+
+    func setQuickPasteEnabled(_ enabled: Bool) {
+        quickPasteEnabled = enabled
+        persist()
+    }
+
+    func setQuickPasteNumberingStart(_ start: QuickPasteNumberingStart) {
+        quickPasteNumberingStart = start
+        persist()
+    }
+
+    func setQuickPasteEntryCount(_ count: Int) {
+        quickPasteEntryCount = Self.normalizedQuickPasteEntryCount(count)
         persist()
     }
 
@@ -355,6 +411,9 @@ final class SettingsManager: ObservableObject {
 
         keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
         historyWindowOpenBehavior = Self.defaultHistoryWindowOpenBehavior
+        quickPasteEnabled = Self.defaultQuickPasteEnabled
+        quickPasteNumberingStart = Self.defaultQuickPasteNumberingStart
+        quickPasteEntryCount = Self.defaultQuickPasteEntryCount
 
         textDetailFontStyle = Self.defaultTextDetailFontStyle
         textDetailFontSize = Self.defaultTextDetailFontSize
@@ -395,6 +454,9 @@ final class SettingsManager: ObservableObject {
         defaults.set(historyLimit, forKey: Key.historyLimit)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
         defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
+        defaults.set(quickPasteEnabled, forKey: Key.quickPasteEnabled)
+        defaults.set(quickPasteNumberingStart.rawValue, forKey: Key.quickPasteNumberingStart)
+        defaults.set(quickPasteEntryCount, forKey: Key.quickPasteEntryCount)
         defaults.set(textDetailFontStyle.rawValue, forKey: Key.textDetailFontStyle)
         defaults.set(textDetailFontSize.rawValue, forKey: Key.textDetailFontSize)
         defaults.set(historyRetentionPeriod.rawValue, forKey: Key.historyRetentionPeriod)

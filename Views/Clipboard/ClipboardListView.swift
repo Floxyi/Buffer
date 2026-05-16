@@ -44,7 +44,7 @@ struct ClipboardListView: View {
     @Binding var scrollTrigger: Bool
 
     let store: ClipboardStore
-    let showsQuickPasteNumbers: Bool
+    let quickPasteBadgeNumberByItemID: [UUID: Int]
     let onCommitSelection: () -> Void
     let onDismiss: () -> Void
 
@@ -286,7 +286,7 @@ struct ClipboardListView: View {
             joinsSelectionAbove: previousItemID.map { selectedIDs.contains($0) } ?? false,
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
-            quickPasteNumber: showsQuickPasteNumbers && index < 5 ? index + 1 : nil,
+            quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
             isHovered: highlightedItemID == item.id
         )
         .id(scrollID(forItemID: item.id))

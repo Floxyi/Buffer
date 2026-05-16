@@ -127,7 +127,9 @@ struct HistoryContentView: View {
                     ),
                     scrollTrigger: $viewModel.scrollTrigger,
                     store: store,
-                    showsQuickPasteNumbers: viewModel.showsQuickPasteNumbers,
+                    quickPasteBadgeNumberByItemID: viewModel.showsQuickPasteNumbers
+                        ? viewModel.quickPasteBadgeNumberByItemID
+                        : [:],
                     onCommitSelection: performPrimaryPasteAction,
                     onDismiss: onDismiss,
                     selectedIDs: Binding(
