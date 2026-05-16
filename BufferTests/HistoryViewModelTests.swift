@@ -216,4 +216,150 @@ final class HistoryViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedItem?.id, oldest.id)
     }
+
+    func testJumpToFirstItemSelectsNewestVisibleItem() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "oldest")
+        let middle = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "middle")
+        let newest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(oldest.id)
+        viewModel.jumpToFirstItem()
+
+        XCTAssertEqual(viewModel.selectedItem?.id, viewModel.filteredItems.first?.id)
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+        XCTAssertTrue(viewModel.scrollTrigger)
+    }
+
+    func testJumpToLastItemSelectsOldestVisibleItem() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "oldest")
+        let middle = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "middle")
+        let newest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(newest.id)
+        viewModel.jumpToLastItem()
+
+        XCTAssertEqual(viewModel.selectedItem?.id, viewModel.filteredItems.last?.id)
+        XCTAssertEqual(viewModel.selectedIndex, viewModel.filteredItems.count - 1)
+        XCTAssertTrue(viewModel.scrollTrigger)
+    }
+
+    func testExtendSelectionToFirstItemSelectsRangeToNewestVisibleItem() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "oldest")
+        let middle = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "middle")
+        let newest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionToFirstItem()
+
+        XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.first?.id)
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+        XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.prefix(2).map(\.id)))
+        XCTAssertTrue(viewModel.scrollTrigger)
+    }
+
+    func testExtendSelectionToLastItemSelectsRangeToOldestVisibleItem() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "oldest")
+        let middle = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "middle")
+        let newest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionToLastItem()
+
+        XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.last?.id)
+        XCTAssertEqual(viewModel.selectedIndex, viewModel.filteredItems.count - 1)
+        XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.suffix(2).map(\.id)))
+        XCTAssertTrue(viewModel.scrollTrigger)
+    }
 }

@@ -46,7 +46,6 @@ final class ScrollController: ObservableObject {
     weak var scrollView: NSScrollView?
 
     private weak var observedDocumentView: NSView?
-    private var contentHeightOverride: CGFloat?
     private var observers: [NSObjectProtocol] = []
     private var isMetricsSyncScheduled = false
     private let smoothWheelScroller = SmoothWheelScroller()
@@ -100,7 +99,7 @@ final class ScrollController: ObservableObject {
             scrollView.contentView.frame.height
         )
 
-        let contentHeight = resolvedContentHeight(
+        let contentHeight = measuredContentHeight(
             scrollView: scrollView,
             documentView: documentView
         )
@@ -148,6 +147,14 @@ final class ScrollController: ObservableObject {
         scrollToTopNow()
     }
 
+    func scrollToBottom(retryCount: Int = 4) {
+        scheduleScrollToBottom(remainingPasses: retryCount)
+    }
+
+    func scrollToBottomImmediately() {
+        scrollToBottomNow()
+    }
+
     func syncMetrics() {
         guard let scrollView else { return }
         scheduleMetricsSync(from: scrollView)
@@ -161,13 +168,6 @@ final class ScrollController: ObservableObject {
         syncMetricsNow(from: scrollView)
     }
 
-    func setContentHeightOverride(_ contentHeight: CGFloat?) {
-        let sanitizedContentHeight = contentHeight.map { max(0, $0) }
-        guard contentHeightOverride != sanitizedContentHeight else { return }
-        contentHeightOverride = sanitizedContentHeight
-        syncMetrics()
-    }
-
     private func scheduleScrollToTop(remainingPasses: Int) {
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -177,6 +177,19 @@ final class ScrollController: ObservableObject {
 
             if remainingPasses > 0 {
                 self.scheduleScrollToTop(remainingPasses: remainingPasses - 1)
+            }
+        }
+    }
+
+    private func scheduleScrollToBottom(remainingPasses: Int) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await Task.yield()
+
+            self.scrollToBottomNow()
+
+            if remainingPasses > 0 {
+                self.scheduleScrollToBottom(remainingPasses: remainingPasses - 1)
             }
         }
     }
@@ -205,6 +218,40 @@ final class ScrollController: ObservableObject {
         syncMetricsNow(from: scrollView)
     }
 
+    private func scrollToBottomNow() {
+        guard let scrollView,
+              let documentView = scrollView.documentView else {
+            return
+        }
+
+        scrollView.layoutSubtreeIfNeeded()
+        documentView.layoutSubtreeIfNeeded()
+
+        let viewportHeight = max(
+            scrollView.contentView.bounds.height,
+            scrollView.contentView.frame.height
+        )
+        let contentHeight = measuredContentHeight(
+            scrollView: scrollView,
+            documentView: documentView
+        )
+        let maxOffset = max(0, contentHeight - viewportHeight)
+
+        let proposedBounds = NSRect(
+            x: scrollView.contentView.bounds.minX,
+            y: maxOffset,
+            width: scrollView.contentView.bounds.width,
+            height: scrollView.contentView.bounds.height
+        )
+
+        let constrainedBounds = scrollView.contentView.constrainBoundsRect(proposedBounds)
+
+        scrollView.contentView.scroll(to: constrainedBounds.origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        syncMetricsNow(from: scrollView)
+    }
+
     private func scrollToOffset(_ targetOffset: CGFloat) {
         guard let scrollView else {
             return
@@ -216,7 +263,7 @@ final class ScrollController: ObservableObject {
         )
         let contentHeight: CGFloat
         if let documentView = scrollView.documentView {
-            contentHeight = resolvedContentHeight(
+            contentHeight = measuredContentHeight(
                 scrollView: scrollView,
                 documentView: documentView
             )
@@ -321,7 +368,7 @@ final class ScrollController: ObservableObject {
             scrollView.contentView.frame.height
         )
 
-        let nextContentHeight = resolvedContentHeight(
+        let nextContentHeight = measuredContentHeight(
             scrollView: scrollView,
             documentView: documentView
         )
@@ -337,17 +384,15 @@ final class ScrollController: ObservableObject {
         )
     }
 
-    private func resolvedContentHeight(
+    private func measuredContentHeight(
         scrollView: NSScrollView,
         documentView: NSView
     ) -> CGFloat {
-        let measuredContentHeight = max(
+        max(
             documentView.bounds.height,
             documentView.frame.height,
             scrollView.contentView.documentRect.height
         )
-
-        return max(measuredContentHeight, contentHeightOverride ?? 0)
     }
 
     private func update(
@@ -363,7 +408,7 @@ final class ScrollController: ObservableObject {
             contentHeight = nextContentHeight
         }
 
-        if abs(scrollOffset - nextScrollOffset) > 2 {
+        if abs(scrollOffset - nextScrollOffset) > 0.5 {
             scrollOffset = nextScrollOffset
             activityTracker.markScrolling()
         }

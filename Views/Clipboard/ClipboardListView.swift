@@ -159,8 +159,6 @@ struct ClipboardListView: View {
                                     scrollView: scrollView,
                                     enablesWheelSmoothing: false
                                 )
-
-                                updateContentHeightOverride()
                             },
                             searchStrategy: .nearestAncestorOnly
                         )
@@ -208,7 +206,6 @@ struct ClipboardListView: View {
                 }
                 .onAppear {
                     rebuildListCache()
-                    updateContentHeightOverride()
                     prewarmVisibleAssets()
                 }
                 .onDisappear {
@@ -218,7 +215,6 @@ struct ClipboardListView: View {
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
-                    updateContentHeightOverride()
                     prewarmVisibleAssets()
                 }
                 .onChange(of: openScrollRequestToken) { _ in
@@ -232,7 +228,9 @@ struct ClipboardListView: View {
                     scrollTrigger = false
 
                     if newValue == 0 {
-                        scrollController.scrollToTop(retryCount: 2)
+                        scheduleScrollToTop()
+                    } else if newValue == items.count - 1 {
+                        scheduleScrollToBottom()
                     } else if let itemID = items[safe: newValue]?.id {
                         scheduleMeasuredScroll(
                             to: itemID,
@@ -394,9 +392,8 @@ struct ClipboardListView: View {
                 return
             }
 
-            rebuildListCache()
-            updateContentHeightOverride()
-            scrollController.syncMetricsImmediately()
+                rebuildListCache()
+                scrollController.syncMetricsImmediately()
 
             let fullHistoryReady = isShowingFullHistory
             let targetExists = itemExists(request.itemID)
@@ -490,7 +487,6 @@ struct ClipboardListView: View {
                     continue
                 }
 
-                updateContentHeightOverride()
                 scrollController.syncMetricsImmediately()
 
                 if centered, attempt < 3 {
@@ -632,6 +628,10 @@ struct ClipboardListView: View {
     }
 
     private func scheduleOpenScrollToTop() {
+        scheduleScrollToTop()
+    }
+
+    private func scheduleScrollToTop() {
         scrollRequestID &+= 1
         let requestID = scrollRequestID
 
@@ -647,8 +647,29 @@ struct ClipboardListView: View {
                     try? await Task.sleep(nanoseconds: 35_000_000)
                 }
 
-                updateContentHeightOverride()
                 scrollController.scrollToTopImmediately()
+                scrollController.syncMetricsImmediately()
+            }
+        }
+    }
+
+    private func scheduleScrollToBottom() {
+        scrollRequestID &+= 1
+        let requestID = scrollRequestID
+
+        cancelPendingMeasuredScroll()
+
+        Task { @MainActor in
+            for attempt in 0..<12 {
+                guard requestID == scrollRequestID else { return }
+
+                if attempt == 0 {
+                    await Task.yield()
+                } else {
+                    try? await Task.sleep(nanoseconds: 35_000_000)
+                }
+
+                scrollController.scrollToBottomImmediately()
                 scrollController.syncMetricsImmediately()
             }
         }
@@ -670,7 +691,6 @@ struct ClipboardListView: View {
                     try? await Task.sleep(nanoseconds: 35_000_000)
                 }
 
-                updateContentHeightOverride()
                 scrollController.scrollTo(offset: offset)
                 scrollController.syncMetricsImmediately()
             }
@@ -719,15 +739,6 @@ struct ClipboardListView: View {
 
     private func rebuildListCache() {
         listCache = ClipboardListStructure.makeDisplayCache(from: items)
-    }
-
-    private func updateContentHeightOverride() {
-        let rows = listCache.matches(items: items)
-            ? listCache.displayRows
-            : ClipboardListStructure.displayRows(from: items)
-
-        let estimatedContentHeight = ClipboardListStructure.estimatedContentHeight(for: rows)
-        scrollController.setContentHeightOverride(estimatedContentHeight)
     }
 
     private func prewarmVisibleAssets() {

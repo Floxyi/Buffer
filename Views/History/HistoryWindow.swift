@@ -83,6 +83,10 @@ struct HistoryContentView: View {
             GlobalKeyMonitor(
                 onUp: viewModel.navigateUp,
                 onDown: viewModel.navigateDown,
+                onJumpToFirst: viewModel.jumpToFirstItem,
+                onJumpToLast: viewModel.jumpToLastItem,
+                onExtendToFirst: viewModel.extendSelectionToFirstItem,
+                onExtendToLast: viewModel.extendSelectionToLastItem,
                 onExtendUp: viewModel.extendSelectionUp,
                 onExtendDown: viewModel.extendSelectionDown,
                 onEnter: performPrimaryPasteAction,

@@ -5,6 +5,10 @@ import SwiftUI
 struct GlobalKeyMonitor: NSViewRepresentable {
     let onUp: () -> Void
     let onDown: () -> Void
+    let onJumpToFirst: () -> Void
+    let onJumpToLast: () -> Void
+    let onExtendToFirst: () -> Void
+    let onExtendToLast: () -> Void
     let onExtendUp: () -> Void
     let onExtendDown: () -> Void
     let onEnter: () -> Void
@@ -24,6 +28,10 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                 window: window,
                 onUp: onUp,
                 onDown: onDown,
+                onJumpToFirst: onJumpToFirst,
+                onJumpToLast: onJumpToLast,
+                onExtendToFirst: onExtendToFirst,
+                onExtendToLast: onExtendToLast,
                 onExtendUp: onExtendUp,
                 onExtendDown: onExtendDown,
                 onEnter: onEnter,
@@ -55,6 +63,10 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             window: NSWindow?,
             onUp: @escaping () -> Void,
             onDown: @escaping () -> Void,
+            onJumpToFirst: @escaping () -> Void,
+            onJumpToLast: @escaping () -> Void,
+            onExtendToFirst: @escaping () -> Void,
+            onExtendToLast: @escaping () -> Void,
             onExtendUp: @escaping () -> Void,
             onExtendDown: @escaping () -> Void,
             onEnter: @escaping () -> Void,
@@ -83,6 +95,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
 
                 let relevantFlags = event.modifierFlags.intersection([.command, .shift, .option, .control])
                 let isCommandOnlyPressed = relevantFlags == .command
+                let isCommandShiftOnlyPressed = relevantFlags == [.command, .shift]
 
                 if event.type == .flagsChanged {
                     onCommandChanged(event.modifierFlags)
@@ -91,9 +104,25 @@ struct GlobalKeyMonitor: NSViewRepresentable {
 
                 switch event.keyCode {
                 case 126:
+                    if isCommandShiftOnlyPressed {
+                        onExtendToFirst()
+                        return nil
+                    }
+                    if isCommandOnlyPressed {
+                        onJumpToFirst()
+                        return nil
+                    }
                     event.modifierFlags.contains(.shift) ? onExtendUp() : onUp()
                     return nil
                 case 125:
+                    if isCommandShiftOnlyPressed {
+                        onExtendToLast()
+                        return nil
+                    }
+                    if isCommandOnlyPressed {
+                        onJumpToLast()
+                        return nil
+                    }
                     event.modifierFlags.contains(.shift) ? onExtendDown() : onDown()
                     return nil
                 case 36:

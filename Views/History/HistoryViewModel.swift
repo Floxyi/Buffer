@@ -304,6 +304,38 @@ final class HistoryViewModel: ObservableObject {
         syncSelection(preferredID: filteredItems[safe: selectedIndex]?.id)
     }
 
+    func jumpToFirstItem() {
+        guard let firstItemID = filteredItems.first?.id else { return }
+
+        scrollTrigger = true
+        selectedIndex = 0
+        syncSelection(preferredID: firstItemID)
+    }
+
+    func jumpToLastItem() {
+        guard let lastItemID = filteredItems.last?.id else { return }
+
+        scrollTrigger = true
+        selectedIndex = filteredItems.count - 1
+        syncSelection(preferredID: lastItemID)
+    }
+
+    func extendSelectionToFirstItem() {
+        guard let firstItemID = filteredItems.first?.id else { return }
+
+        scrollTrigger = true
+        selectionAnchor = selectionAnchor ?? selectedID ?? firstItemID
+        extendSelectionTo(firstItemID)
+    }
+
+    func extendSelectionToLastItem() {
+        guard let lastItemID = filteredItems.last?.id else { return }
+
+        scrollTrigger = true
+        selectionAnchor = selectionAnchor ?? selectedID ?? lastItemID
+        extendSelectionTo(lastItemID)
+    }
+
     func extendSelectionUp() {
         guard selectedIndex > 0 else { return }
 
