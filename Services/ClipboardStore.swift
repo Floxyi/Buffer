@@ -51,7 +51,7 @@ actor ClipboardRepository {
 
     func setOCRText(_ text: String, for item: ClipboardItem) -> [ClipboardItem] {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
-        items[index].ocrText = text
+        items[index] = items[index].updatingOCRText(text)
         persist()
         return items
     }
@@ -251,17 +251,7 @@ final class ClipboardStore: ObservableObject {
             return cached
         }
 
-        let value: String
-        switch item.type {
-        case .text:
-            if item.isFileBacked {
-                value = fullText(for: item) ?? item.textContent ?? ""
-            } else {
-                value = item.textContent ?? ""
-            }
-        case .image:
-            value = item.ocrText ?? ""
-        }
+        let value = ClipboardItemTypeRegistry.searchableText(for: item, store: self)
 
         searchCache[item.id] = value
         return value

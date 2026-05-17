@@ -104,13 +104,13 @@ final class ClipboardAssetStore: @unchecked Sendable {
     }
 
     func image(for item: ClipboardItem) -> NSImage? {
-        guard item.type == .image, let filename = item.imageFilename else { return nil }
+        guard let filename = item.imageFilename else { return nil }
         let url = paths.imagesDirectory.appendingPathComponent(filename)
         return NSImage(contentsOf: url)
     }
 
     func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? {
-        guard item.type == .image, let filename = item.imageFilename else { return nil }
+        guard let filename = item.imageFilename else { return nil }
 
         let pixelSize = max(1, Int(maxPixelSize.rounded()))
         let cacheKey = "\(filename)-\(pixelSize)" as NSString
@@ -139,7 +139,7 @@ final class ClipboardAssetStore: @unchecked Sendable {
     }
 
     func imageDimensions(for item: ClipboardItem) -> String? {
-        guard item.type == .image, let filename = item.imageFilename else { return nil }
+        guard let filename = item.imageFilename else { return nil }
 
         let cacheKey = filename as NSString
         if let cachedDimensions = imageDimensionsCache.object(forKey: cacheKey) {
@@ -188,6 +188,10 @@ final class ClipboardAssetStore: @unchecked Sendable {
     }
 
     func fullText(for item: ClipboardItem) -> String? {
+        if let colorPayload = item.colorPayload {
+            return colorPayload.originalText
+        }
+
         guard let filename = item.textFilename else { return item.textContent }
         let url = paths.textsDirectory.appendingPathComponent(filename)
 
@@ -200,6 +204,12 @@ final class ClipboardAssetStore: @unchecked Sendable {
     }
 
     func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+        if let colorPayload = item.colorPayload {
+            let content = colorPayload.originalText
+            let prefix = String(content.prefix(charCount))
+            return (prefix, content.utf8.count, content.count <= charCount)
+        }
+
         if let filename = item.textFilename {
             let url = paths.textsDirectory.appendingPathComponent(filename)
 
@@ -237,7 +247,7 @@ final class ClipboardAssetStore: @unchecked Sendable {
             return original
         }
 
-        switch item.type {
+        switch item.kind {
         case .text:
             if let filename = item.textFilename {
                 return fileSize(at: paths.textsDirectory.appendingPathComponent(filename))
@@ -248,6 +258,10 @@ final class ClipboardAssetStore: @unchecked Sendable {
                 return fileSize(at: paths.imagesDirectory.appendingPathComponent(filename))
             }
             return nil
+        case .color:
+            return item.colorPayload?.originalText.utf8.count
+        case .link:
+            return item.linkPayload?.originalText.utf8.count
         }
     }
 
@@ -257,7 +271,7 @@ final class ClipboardAssetStore: @unchecked Sendable {
     }
 
     private func deleteImageFile(for item: ClipboardItem) {
-        guard item.type == .image, let filename = item.imageFilename else { return }
+        guard let filename = item.imageFilename else { return }
         removeItemIfPresent(at: paths.imagesDirectory.appendingPathComponent(filename), label: "image")
     }
 

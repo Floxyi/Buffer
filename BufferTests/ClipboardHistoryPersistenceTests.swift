@@ -32,6 +32,49 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
         XCTAssertEqual(persistence.loadHistory(), items)
     }
 
+    func testClipboardItemRoundTripsStructuredColorPayload() throws {
+        let colorItem = ClipboardItem.color(
+            ClipboardColorValue(red: 1, green: 0, blue: 0.5, alpha: 1),
+            originalText: "rgb(255, 0, 128)"
+        )
+
+        let data = try JSONEncoder().encode(colorItem)
+        let decoded = try JSONDecoder().decode(ClipboardItem.self, from: data)
+
+        XCTAssertEqual(decoded.kind, .color)
+        XCTAssertEqual(decoded.colorPayload?.originalText, "rgb(255, 0, 128)")
+        XCTAssertEqual(decoded.colorPayload?.value, colorItem.colorPayload?.value)
+    }
+
+    func testClipboardItemRoundTripsStructuredLinkPayload() throws {
+        let linkURL = try XCTUnwrap(URL(string: "https://www.youtube.com/watch?v=123"))
+        let linkItem = ClipboardItem.link(linkURL, originalText: "youtube.com/watch?v=123")
+
+        let data = try JSONEncoder().encode(linkItem)
+        let decoded = try JSONDecoder().decode(ClipboardItem.self, from: data)
+
+        XCTAssertEqual(decoded.kind, .link)
+        XCTAssertEqual(decoded.linkPayload?.originalText, "youtube.com/watch?v=123")
+        XCTAssertEqual(decoded.linkPayload?.url, linkURL)
+        XCTAssertEqual(decoded.linkPayload?.websiteName, "Youtube")
+    }
+
+    func testClipboardColorValueFormatsOpaqueVariants() {
+        let colorValue = ClipboardColorValue(red: 1, green: 0, blue: 0.5, alpha: 1)
+
+        XCTAssertEqual(colorValue.formatted(as: .hex), "#FF0080")
+        XCTAssertEqual(colorValue.formatted(as: .rgb), "rgb(255, 0, 128)")
+        XCTAssertEqual(colorValue.formatted(as: .hsl), "hsl(330, 100%, 50%)")
+    }
+
+    func testClipboardColorValueFormatsTransparentVariants() {
+        let colorValue = ClipboardColorValue(red: 1, green: 0, blue: 0, alpha: 0.5)
+
+        XCTAssertEqual(colorValue.formatted(as: .hex), "#FF000080")
+        XCTAssertEqual(colorValue.formatted(as: .rgb), "rgba(255, 0, 0, 0.5)")
+        XCTAssertEqual(colorValue.formatted(as: .hsl), "hsla(0, 100%, 50%, 0.5)")
+    }
+
     @MainActor
     func testStoreDropsExpiredHistoryEntriesOnLoadWhenRetentionIsEnabled() async throws {
         let paths = TestStorageFactory.makePaths()

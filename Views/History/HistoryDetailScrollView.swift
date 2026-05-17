@@ -17,8 +17,11 @@ struct HistoryDetailScrollView<Content: View>: View {
     }
 
     var body: some View {
+        let minimumContentHeight = max(0, scrollController.viewportHeight - 2 * padding)
+
         ScrollView(.vertical, showsIndicators: false) {
             content()
+                .frame(maxWidth: .infinity, minHeight: minimumContentHeight, alignment: .top)
                 .padding(.vertical, padding)
                 .padding(.leading, padding)
                 .padding(.trailing, contentTrailingPadding)

@@ -5,6 +5,8 @@ struct HistoryMultiSelectionSummary: View {
     let selectedItemsTotalSizeText: String
     let textCount: Int
     let imageCount: Int
+    let colorCount: Int
+    let linkCount: Int
     let firstTextPreview: String?
     let onDownloadAllImages: () -> Void
 
@@ -23,6 +25,20 @@ struct HistoryMultiSelectionSummary: View {
                     HistoryTypeCountRow(
                         systemName: "doc.text",
                         text: "\(textCount) text \(textCount == 1 ? "item" : "items")"
+                    )
+                }
+
+                if colorCount > 0 {
+                    HistoryTypeCountRow(
+                        systemName: "paintpalette",
+                        text: "\(colorCount) color \(colorCount == 1 ? "item" : "items")"
+                    )
+                }
+
+                if linkCount > 0 {
+                    HistoryTypeCountRow(
+                        systemName: "link",
+                        text: "\(linkCount) link \(linkCount == 1 ? "item" : "items")"
                     )
                 }
 

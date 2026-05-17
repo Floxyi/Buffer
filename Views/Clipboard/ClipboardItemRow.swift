@@ -8,6 +8,7 @@ struct ClipboardItemRow: View {
 
     let item: ClipboardItem
     let store: ClipboardStore
+    let settings: SettingsManager
     let primaryLabelText: String
     let scrollActivityTracker: ScrollActivityTracker
     let isMultiSelected: Bool
@@ -26,6 +27,7 @@ struct ClipboardItemRow: View {
     init(
         item: ClipboardItem,
         store: ClipboardStore,
+        settings: SettingsManager,
         primaryLabelText: String,
         scrollActivityTracker: ScrollActivityTracker,
         isMultiSelected: Bool,
@@ -37,6 +39,7 @@ struct ClipboardItemRow: View {
     ) {
         self.item = item
         self.store = store
+        self.settings = settings
         self.primaryLabelText = primaryLabelText
         self.scrollActivityTracker = scrollActivityTracker
         self.isMultiSelected = isMultiSelected
@@ -69,7 +72,7 @@ struct ClipboardItemRow: View {
     private var selectionCornerRadius: CGFloat { 6 }
 
     private var displayedPrimaryLabelText: String {
-        guard item.type == .image else {
+        guard ClipboardItemTypeRegistry.supportsImageAssets(for: item) else {
             return primaryLabelText
         }
 
@@ -81,7 +84,7 @@ struct ClipboardItemRow: View {
     }
 
     private var assetLoadToken: String {
-        "\(item.id.uuidString)-\(observedScrollActivityTracker.isScrolling)"
+        "\(item.id.uuidString)-\(observedScrollActivityTracker.isScrolling)-\(settings.enableWebsitePreviews)"
     }
 
     var body: some View {
@@ -156,7 +159,7 @@ struct ClipboardItemRow: View {
     private func loadAssetsIfNeeded() async {
         guard !observedScrollActivityTracker.isScrolling else { return }
 
-        if item.type == .image && thumbnail == nil {
+        if ClipboardItemTypeRegistry.supportsImageAssets(for: item), thumbnail == nil {
             let loadedThumbnail = await ClipboardItemRowAssetLoader.loadThumbnail(
                 for: item,
                 store: store,
@@ -181,8 +184,16 @@ struct ClipboardItemRow: View {
 
         guard !observedScrollActivityTracker.isScrolling else { return }
 
+        if item.kind == .link, !settings.enableWebsitePreviews {
+            sourceAppIcon = nil
+            return
+        }
+
         if sourceAppIcon == nil {
-            let loadedSourceAppIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(for: item)
+            let loadedSourceAppIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(
+                for: item,
+                settings: settings
+            )
 
             guard !Task.isCancelled else { return }
             guard !observedScrollActivityTracker.isScrolling else { return }

@@ -45,6 +45,7 @@ struct ClipboardListView: View {
     @Binding var scrollTrigger: Bool
 
     let store: ClipboardStore
+    let settings: SettingsManager
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let onCommitSelection: () -> Void
     let onDismiss: () -> Void
@@ -278,6 +279,7 @@ struct ClipboardListView: View {
         return ClipboardItemRow(
             item: item,
             store: store,
+            settings: settings,
             primaryLabelText: primaryLabelText(for: item),
             scrollActivityTracker: scrollController.activityTracker,
             isMultiSelected: selectedIDs.contains(item.id),
@@ -821,6 +823,7 @@ struct ClipboardListView: View {
         assetPrewarmTask = Task { @MainActor in
             await ClipboardItemRowAssetLoader.prewarmSourceIcons(
                 for: prewarmItems,
+                settings: settings,
                 limit: 40
             )
         }

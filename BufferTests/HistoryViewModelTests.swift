@@ -14,6 +14,14 @@ final class HistoryViewModelTests: XCTestCase {
         let inlineItem = ClipboardItem.text("inline needle")
         let largeTextFilename = store.saveText("file-backed needle body")!
         let fileBackedItem = ClipboardItem.largeText(preview: "preview", filename: largeTextFilename)
+        let colorItem = ClipboardItem.color(
+            ClipboardColorValue(red: 1, green: 0, blue: 0, alpha: 1),
+            originalText: "#ff0000"
+        )
+        let linkItem = ClipboardItem.link(
+            URL(string: "https://openai.com/research")!,
+            originalText: "openai.com/research"
+        )
         let imageItem = ClipboardItem(
             type: .image,
             imageFilename: "image.png",
@@ -22,10 +30,12 @@ final class HistoryViewModelTests: XCTestCase {
 
         store.add(inlineItem)
         store.add(fileBackedItem)
+        store.add(colorItem)
+        store.add(linkItem)
         store.add(imageItem)
 
         await eventually {
-            store.items.count == 3
+            store.items.count == 5
         }
 
         let viewModel = HistoryViewModel(
@@ -42,6 +52,150 @@ final class HistoryViewModelTests: XCTestCase {
 
         viewModel.searchText = "inline needle"
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [inlineItem.id])
+
+        viewModel.searchText = "#ff0000"
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [colorItem.id])
+
+        viewModel.searchText = "openai.com/research"
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [linkItem.id])
+    }
+
+    func testColorClassificationCreatesStructuredColorItem() {
+        let item = ClipboardCaptureSupport.classifyTextItem("#ff0000", sourceApp: nil) { _ in
+            XCTFail("Expected inline color item")
+            return nil
+        }
+
+        XCTAssertEqual(item.kind, .color)
+        XCTAssertEqual(item.colorPayload?.originalText, "#ff0000")
+        XCTAssertEqual(item.textContent, nil)
+    }
+
+    func testColorClassificationRecognizesRGBAndHSL() {
+        let rgbItem = ClipboardCaptureSupport.classifyTextItem("rgba(255, 0, 128, 0.5)", sourceApp: nil) { _ in
+            XCTFail("Expected inline color item")
+            return nil
+        }
+        let hslItem = ClipboardCaptureSupport.classifyTextItem("hsl(330, 100%, 50%)", sourceApp: nil) { _ in
+            XCTFail("Expected inline color item")
+            return nil
+        }
+
+        XCTAssertEqual(rgbItem.kind, .color)
+        XCTAssertEqual(rgbItem.colorPayload?.value, ClipboardColorValue(red: 1, green: 0, blue: 128.0 / 255.0, alpha: 0.5))
+        XCTAssertEqual(hslItem.kind, .color)
+        XCTAssertEqual(hslItem.colorPayload?.originalText, "hsl(330, 100%, 50%)")
+    }
+
+    func testColorClassificationRejectsNonColorHashText() {
+        let headingItem = ClipboardCaptureSupport.classifyTextItem("## Phase 1: Polish", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+        let malformedHexItem = ClipboardCaptureSupport.classifyTextItem("#12 nope", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+        let malformedRGBItem = ClipboardCaptureSupport.classifyTextItem("rgb(255, blue, 0)", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+
+        XCTAssertEqual(headingItem.kind, .text)
+        XCTAssertEqual(headingItem.textContent, "## Phase 1: Polish")
+        XCTAssertNil(headingItem.colorPayload)
+
+        XCTAssertEqual(malformedHexItem.kind, .text)
+        XCTAssertNil(malformedHexItem.colorPayload)
+
+        XCTAssertEqual(malformedRGBItem.kind, .text)
+        XCTAssertNil(malformedRGBItem.colorPayload)
+    }
+
+    func testLinkClassificationCreatesStructuredLinkItem() {
+        let httpsItem = ClipboardCaptureSupport.classifyTextItem("https://www.youtube.com/watch?v=123", sourceApp: nil) { _ in
+            XCTFail("Expected inline link item")
+            return nil
+        }
+        let schemeLessItem = ClipboardCaptureSupport.classifyTextItem("openai.com/research", sourceApp: nil) { _ in
+            XCTFail("Expected inline link item")
+            return nil
+        }
+
+        XCTAssertEqual(httpsItem.kind, .link)
+        XCTAssertEqual(httpsItem.linkPayload?.websiteName, "Youtube")
+        XCTAssertEqual(httpsItem.linkPayload?.originalText, "https://www.youtube.com/watch?v=123")
+
+        XCTAssertEqual(schemeLessItem.kind, .link)
+        XCTAssertEqual(schemeLessItem.linkPayload?.url.absoluteString, "https://openai.com/research")
+    }
+
+    func testLinkClassificationRejectsNonURLText() {
+        let plainTextItem = ClipboardCaptureSupport.classifyTextItem("openai research", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+        let markdownHeadingItem = ClipboardCaptureSupport.classifyTextItem("# Release Notes", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+        let nonWebSchemeItem = ClipboardCaptureSupport.classifyTextItem("file:///tmp/test.txt", sourceApp: nil) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+
+        XCTAssertEqual(plainTextItem.kind, .text)
+        XCTAssertNil(plainTextItem.linkPayload)
+
+        XCTAssertEqual(markdownHeadingItem.kind, .text)
+        XCTAssertNil(markdownHeadingItem.linkPayload)
+
+        XCTAssertEqual(nonWebSchemeItem.kind, .text)
+        XCTAssertNil(nonWebSchemeItem.linkPayload)
+    }
+
+    func testTypeDrivenImageActionsExcludeColorItems() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let colorItem = ClipboardItem.color(
+            ClipboardColorValue(red: 0, green: 1, blue: 0, alpha: 1),
+            originalText: "#00ff00"
+        )
+        store.add(colorItem)
+
+        await eventually {
+            store.items.count == 1
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(colorItem.id)
+
+        XCTAssertFalse(viewModel.canSaveSelectedImage)
+        XCTAssertFalse(viewModel.canExtractSelectedImageText)
+        XCTAssertEqual(viewModel.colorSelectionCount, 1)
+    }
+
+    func testTypeDrivenLinkActionsExposeOpenLink() {
+        let linkItem = ClipboardItem.link(
+            URL(string: "https://openai.com")!,
+            originalText: "openai.com"
+        )
+
+        XCTAssertTrue(ClipboardItemTypeRegistry.canOpenLink(for: linkItem))
+        XCTAssertFalse(ClipboardItemTypeRegistry.canSaveImage(for: linkItem))
+        XCTAssertFalse(ClipboardItemTypeRegistry.canExtractImageText(for: linkItem))
     }
 
     func testHandleWindowOpenSelectsFirstNonPinnedItemWhenConfigured() async {

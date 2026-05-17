@@ -1,6 +1,26 @@
 import AppKit
 import SwiftUI
 
+struct SettingsPrivacyWebsitePreviewsSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    var body: some View {
+        Section("Website Data") {
+            Toggle(
+                "Enable Website Previews and Icons",
+                isOn: Binding(
+                    get: { settings.enableWebsitePreviews },
+                    set: { settings.setEnableWebsitePreviews($0) }
+                )
+            )
+
+            Text("When enabled, Buffer may fetch website metadata and favicons for link items. Disable this to keep link handling fully local-only.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SettingsPrivacyAutoClearHistorySection: View {
     @ObservedObject var settings: SettingsManager
 

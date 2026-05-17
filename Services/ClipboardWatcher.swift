@@ -104,14 +104,12 @@ final class ClipboardWatcher: ObservableObject {
             guard hash != lastContentHash else { return }
             lastContentHash = hash
 
-            if textSize <= ClipboardCaptureSupport.inlineTextLimit {
-                store.add(.text(text, sourceApp: sourceApp))
-            } else {
-                let preview = String(text.prefix(ClipboardCaptureSupport.previewLength))
-                if let filename = store.saveText(text) {
-                    store.add(.largeText(preview: preview, filename: filename, sourceApp: sourceApp))
-                }
-            }
+            let item = ClipboardCaptureSupport.classifyTextItem(
+                text,
+                sourceApp: sourceApp,
+                saveText: { store.saveText($0) }
+            )
+            store.add(item)
             return
         }
 

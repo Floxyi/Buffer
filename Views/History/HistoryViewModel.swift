@@ -125,11 +125,18 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var isSingleImageSelection: Bool {
-        selectionCount <= 1 && selectedItem?.type == .image
+        selectionCount <= 1 && ClipboardItemTypeRegistry.canSaveImage(for: selectedItem)
+    }
+
+    var canSaveSelectedImage: Bool {
+        isSingleImageSelection
     }
 
     var canExtractSelectedImageText: Bool {
-        isSingleImageSelection && selectedItem?.ocrText == nil && !isExtractingText
+        selectionCount <= 1
+            && ClipboardItemTypeRegistry.canExtractImageText(for: selectedItem)
+            && selectedItem?.ocrText == nil
+            && !isExtractingText
     }
 
     var selectedItemIsPinned: Bool {
@@ -141,15 +148,25 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var textSelectionCount: Int {
-        selectedItems.filter { $0.type == .text }.count
+        selectedItems.filter { $0.kind == .text }.count
     }
 
     var imageSelectionCount: Int {
-        selectedItems.filter { $0.type == .image }.count
+        selectedItems.filter { $0.kind == .image }.count
+    }
+
+    var colorSelectionCount: Int {
+        selectedItems.filter { $0.kind == .color }.count
+    }
+
+    var linkSelectionCount: Int {
+        selectedItems.filter { $0.kind == .link }.count
     }
 
     var firstTextPreview: String? {
-        selectedItems.first(where: { $0.type == .text }).map { String(($0.textContent ?? "").prefix(200)) }
+        selectedItems.first(where: { $0.kind == .text || $0.kind == .color || $0.kind == .link }).map {
+            String(ClipboardItemTypeRegistry.previewText(for: $0).prefix(200))
+        }
     }
 
     var selectedItemSourceName: String? {
@@ -538,12 +555,12 @@ final class HistoryViewModel: ObservableObject {
 
         guard let item = selectedItem else { return }
 
-        if item.type == .image {
+        if ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
             previewImage = loadPreviewImage(for: item)
-        } else if item.isFileBacked {
+        } else if ClipboardItemTypeRegistry.supportsTextChunks(for: item), item.isFileBacked {
             await loadInitialChunk(for: item)
         } else {
-            chunkedText.visibleText = item.textContent ?? ""
+            chunkedText.visibleText = ClipboardItemTypeRegistry.pastedText(for: item, store: store) ?? ""
             chunkedText.reachedEOF = true
         }
     }

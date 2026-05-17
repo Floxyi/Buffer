@@ -100,13 +100,7 @@ enum ClipboardListStructure {
     }
 
     static func primaryLabelText(for item: ClipboardItem) -> String {
-        switch item.type {
-        case .text:
-            return makeTextPreview(for: item)
-
-        case .image:
-            return "Image"
-        }
+        ClipboardItemTypeRegistry.primaryLabelText(for: item)
     }
 
     static func pinnedItems(from items: [ClipboardItem]) -> [ClipboardItem] {
@@ -306,28 +300,5 @@ enum ClipboardListStructure {
         case .item:
             return LayoutMetrics.itemRowHeight
         }
-    }
-
-    private static func makeTextPreview(for item: ClipboardItem) -> String {
-        let rawText: String
-
-        if !item.previewText.isEmpty {
-            rawText = item.previewText
-        } else if let textContent = item.textContent {
-            rawText = String(textContent.prefix(160))
-        } else {
-            rawText = ""
-        }
-
-        let collapsed = rawText
-            .split(whereSeparator: \.isWhitespace)
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if collapsed.count > 50 {
-            return String(collapsed.prefix(50)) + "…"
-        }
-
-        return collapsed
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct HistoryContentView: View {
@@ -38,7 +39,7 @@ struct HistoryContentView: View {
             BufferPanelSeparator()
 
             HistoryActionBar(
-                showsSaveShortcut: viewModel.selectedItem?.type == .image,
+                showsSaveShortcut: viewModel.canSaveSelectedImage,
                 showsJumpToHistory: viewModel.canJumpToHistorySelection,
                 onJumpToHistory: jumpToHistorySelection,
                 onPaste: performPrimaryPasteAction
@@ -127,6 +128,7 @@ struct HistoryContentView: View {
                     ),
                     scrollTrigger: $viewModel.scrollTrigger,
                     store: store,
+                    settings: settings,
                     quickPasteBadgeNumberByItemID: viewModel.showsQuickPasteNumbers
                         ? viewModel.quickPasteBadgeNumberByItemID
                         : [:],
@@ -174,51 +176,58 @@ struct HistoryContentView: View {
     }
 
     private var detailPane: some View {
-        HistoryDetailPane(
-            selectionCount: viewModel.selectionCount,
-            isSingleImageSelection: viewModel.isSingleImageSelection,
-            selectedItemIsPinned: viewModel.selectedItemIsPinned,
-            canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
-            isExtractingText: viewModel.isExtractingText,
-            showsJumpToHistory: viewModel.canJumpToHistorySelection,
-            selectedItemSourceName: viewModel.selectedItemSourceName,
-            selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
-            selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
-            textSelectionCount: viewModel.textSelectionCount,
-            imageSelectionCount: viewModel.imageSelectionCount,
-            firstTextPreview: viewModel.firstTextPreview,
-            selectedItem: viewModel.selectedItem,
-            previewImage: viewModel.previewImage,
-            chunkedText: viewModel.chunkedText,
-            textDetailFontStyle: settings.textDetailFontStyle,
-            textDetailFontSize: settings.textDetailFontSize,
-            onCopy: {
-                if let item = viewModel.selectedItem {
-                    onCopyToClipboard(item)
-                }
-            },
-            onSaveImage: {
-                guard let item = viewModel.selectedItem,
-                      let image = viewModel.previewImage ?? store.image(for: item) else { return }
+            HistoryDetailPane(
+                selectionCount: viewModel.selectionCount,
+                selectedItem: viewModel.selectedItem,
+                selectedItemIsPinned: viewModel.selectedItemIsPinned,
+                canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
+                isExtractingText: viewModel.isExtractingText,
+                showsJumpToHistory: viewModel.canJumpToHistorySelection,
+                selectedItemSourceName: viewModel.selectedItemSourceName,
+                selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
+                selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
+                textSelectionCount: viewModel.textSelectionCount,
+                imageSelectionCount: viewModel.imageSelectionCount,
+                colorSelectionCount: viewModel.colorSelectionCount,
+                linkSelectionCount: viewModel.linkSelectionCount,
+                firstTextPreview: viewModel.firstTextPreview,
+                previewImage: viewModel.previewImage,
+                chunkedText: viewModel.chunkedText,
+                textDetailFontStyle: settings.textDetailFontStyle,
+                textDetailFontSize: settings.textDetailFontSize,
+                enableWebsitePreviews: settings.enableWebsitePreviews,
+                onCopy: {
+                    if let item = viewModel.selectedItem {
+                        onCopyToClipboard(item)
+                    }
+                },
+                onSaveImage: {
+                    guard let item = viewModel.selectedItem,
+                          let image = viewModel.previewImage ?? store.image(for: item) else { return }
 
-                PasteImageSupport.saveImageToDisk(image)
-            },
-            onExtractText: {
-                Task {
-                    await viewModel.extractSelectedImageText()
+                    PasteImageSupport.saveImageToDisk(image)
+                },
+                onExtractText: {
+                    Task {
+                        await viewModel.extractSelectedImageText()
+                    }
+                },
+                onOpenLink: {
+                    guard let url = viewModel.selectedItem?.linkPayload?.url else { return }
+                    NSWorkspace.shared.open(url)
+                },
+                onJumpToHistory: jumpToHistorySelection,
+                onTogglePin: viewModel.togglePinForSelectedItem,
+                onDelete: viewModel.deleteSelectedItem,
+                onDownloadAllImages: downloadAllImages,
+                onCopyOCRText: copyOCRText,
+                onCopyColorVariant: copyPlainText,
+                onLoadNextChunk: { _ in
+                    Task {
+                        await viewModel.loadNextChunk()
+                    }
                 }
-            },
-            onJumpToHistory: jumpToHistorySelection,
-            onTogglePin: viewModel.togglePinForSelectedItem,
-            onDelete: viewModel.deleteSelectedItem,
-            onDownloadAllImages: downloadAllImages,
-            onCopyOCRText: copyOCRText,
-            onLoadNextChunk: { _ in
-                Task {
-                    await viewModel.loadNextChunk()
-                }
-            }
-        )
+            )
     }
 
     private func performPrimaryPasteAction() {
@@ -270,7 +279,7 @@ struct HistoryContentView: View {
         openPanel.beginSheetModal(for: window) { response in
             guard response == .OK, let folderURL = openPanel.url else { return }
 
-            let imageItems = self.viewModel.selectedItems.filter { $0.type == .image }
+            let imageItems = self.viewModel.selectedItems.filter { ClipboardItemTypeRegistry.supportsImageAssets(for: $0) }
 
             for (index, item) in imageItems.enumerated() {
                 guard let image = store.image(for: item) else { continue }
@@ -294,6 +303,10 @@ struct HistoryContentView: View {
     }
 
     private func copyOCRText(_ text: String) {
+        copyPlainText(text)
+    }
+
+    private func copyPlainText(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }

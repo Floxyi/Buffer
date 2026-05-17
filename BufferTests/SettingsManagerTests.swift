@@ -48,14 +48,16 @@ final class SettingsManagerTests: XCTestCase {
         settings.setQuickPasteEntryCount(10)
         settings.setTextDetailFontStyle(.regular)
         settings.setTextDetailFontSize(.large)
+        settings.setEnableWebsitePreviews(false)
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
         XCTAssertFalse(settings.quickPasteEnabled)
         XCTAssertEqual(settings.quickPasteNumberingStart, .normalEntries)
-        XCTAssertEqual(settings.quickPasteEntryCount, 10)
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.upperBound)
         XCTAssertEqual(settings.textDetailFontStyle, .regular)
         XCTAssertEqual(settings.textDetailFontSize, .large)
+        XCTAssertFalse(settings.enableWebsitePreviews)
         XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
         XCTAssertEqual(
             defaults.string(forKey: "historyWindowOpenBehavior"),
@@ -66,9 +68,10 @@ final class SettingsManagerTests: XCTestCase {
             defaults.string(forKey: "quickPasteNumberingStart"),
             QuickPasteNumberingStart.normalEntries.rawValue
         )
-        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), 10)
+        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.upperBound)
         XCTAssertEqual(defaults.string(forKey: "textDetailFontStyle"), TextDetailFontStyle.regular.rawValue)
         XCTAssertEqual(defaults.integer(forKey: "textDetailFontSize"), TextDetailFontSize.large.rawValue)
+        XCTAssertFalse(defaults.bool(forKey: "enableWebsitePreviews"))
     }
 
     func testHistoryRetentionPreferencePersistsChanges() {

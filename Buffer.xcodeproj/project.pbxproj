@@ -64,8 +64,6 @@
 		AAA00068 /* HistoryStatBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00070 /* HistoryStatBlock.swift */; };
 		AAA00069 /* HistoryTypeCountRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00071 /* HistoryTypeCountRow.swift */; };
 		AAA00070 /* HistoryItemDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00072 /* HistoryItemDetailContent.swift */; };
-		AAA00071 /* HistoryTextDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00073 /* HistoryTextDetailContent.swift */; };
-		AAA00072 /* HistoryImageDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00074 /* HistoryImageDetailContent.swift */; };
 		AAA00073 /* HistoryDetailScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00075 /* HistoryDetailScrollView.swift */; };
 		AAA00074 /* SettingsGeneralView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00076 /* SettingsGeneralView.swift */; };
 		AAA00075 /* SettingsPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00077 /* SettingsPrivacyView.swift */; };
@@ -75,6 +73,14 @@
 		AAA00080 /* SettingsBehaviourSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00082 /* SettingsBehaviourSections.swift */; };
 		AAA00081 /* SettingsPrivacySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00083 /* SettingsPrivacySections.swift */; };
 		AAA00082 /* SettingsAboutSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00084 /* SettingsAboutSections.swift */; };
+		AAA00083 /* HistoryTextDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00085 /* HistoryTextDetailHeader.swift */; };
+		AAA00084 /* HistoryImageDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00086 /* HistoryImageDetailHeader.swift */; };
+		AAA00085 /* HistoryColorDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00087 /* HistoryColorDetailHeader.swift */; };
+		AAA00086 /* HistoryTextDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00088 /* HistoryTextDetailContent.swift */; };
+		AAA00087 /* HistoryImageDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00089 /* HistoryImageDetailContent.swift */; };
+		AAA00088 /* HistoryColorDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00090 /* HistoryColorDetailContent.swift */; };
+		AAA00089 /* HistoryLinkDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00091 /* HistoryLinkDetailHeader.swift */; };
+		AAA00090 /* HistoryLinkDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00092 /* HistoryLinkDetailContent.swift */; };
 		ABC10001 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20001 /* SettingsManagerTests.swift */; };
 		ABC10002 /* ClipboardHistoryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20002 /* ClipboardHistoryPersistenceTests.swift */; };
 		ABC10003 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20003 /* HistoryViewModelTests.swift */; };
@@ -160,8 +166,6 @@
 		BBB00070 /* HistoryStatBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStatBlock.swift; sourceTree = "<group>"; };
 		BBB00071 /* HistoryTypeCountRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTypeCountRow.swift; sourceTree = "<group>"; };
 		BBB00072 /* HistoryItemDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemDetailContent.swift; sourceTree = "<group>"; };
-		BBB00073 /* HistoryTextDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTextDetailContent.swift; sourceTree = "<group>"; };
-		BBB00074 /* HistoryImageDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryImageDetailContent.swift; sourceTree = "<group>"; };
 		BBB00075 /* HistoryDetailScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailScrollView.swift; sourceTree = "<group>"; };
 		BBB00076 /* SettingsGeneralView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGeneralView.swift; sourceTree = "<group>"; };
 		BBB00077 /* SettingsPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPrivacyView.swift; sourceTree = "<group>"; };
@@ -171,6 +175,14 @@
 		BBB00082 /* SettingsBehaviourSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBehaviourSections.swift; sourceTree = "<group>"; };
 		BBB00083 /* SettingsPrivacySections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPrivacySections.swift; sourceTree = "<group>"; };
 		BBB00084 /* SettingsAboutSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutSections.swift; sourceTree = "<group>"; };
+		BBB00085 /* HistoryTextDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTextDetailHeader.swift; sourceTree = "<group>"; };
+		BBB00086 /* HistoryImageDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryImageDetailHeader.swift; sourceTree = "<group>"; };
+		BBB00087 /* HistoryColorDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryColorDetailHeader.swift; sourceTree = "<group>"; };
+		BBB00088 /* HistoryTextDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTextDetailContent.swift; sourceTree = "<group>"; };
+		BBB00089 /* HistoryImageDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryImageDetailContent.swift; sourceTree = "<group>"; };
+		BBB00090 /* HistoryColorDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryColorDetailContent.swift; sourceTree = "<group>"; };
+		BBB00091 /* HistoryLinkDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkDetailHeader.swift; sourceTree = "<group>"; };
+		BBB00092 /* HistoryLinkDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkDetailContent.swift; sourceTree = "<group>"; };
 		D87736112F8ECC6B00392A0B /* ClickDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -329,13 +341,13 @@
 				BBB00066 /* HistorySearchBar.swift */,
 				BBB00067 /* HistoryActionBar.swift */,
 				BBB00068 /* HistoryDetailHeader.swift */,
+				DDD00019 /* DetailHeader */,
 				BBB00069 /* HistoryMultiSelectionSummary.swift */,
 				BBB00070 /* HistoryStatBlock.swift */,
 				BBB00071 /* HistoryTypeCountRow.swift */,
 				BBB00027 /* HistoryDetailComponents.swift */,
 				BBB00072 /* HistoryItemDetailContent.swift */,
-				BBB00073 /* HistoryTextDetailContent.swift */,
-				BBB00074 /* HistoryImageDetailContent.swift */,
+				DDD00020 /* DetailContent */,
 				BBB00075 /* HistoryDetailScrollView.swift */,
 				BBB00024 /* HistoryWindowInfrastructure.swift */,
 				BBB00034 /* HistoryContentState.swift */,
@@ -407,6 +419,28 @@
 				BBB00033 /* SettingsSupport.swift */,
 			);
 			path = Support;
+			sourceTree = "<group>";
+		};
+		DDD00019 /* DetailHeader */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00085 /* HistoryTextDetailHeader.swift */,
+				BBB00086 /* HistoryImageDetailHeader.swift */,
+				BBB00087 /* HistoryColorDetailHeader.swift */,
+				BBB00091 /* HistoryLinkDetailHeader.swift */,
+			);
+			path = DetailHeader;
+			sourceTree = "<group>";
+		};
+		DDD00020 /* DetailContent */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00088 /* HistoryTextDetailContent.swift */,
+				BBB00089 /* HistoryImageDetailContent.swift */,
+				BBB00090 /* HistoryColorDetailContent.swift */,
+				BBB00092 /* HistoryLinkDetailContent.swift */,
+			);
+			path = DetailContent;
 			sourceTree = "<group>";
 		};
 		DDD00010 /* StatusBar */ = {
@@ -590,9 +624,15 @@
 				AAA00068 /* HistoryStatBlock.swift in Sources */,
 				AAA00069 /* HistoryTypeCountRow.swift in Sources */,
 				AAA00070 /* HistoryItemDetailContent.swift in Sources */,
-				AAA00071 /* HistoryTextDetailContent.swift in Sources */,
-				AAA00072 /* HistoryImageDetailContent.swift in Sources */,
 				AAA00073 /* HistoryDetailScrollView.swift in Sources */,
+				AAA00083 /* HistoryTextDetailHeader.swift in Sources */,
+				AAA00084 /* HistoryImageDetailHeader.swift in Sources */,
+				AAA00085 /* HistoryColorDetailHeader.swift in Sources */,
+				AAA00089 /* HistoryLinkDetailHeader.swift in Sources */,
+				AAA00086 /* HistoryTextDetailContent.swift in Sources */,
+				AAA00087 /* HistoryImageDetailContent.swift in Sources */,
+				AAA00088 /* HistoryColorDetailContent.swift in Sources */,
+				AAA00090 /* HistoryLinkDetailContent.swift in Sources */,
 				AAA00074 /* SettingsGeneralView.swift in Sources */,
 				AAA00079 /* SettingsGeneralSections.swift in Sources */,
 				AAA00078 /* SettingsBehaviourView.swift in Sources */,

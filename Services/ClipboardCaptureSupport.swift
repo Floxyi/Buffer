@@ -29,6 +29,33 @@ enum ClipboardCaptureSupport {
         return nil
     }
 
+    static func classifyTextItem(
+        _ text: String,
+        sourceApp: SourceApplicationInfo?,
+        saveText: (String) -> String?
+    ) -> ClipboardItem {
+        if let colorValue = ClipboardColorValue.parse(text) {
+            return .color(colorValue, originalText: text, sourceApp: sourceApp)
+        }
+
+        if let url = ClipboardLinkValue.parse(text) {
+            return .link(url, originalText: text, sourceApp: sourceApp)
+        }
+
+        let textSize = text.utf8.count
+
+        if textSize <= inlineTextLimit {
+            return .text(text, sourceApp: sourceApp)
+        }
+
+        let preview = String(text.prefix(previewLength))
+        if let filename = saveText(text) {
+            return .largeText(preview: preview, filename: filename, sourceApp: sourceApp)
+        }
+
+        return .truncatedText(preview, originalSizeBytes: textSize, sourceApp: sourceApp)
+    }
+
     static func isImageFile(_ filePath: String) -> Bool {
         let fileExtension = (filePath as NSString).pathExtension.lowercased()
         guard !fileExtension.isEmpty else { return false }

@@ -10,25 +10,21 @@ struct ClipboardLeadingVisual: View {
     let appIconScale: CGFloat
 
     var body: some View {
-        switch item.type {
-        case .text:
+        switch ClipboardItemTypeRegistry.leadingVisualStyle(for: item) {
+        case .document:
             textVisual
         case .image:
             imageVisual
+        case .colorSwatch(let colorValue):
+            colorVisual(colorValue)
+        case .link:
+            linkVisual
         }
     }
 
     @ViewBuilder
     private var textVisual: some View {
-        if let content = item.textContent?.trimmingCharacters(in: .whitespaces),
-           let color = ClipboardColorParser.parseColor(content) {
-            Circle()
-                .fill(color)
-                .overlay(
-                    Circle()
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                )
-        } else if let sourceAppIcon {
+        if let sourceAppIcon {
             Image(nsImage: sourceAppIcon)
                 .resizable()
                 .interpolation(.high)
@@ -46,6 +42,40 @@ struct ClipboardLeadingVisual: View {
                 .font(.system(size: 14))
                 .foregroundColor(secondaryForegroundColor)
         }
+    }
+
+    private func colorVisual(_ colorValue: ClipboardColorValue) -> some View {
+        Circle()
+            .fill(Color(nsColor: colorValue.nsColor))
+            .overlay(
+                Circle()
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+            )
+    }
+
+    private var linkVisual: some View {
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(Color.accentColor.opacity(0.12))
+            .overlay {
+                Group {
+                    if let sourceAppIcon {
+                        Image(nsImage: sourceAppIcon)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: leadingVisualSize - 10, height: leadingVisualSize - 10)
+                    } else {
+                        Image(systemName: "link")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.accentColor.opacity(0.9))
+                    }
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+            )
+            .help(item.linkPayload?.websiteName ?? "Website")
     }
 
     @ViewBuilder

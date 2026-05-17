@@ -1,4 +1,5 @@
 import AppKit
+@preconcurrency import LinkPresentation
 import SwiftUI
 
 struct ClipboardItemRowAssets {
@@ -13,14 +14,154 @@ struct ClipboardItemRowAssets {
     )
 
     func shouldTreatAsLoaded(for item: ClipboardItem) -> Bool {
-        switch item.type {
-        case .text:
+        switch item.kind {
+        case .text, .color, .link:
             return true
 
         case .image:
             return thumbnail != nil || imageDimensionsText != nil
         }
     }
+}
+
+@MainActor
+enum LinkPreviewAssetCache {
+    private static var metadataCache: [URL: LPLinkMetadata] = [:]
+    private static var metadataWaiters: [URL: [CheckedContinuation<UnsafeLinkMetadataBox, Never>]] = [:]
+    private static var activeMetadataProviders: [URL: LPMetadataProvider] = [:]
+    private static let websiteIconCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 240
+        return cache
+    }()
+    private static var missingWebsiteIconKeys = Set<String>()
+
+    static func metadata(for url: URL) async -> LPLinkMetadata? {
+        if let cachedMetadata = metadataCache[url] {
+            return cachedMetadata
+        }
+
+        if metadataWaiters[url] != nil {
+            let metadataBox = await withCheckedContinuation { continuation in
+                metadataWaiters[url, default: []].append(continuation)
+            }
+            return metadataBox.value
+        }
+
+        metadataWaiters[url] = []
+
+        let metadataBox = await withCheckedContinuation { continuation in
+            metadataWaiters[url, default: []].append(continuation)
+
+            let provider = LPMetadataProvider()
+            activeMetadataProviders[url] = provider
+
+            provider.startFetchingMetadata(for: url) { metadata, error in
+                let metadataBox = UnsafeLinkMetadataBox(value: metadata)
+
+                Task { @MainActor in
+                    let continuations = metadataWaiters.removeValue(forKey: url) ?? []
+                    activeMetadataProviders[url] = nil
+
+                    if let metadata = metadataBox.value {
+                        metadataCache[url] = metadata
+                        await cacheWebsiteIcon(from: metadata, for: url)
+
+                        continuations.forEach { $0.resume(returning: UnsafeLinkMetadataBox(value: metadata)) }
+                    } else {
+                        BufferLogger.ui.error("Failed to fetch link metadata for \(url.absoluteString, privacy: .public): \(String(describing: error), privacy: .public)")
+                        continuations.forEach { $0.resume(returning: UnsafeLinkMetadataBox(value: nil)) }
+                    }
+                }
+            }
+        }
+
+        return metadataBox.value
+    }
+
+    static func cachedWebsiteIcon(for url: URL) -> NSImage? {
+        guard let key = websiteIconCacheKey(for: url) else {
+            return nil
+        }
+
+        return websiteIconCache.object(forKey: key as NSString)
+    }
+
+    static func storeWebsiteIcon(_ image: NSImage, for url: URL) {
+        guard let key = websiteIconCacheKey(for: url) else {
+            return
+        }
+
+        websiteIconCache.setObject(normalizedWebsiteIcon(from: image), forKey: key as NSString)
+        missingWebsiteIconKeys.remove(key)
+    }
+
+    static func hasMissingWebsiteIcon(for url: URL) -> Bool {
+        guard let key = websiteIconCacheKey(for: url) else {
+            return false
+        }
+
+        return missingWebsiteIconKeys.contains(key)
+    }
+
+    static func markWebsiteIconMissing(for url: URL) {
+        guard let key = websiteIconCacheKey(for: url) else {
+            return
+        }
+
+        missingWebsiteIconKeys.insert(key)
+    }
+
+    static func clear() {
+        metadataCache.removeAll()
+        let pendingURLs = Array(metadataWaiters.keys)
+        for url in pendingURLs {
+            let continuations = metadataWaiters.removeValue(forKey: url) ?? []
+            continuations.forEach { $0.resume(returning: UnsafeLinkMetadataBox(value: nil)) }
+        }
+        activeMetadataProviders.removeAll()
+        websiteIconCache.removeAllObjects()
+        missingWebsiteIconKeys.removeAll()
+    }
+
+    private static func cacheWebsiteIcon(from metadata: LPLinkMetadata, for url: URL) async {
+        guard cachedWebsiteIcon(for: url) == nil,
+              let iconImage = await loadImage(from: metadata.iconProvider) else {
+            return
+        }
+
+        storeWebsiteIcon(iconImage, for: url)
+    }
+
+    private static func loadImage(from itemProvider: NSItemProvider?) async -> NSImage? {
+        guard let itemProvider else {
+            return nil
+        }
+
+        guard itemProvider.canLoadObject(ofClass: NSImage.self) else {
+            return nil
+        }
+
+        return await withCheckedContinuation { continuation in
+            itemProvider.loadObject(ofClass: NSImage.self) { object, _ in
+                continuation.resume(returning: object as? NSImage)
+            }
+        }
+    }
+
+    private static func websiteIconCacheKey(for url: URL) -> String? {
+        url.host.map { "website:\($0.lowercased())" }
+    }
+
+    private static func normalizedWebsiteIcon(from image: NSImage) -> NSImage {
+        let iconCopy = image.copy() as? NSImage ?? image
+        iconCopy.size = NSSize(width: 16, height: 16)
+        return iconCopy
+    }
+}
+
+private struct UnsafeLinkMetadataBox: @unchecked Sendable {
+    let value: LPLinkMetadata?
 }
 
 @MainActor
@@ -43,12 +184,13 @@ enum ClipboardItemRowAssetLoader {
     static func loadAssets(
         for item: ClipboardItem,
         store: ClipboardStore,
+        settings: SettingsManager,
         leadingVisualSize: CGFloat
     ) async -> ClipboardItemRowAssets {
         let thumbnail: NSImage?
         let imageDimensionsText: String?
 
-        if item.type == .image {
+        if ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
             thumbnail = await loadThumbnail(
                 for: item,
                 store: store,
@@ -64,7 +206,7 @@ enum ClipboardItemRowAssetLoader {
             imageDimensionsText = nil
         }
 
-        let sourceAppIcon = await loadSourceApplicationIcon(for: item)
+        let sourceAppIcon = await loadSourceApplicationIcon(for: item, settings: settings)
 
         return ClipboardItemRowAssets(
             thumbnail: thumbnail,
@@ -111,7 +253,15 @@ enum ClipboardItemRowAssetLoader {
         return dimensionsText
     }
 
-    static func loadSourceApplicationIcon(for item: ClipboardItem) async -> NSImage? {
+    static func loadSourceApplicationIcon(for item: ClipboardItem, settings: SettingsManager) async -> NSImage? {
+        if item.kind == .link {
+            guard settings.enableWebsitePreviews else {
+                return nil
+            }
+
+            return await loadWebsiteIcon(for: item)
+        }
+
         guard let key = sourceIconCacheKey(for: item) else {
             return nil
         }
@@ -139,6 +289,7 @@ enum ClipboardItemRowAssetLoader {
 
     static func prewarmSourceIcons(
         for items: [ClipboardItem],
+        settings: SettingsManager,
         limit: Int = 40
     ) async {
         var seenKeys = Set<String>()
@@ -149,23 +300,40 @@ enum ClipboardItemRowAssetLoader {
                 return
             }
 
-            guard let key = sourceIconCacheKey(for: item) else {
-                continue
+            let key: String
+            if item.kind == .link {
+                guard settings.enableWebsitePreviews,
+                      let websiteKey = websiteIconCacheKey(for: item) else {
+                    continue
+                }
+                key = websiteKey
+            } else {
+                guard let sourceKey = sourceIconCacheKey(for: item) else {
+                    continue
+                }
+                key = sourceKey
             }
 
             guard seenKeys.insert(key).inserted else {
                 continue
             }
 
-            if sourceIconCache.object(forKey: key as NSString) != nil {
-                continue
+            if item.kind == .link {
+                guard let url = item.linkPayload?.url else {
+                    continue
+                }
+
+                if LinkPreviewAssetCache.cachedWebsiteIcon(for: url) != nil ||
+                    LinkPreviewAssetCache.hasMissingWebsiteIcon(for: url) {
+                    continue
+                }
+            } else {
+                if sourceIconCache.object(forKey: key as NSString) != nil || missingSourceIconKeys.contains(key) {
+                    continue
+                }
             }
 
-            if missingSourceIconKeys.contains(key) {
-                continue
-            }
-
-            _ = await loadSourceApplicationIcon(for: item)
+            _ = await loadSourceApplicationIcon(for: item, settings: settings)
 
             loadedCount += 1
             if loadedCount >= limit {
@@ -179,6 +347,7 @@ enum ClipboardItemRowAssetLoader {
         sourceIconCache.removeAllObjects()
         imageDimensionsTextCache.removeAll()
         missingSourceIconKeys.removeAll()
+        LinkPreviewAssetCache.clear()
     }
 
     static func removeCachedAssets(for itemID: UUID) {
@@ -199,6 +368,10 @@ enum ClipboardItemRowAssetLoader {
         }
 
         return nil
+    }
+
+    private static func websiteIconCacheKey(for item: ClipboardItem) -> String? {
+        item.linkPayload?.url.host.map { "website:\($0.lowercased())" }
     }
 
     private static func loadSourceApplicationIconWithoutCache(for item: ClipboardItem) async -> NSImage? {
@@ -227,143 +400,57 @@ enum ClipboardItemRowAssetLoader {
             }
         }
     }
-}
 
-enum ClipboardColorParser {
-    static func parseColor(_ string: String) -> Color? {
-        let trimmed = string.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !trimmed.isEmpty else { return nil }
+    private static func loadWebsiteIcon(for item: ClipboardItem) async -> NSImage? {
+        guard let url = item.linkPayload?.url else {
+            return nil
+        }
 
-        if trimmed.hasPrefix("#") {
-            let hexStr = String(trimmed.dropFirst())
-            if let color = parseHex(hexStr) {
-                return color
+        if let cachedIcon = LinkPreviewAssetCache.cachedWebsiteIcon(for: url) {
+            return cachedIcon
+        }
+
+        if LinkPreviewAssetCache.hasMissingWebsiteIcon(for: url) {
+            return nil
+        }
+
+        guard let iconURL = faviconURL(for: item) else {
+            return nil
+        }
+
+        var request = URLRequest(url: iconURL)
+        request.timeoutInterval = 5
+        request.cachePolicy = .returnCacheDataElseLoad
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode),
+                  let iconImage = NSImage(data: data) else {
+                LinkPreviewAssetCache.markWebsiteIconMissing(for: url)
+                return nil
             }
-        }
 
-        if trimmed.hasPrefix("rgb") {
-            if let color = parseRGB(trimmed) {
-                return color
-            }
+            LinkPreviewAssetCache.storeWebsiteIcon(iconImage, for: url)
+            return LinkPreviewAssetCache.cachedWebsiteIcon(for: url)
+        } catch {
+            LinkPreviewAssetCache.markWebsiteIconMissing(for: url)
+            return nil
         }
-
-        if trimmed.hasPrefix("hsl") {
-            if let color = parseHSL(trimmed) {
-                return color
-            }
-        }
-
-        return nil
     }
 
-    private static func parseHex(_ hexStr: String) -> Color? {
-        let hex = hexStr.filter { $0.isHexDigit }
-
-        if hex.count == 3 {
-            let expanded = hex.map { "\($0)\($0)" }.joined()
-            return parseHex6(expanded)
-        } else if hex.count == 6 {
-            return parseHex6(hex)
-        } else if hex.count == 8 {
-            return parseHex8(hex)
+    private static func faviconURL(for item: ClipboardItem) -> URL? {
+        guard let url = item.linkPayload?.url,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme,
+              scheme == "http" || scheme == "https",
+              components.host != nil else {
+            return nil
         }
 
-        return nil
-    }
-
-    private static func parseHex6(_ hex: String) -> Color? {
-        guard let value = UInt64(hex, radix: 16) else { return nil }
-        let r = Double((value >> 16) & 0xFF) / 255.0
-        let g = Double((value >> 8) & 0xFF) / 255.0
-        let b = Double(value & 0xFF) / 255.0
-        return Color(red: r, green: g, blue: b)
-    }
-
-    private static func parseHex8(_ hex: String) -> Color? {
-        guard let value = UInt64(hex, radix: 16) else { return nil }
-        let r = Double((value >> 24) & 0xFF) / 255.0
-        let g = Double((value >> 16) & 0xFF) / 255.0
-        let b = Double((value >> 8) & 0xFF) / 255.0
-        let a = Double(value & 0xFF) / 255.0
-        return Color(red: r, green: g, blue: b, opacity: a)
-    }
-
-    private static func parseRGB(_ string: String) -> Color? {
-        let isRGBA = string.hasPrefix("rgba")
-        let startOffset = isRGBA ? 5 : 4
-
-        guard string.count > startOffset + 1 else { return nil }
-        guard string.hasSuffix(")") else { return nil }
-
-        let startIdx = string.index(string.startIndex, offsetBy: startOffset)
-        let endIdx = string.index(string.endIndex, offsetBy: -1)
-        let content = String(string[startIdx..<endIdx]).trimmingCharacters(in: .whitespaces)
-
-        let components = content.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-
-        guard components.count >= 3 else { return nil }
-        guard let r = Double(components[0]).map({ $0 / 255.0 }),
-              let g = Double(components[1]).map({ $0 / 255.0 }),
-              let b = Double(components[2]).map({ $0 / 255.0 }) else { return nil }
-
-        let a = isRGBA && components.count >= 4 ? Double(components[3]) ?? 1.0 : 1.0
-
-        return Color(red: r, green: g, blue: b, opacity: a)
-    }
-
-    private static func parseHSL(_ string: String) -> Color? {
-        let isHSLA = string.hasPrefix("hsla")
-        let startOffset = isHSLA ? 5 : 4
-
-        guard string.count > startOffset + 1 else { return nil }
-        guard string.hasSuffix(")") else { return nil }
-
-        let startIdx = string.index(string.startIndex, offsetBy: startOffset)
-        let endIdx = string.index(string.endIndex, offsetBy: -1)
-        let content = String(string[startIdx..<endIdx]).trimmingCharacters(in: .whitespaces)
-
-        let components = content.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-
-        guard components.count >= 3 else { return nil }
-
-        guard let h = Double(components[0].filter { $0.isNumber || $0 == "-" || $0 == "." }),
-              let s = Double(components[1].filter { $0.isNumber || $0 == "." }),
-              let l = Double(components[2].filter { $0.isNumber || $0 == "." }) else { return nil }
-
-        let a = isHSLA && components.count >= 4 ? Double(components[3]) ?? 1.0 : 1.0
-
-        let (r, g, b) = hslToRGB(h: h, s: s / 100.0, l: l / 100.0)
-
-        return Color(red: r, green: g, blue: b, opacity: a)
-    }
-
-    private static func hslToRGB(h: Double, s: Double, l: Double) -> (Double, Double, Double) {
-        let h = h.truncatingRemainder(dividingBy: 360)
-        let s = max(0, min(1, s))
-        let l = max(0, min(1, l))
-
-        if s == 0 {
-            return (l, l, l)
-        }
-
-        let q = l < 0.5 ? l * (1 + s) : l + s - l * s
-        let p = 2 * l - q
-
-        func hueToRGB(_ p: Double, _ q: Double, _ t: Double) -> Double {
-            var t = t
-            if t < 0 { t += 1 }
-            if t > 1 { t -= 1 }
-            if t < 1 / 6 { return p + (q - p) * 6 * t }
-            if t < 1 / 2 { return q }
-            if t < 2 / 3 { return p + (q - p) * (2 / 3 - t) * 6 }
-            return p
-        }
-
-        let hNorm = h / 360
-        let r = hueToRGB(p, q, hNorm + 1 / 3)
-        let g = hueToRGB(p, q, hNorm)
-        let b = hueToRGB(p, q, hNorm - 1 / 3)
-
-        return (r, g, b)
+        components.path = "/favicon.ico"
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 }

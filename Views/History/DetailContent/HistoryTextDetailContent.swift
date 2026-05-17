@@ -23,7 +23,7 @@ struct HistoryTextDetailContent: View {
                     fontSize: fontSize,
                     usesMonospacedFont: usesMonospacedFont
                 )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 Label(
                     "Content was too large to store (\(AppFormatting.formattedSize(bytes: item.originalSizeBytes ?? 0))). Showing first 500 characters.",
@@ -40,7 +40,7 @@ struct HistoryTextDetailContent: View {
                     fontSize: fontSize,
                     usesMonospacedFont: usesMonospacedFont
                 )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 if chunkedText.isLoadingMore {
                     ProgressView()
@@ -63,7 +63,7 @@ struct HistoryTextDetailContent: View {
                 fontSize: fontSize,
                 usesMonospacedFont: usesMonospacedFont
             )
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 }

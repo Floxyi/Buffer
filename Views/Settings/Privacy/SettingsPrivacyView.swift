@@ -7,6 +7,7 @@ struct SettingsPrivacyView: View {
 
     var body: some View {
         Form {
+            SettingsPrivacyWebsitePreviewsSection(settings: settings)
             SettingsPrivacyAutoClearHistorySection(settings: settings)
             SettingsPrivacyExcludedAppsSection(
                 settings: settings,

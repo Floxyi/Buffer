@@ -1,8 +1,7 @@
 import SwiftUI
 
 struct HistoryDetailHeader: View {
-    let selectionCount: Int
-    let isSingleImageSelection: Bool
+    let item: ClipboardItem
     let selectedItemIsPinned: Bool
     let canExtractSelectedImageText: Bool
     let isExtractingText: Bool
@@ -12,29 +11,164 @@ struct HistoryDetailHeader: View {
     let onCopy: () -> Void
     let onSaveImage: () -> Void
     let onExtractText: () -> Void
+    let onOpenLink: () -> Void
     let onJumpToHistory: () -> Void
     let onTogglePin: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
-        HStack {
-            if selectionCount <= 1 {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(sourceAppName ?? "Unknown App")
-                        .font(.system(size: 13))
-                        .foregroundColor(.primary.opacity(0.8))
+        switch ClipboardItemTypeRegistry.definition(for: item).detailContentKind {
+        case .text:
+            HistoryTextDetailHeader(
+                selectedItemIsPinned: selectedItemIsPinned,
+                showsJumpToHistory: showsJumpToHistory,
+                sourceAppName: sourceAppName,
+                copiedAtText: copiedAtText,
+                onCopy: onCopy,
+                onJumpToHistory: onJumpToHistory,
+                onTogglePin: onTogglePin,
+                onDelete: onDelete
+            )
+        case .image:
+            HistoryImageDetailHeader(
+                selectedItemIsPinned: selectedItemIsPinned,
+                canExtractSelectedImageText: canExtractSelectedImageText,
+                isExtractingText: isExtractingText,
+                showsJumpToHistory: showsJumpToHistory,
+                sourceAppName: sourceAppName,
+                copiedAtText: copiedAtText,
+                onCopy: onCopy,
+                onSaveImage: onSaveImage,
+                onExtractText: onExtractText,
+                onJumpToHistory: onJumpToHistory,
+                onTogglePin: onTogglePin,
+                onDelete: onDelete
+            )
+        case .color:
+            HistoryColorDetailHeader(
+                originalText: item.colorPayload?.originalText ?? "",
+                selectedItemIsPinned: selectedItemIsPinned,
+                showsJumpToHistory: showsJumpToHistory,
+                copiedAtText: copiedAtText,
+                onCopy: onCopy,
+                onJumpToHistory: onJumpToHistory,
+                onTogglePin: onTogglePin,
+                onDelete: onDelete
+            )
+        case .link:
+            HistoryLinkDetailHeader(
+                websiteName: item.linkPayload?.websiteName ?? "Website",
+                selectedItemIsPinned: selectedItemIsPinned,
+                showsJumpToHistory: showsJumpToHistory,
+                copiedAtText: copiedAtText,
+                onCopy: onCopy,
+                onOpenLink: onOpenLink,
+                onJumpToHistory: onJumpToHistory,
+                onTogglePin: onTogglePin,
+                onDelete: onDelete
+            )
+        }
+    }
+}
 
-                    if let copiedAtText {
-                        Text(copiedAtText)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.secondary.opacity(0.7))
-                    }
-                }
-            }
+struct HistorySingleDetailHeaderLayout<Metadata: View, Actions: View>: View {
+    let metadata: Metadata
+    let actions: Actions
+
+    init(
+        @ViewBuilder metadata: () -> Metadata,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.metadata = metadata()
+        self.actions = actions()
+    }
+
+    var body: some View {
+        HStack {
+            metadata
 
             Spacer()
 
-            if selectionCount > 1 {
+            actions
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background {
+            Rectangle()
+                .fill(.thinMaterial)
+                .opacity(0.18)
+        }
+    }
+}
+
+struct HistoryDetailHeaderMetadata: View {
+    let sourceAppName: String?
+    let copiedAtText: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(sourceAppName ?? "Unknown App")
+                .font(.system(size: 13))
+                .foregroundColor(.primary.opacity(0.8))
+
+            if let copiedAtText {
+                Text(copiedAtText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+        }
+    }
+}
+
+struct HistoryDetailHeaderButtonRow<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            content
+        }
+        .foregroundColor(.secondary)
+        .font(.system(size: 13))
+    }
+}
+
+struct HistoryCommonDetailHeaderActions: View {
+    let selectedItemIsPinned: Bool
+    let onTogglePin: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Group {
+            BufferGlassSymbolButton(
+                help: selectedItemIsPinned ? "Unpin" : "Pin",
+                systemName: selectedItemIsPinned ? "pin.fill" : "pin",
+                tint: selectedItemIsPinned ? .accentColor : .secondary,
+                action: onTogglePin
+            )
+
+            BufferGlassSymbolButton(
+                help: "Delete",
+                systemName: "trash",
+                action: onDelete
+            )
+        }
+    }
+}
+
+struct HistoryMultiSelectionHeader: View {
+    let selectionCount: Int
+
+    var body: some View {
+        HistorySingleDetailHeaderLayout(
+            metadata: {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            },
+            actions: {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle")
                     Text("\(selectionCount) items selected")
@@ -48,63 +182,6 @@ struct HistoryDetailHeader: View {
                         .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
                 }
             }
-
-            Spacer()
-
-            if selectionCount <= 1 {
-                HStack(spacing: 10) {
-                    BufferGlassSymbolButton(
-                        help: "Copy",
-                        systemName: "doc.on.doc",
-                        action: onCopy
-                    )
-
-                    if showsJumpToHistory {
-                        BufferGlassSymbolButton(
-                            help: "Jump to history",
-                            systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-                            action: onJumpToHistory
-                        )
-                    }
-
-                    if isSingleImageSelection {
-                        BufferGlassSymbolButton(
-                            help: "Save image",
-                            systemName: "arrow.down.to.line",
-                            action: onSaveImage
-                        )
-
-                        BufferGlassSymbolButton(
-                            help: "Extract Text from Image",
-                            systemName: isExtractingText ? "ellipsis.circle" : "text.viewfinder",
-                            action: onExtractText
-                        )
-                        .disabled(!canExtractSelectedImageText)
-                    }
-
-                    BufferGlassSymbolButton(
-                        help: selectedItemIsPinned ? "Unpin" : "Pin",
-                        systemName: selectedItemIsPinned ? "pin.fill" : "pin",
-                        tint: selectedItemIsPinned ? .accentColor : .secondary,
-                        action: onTogglePin
-                    )
-
-                    BufferGlassSymbolButton(
-                        help: "Delete",
-                        systemName: "trash",
-                        action: onDelete
-                    )
-                }
-                .foregroundColor(.secondary)
-                .font(.system(size: 13))
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background {
-            Rectangle()
-                .fill(.thinMaterial)
-                .opacity(0.18)
-        }
+        )
     }
 }

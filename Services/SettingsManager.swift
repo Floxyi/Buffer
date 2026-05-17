@@ -213,6 +213,7 @@ final class SettingsManager: ObservableObject {
     static let defaultTextDetailFontSize: TextDetailFontSize = .medium
     static let defaultHistoryRetentionPeriod: HistoryRetentionPeriod = .never
     static let defaultMenuBarIcon: MenuBarIcon = .clipboard
+    static let defaultEnableWebsitePreviews = true
 
     private enum Key {
         static let hotkeyModifiers = "hotkeyModifiers"
@@ -228,6 +229,7 @@ final class SettingsManager: ObservableObject {
         static let textDetailFontSize = "textDetailFontSize"
         static let historyRetentionPeriod = "historyRetentionPeriod"
         static let menuBarIcon = "menuBarIcon"
+        static let enableWebsitePreviews = "enableWebsitePreviews"
     }
 
     private let defaults: UserDefaults
@@ -246,6 +248,7 @@ final class SettingsManager: ObservableObject {
     @Published var textDetailFontSize: TextDetailFontSize
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published var menuBarIcon: MenuBarIcon
+    @Published var enableWebsitePreviews: Bool
     @Published private(set) var excludedApps: [ExcludedApp]
     @Published private(set) var persistedHistoryLimit: Int
 
@@ -311,6 +314,12 @@ final class SettingsManager: ObservableObject {
 
         let rawMenuBarIcon = defaults.string(forKey: Key.menuBarIcon) ?? Self.defaultMenuBarIcon.rawValue
         self.menuBarIcon = MenuBarIcon(rawValue: rawMenuBarIcon) ?? Self.defaultMenuBarIcon
+
+        if defaults.object(forKey: Key.enableWebsitePreviews) != nil {
+            self.enableWebsitePreviews = defaults.bool(forKey: Key.enableWebsitePreviews)
+        } else {
+            self.enableWebsitePreviews = Self.defaultEnableWebsitePreviews
+        }
 
         if let data = defaults.data(forKey: Key.excludedApps) {
             do {
@@ -402,6 +411,11 @@ final class SettingsManager: ObservableObject {
         persist()
     }
 
+    func setEnableWebsitePreviews(_ enabled: Bool) {
+        enableWebsitePreviews = enabled
+        persist()
+    }
+
     func resetUserPreferencesToDefaults() {
         hotkeyModifiers = Self.defaultHotkeyModifiers
         hotkeyKeyCode = Self.defaultHotkeyKeyCode
@@ -420,6 +434,7 @@ final class SettingsManager: ObservableObject {
         historyRetentionPeriod = Self.defaultHistoryRetentionPeriod
 
         menuBarIcon = Self.defaultMenuBarIcon
+        enableWebsitePreviews = Self.defaultEnableWebsitePreviews
 
         persist()
     }
@@ -461,6 +476,7 @@ final class SettingsManager: ObservableObject {
         defaults.set(textDetailFontSize.rawValue, forKey: Key.textDetailFontSize)
         defaults.set(historyRetentionPeriod.rawValue, forKey: Key.historyRetentionPeriod)
         defaults.set(menuBarIcon.rawValue, forKey: Key.menuBarIcon)
+        defaults.set(enableWebsitePreviews, forKey: Key.enableWebsitePreviews)
 
         do {
             let data = try JSONEncoder().encode(excludedApps)

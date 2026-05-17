@@ -22,15 +22,15 @@ final class PasteController: PasteControlling {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
-        switch item.type {
-        case .text:
-            if let text = store.fullText(for: item) {
-                pasteboard.setString(text, forType: .string)
-            }
-        case .image:
-            if let image = store.image(for: item), let tiffData = image.tiffRepresentation {
-                pasteboard.setData(tiffData, forType: .tiff)
-            }
+        if let text = ClipboardItemTypeRegistry.pastedText(for: item, store: store) {
+            pasteboard.setString(text, forType: .string)
+            return
+        }
+
+        if ClipboardItemTypeRegistry.supportsImageAssets(for: item),
+           let image = store.image(for: item),
+           let tiffData = image.tiffRepresentation {
+            pasteboard.setData(tiffData, forType: .tiff)
         }
     }
 
@@ -38,18 +38,14 @@ final class PasteController: PasteControlling {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
 
-        switch item.type {
-        case .text:
-            if let text = store.fullText(for: item) {
-                pasteboard.setString(text, forType: .string)
-            }
-        case .image:
-            if let image = store.image(for: item) {
-                if let fileURL = PasteImageSupport.saveImageToTemp(image, fileName: "image-0001.png") {
-                    pasteboard.writeObjects([fileURL as NSPasteboardWriting])
-                } else if let tiffData = image.tiffRepresentation {
-                    pasteboard.setData(tiffData, forType: .tiff)
-                }
+        if let text = ClipboardItemTypeRegistry.pastedText(for: item, store: store) {
+            pasteboard.setString(text, forType: .string)
+        } else if ClipboardItemTypeRegistry.supportsImageAssets(for: item),
+                  let image = store.image(for: item) {
+            if let fileURL = PasteImageSupport.saveImageToTemp(image, fileName: "image-0001.png") {
+                pasteboard.writeObjects([fileURL as NSPasteboardWriting])
+            } else if let tiffData = image.tiffRepresentation {
+                pasteboard.setData(tiffData, forType: .tiff)
             }
         }
 
@@ -62,12 +58,13 @@ final class PasteController: PasteControlling {
         guard !items.isEmpty else { return }
 
         let pasteboard = NSPasteboard.general
-        let textItems = items.filter { $0.type == .text }
-        let imageItems = items.filter { $0.type == .image }
+        let textItems = items.filter { ClipboardItemTypeRegistry.pastedText(for: $0, store: store) != nil }
+        let imageItems = items.filter { ClipboardItemTypeRegistry.supportsImageAssets(for: $0) }
 
         if !textItems.isEmpty {
             pasteboard.clearContents()
-            let joinedText = textItems.compactMap { store.fullText(for: $0) }.joined(separator: "\n")
+            let joinedText = textItems.compactMap { ClipboardItemTypeRegistry.pastedText(for: $0, store: store) }
+                .joined(separator: "\n")
             pasteboard.setString(joinedText, forType: .string)
 
             ignoreNextCapturedChange()
