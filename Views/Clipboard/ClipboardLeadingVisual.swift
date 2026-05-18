@@ -54,26 +54,56 @@ struct ClipboardLeadingVisual: View {
     }
 
     private var linkVisual: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
-            .fill(Color.accentColor.opacity(0.12))
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+
+        return shape
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.accentColor.opacity(0.24),
+                        Color.accentColor.opacity(0.14)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .overlay {
-                Group {
-                    if let sourceAppIcon {
+                if let sourceAppIcon {
+                    ZStack {
+                        Image(nsImage: sourceAppIcon)
+                            .resizable()
+                            .interpolation(.high)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: leadingVisualSize, height: leadingVisualSize)
+                            .scaleEffect(1.35)
+                            .blur(radius: 10)
+                            .opacity(0.5)
+
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.12),
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+
                         Image(nsImage: sourceAppIcon)
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)
                             .frame(width: leadingVisualSize - 10, height: leadingVisualSize - 10)
-                    } else {
-                        Image(systemName: "link")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.accentColor.opacity(0.9))
+                            .shadow(color: Color.black.opacity(0.08), radius: 1.5, y: 0.5)
                     }
+                    .clipShape(shape)
+                } else {
+                    Image(systemName: "link")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.accentColor.opacity(0.9))
                 }
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
+                shape.stroke(Color.primary.opacity(0.12), lineWidth: 1)
             )
             .help(item.linkPayload?.websiteName ?? "Website")
     }

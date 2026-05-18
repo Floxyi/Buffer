@@ -155,8 +155,42 @@ enum LinkPreviewAssetCache {
 
     private static func normalizedWebsiteIcon(from image: NSImage) -> NSImage {
         let iconCopy = image.copy() as? NSImage ?? image
-        iconCopy.size = NSSize(width: 16, height: 16)
+
+        if let idealSize = preferredWebsiteIconSize(for: iconCopy) {
+            iconCopy.size = idealSize
+        }
+
         return iconCopy
+    }
+
+    private static func preferredWebsiteIconSize(for image: NSImage) -> NSSize? {
+        let bitmapRepresentations = image.representations.compactMap { $0 as? NSBitmapImageRep }
+
+        if let largestRepresentation = bitmapRepresentations.max(by: {
+            ($0.pixelsWide * $0.pixelsHigh) < ($1.pixelsWide * $1.pixelsHigh)
+        }) {
+            return scaledWebsiteIconSize(
+                width: CGFloat(largestRepresentation.pixelsWide),
+                height: CGFloat(largestRepresentation.pixelsHigh)
+            )
+        }
+
+        guard image.size.width > 0, image.size.height > 0 else {
+            return nil
+        }
+
+        return scaledWebsiteIconSize(width: image.size.width, height: image.size.height)
+    }
+
+    private static func scaledWebsiteIconSize(width: CGFloat, height: CGFloat) -> NSSize {
+        let maxDimension: CGFloat = 128
+        let currentMaxDimension = max(width, height)
+        guard currentMaxDimension > maxDimension else {
+            return NSSize(width: width, height: height)
+        }
+
+        let scale = maxDimension / currentMaxDimension
+        return NSSize(width: width * scale, height: height * scale)
     }
 }
 
@@ -419,7 +453,13 @@ enum ClipboardItemRowAssetLoader {
             return nil
         }
 
+        _ = await LinkPreviewAssetCache.metadata(for: url)
+        if let cachedIcon = LinkPreviewAssetCache.cachedWebsiteIcon(for: url) {
+            return cachedIcon
+        }
+
         guard let iconURL = faviconURL(for: item) else {
+            LinkPreviewAssetCache.markWebsiteIconMissing(for: url)
             return nil
         }
 
