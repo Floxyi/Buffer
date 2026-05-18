@@ -38,6 +38,7 @@ struct ClipboardListView: View {
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmTask: Task<Void, Never>?
     @State private var activeJumpScrollRequest: HistoryViewModel.JumpToHistoryRequest?
+    @State private var sourceIconRefreshToken = 0
 
     let items: [ClipboardItem]
 
@@ -206,6 +207,12 @@ struct ClipboardListView: View {
                 .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
                     contextMenuHighlightedItemID = nil
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    refreshVisibleSourceApplicationIcons()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)) { _ in
+                    refreshVisibleSourceApplicationIcons()
+                }
                 .onAppear {
                     rebuildListCache()
                     prewarmVisibleAssets()
@@ -287,7 +294,8 @@ struct ClipboardListView: View {
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
-            isHovered: highlightedItemID == item.id
+            isHovered: highlightedItemID == item.id,
+            sourceIconRefreshToken: sourceIconRefreshToken
         )
         .id(scrollID(forItemID: item.id))
         .background {
@@ -368,6 +376,11 @@ struct ClipboardListView: View {
                 onDeleteItem(item)
             }
         }
+    }
+
+    private func refreshVisibleSourceApplicationIcons() {
+        ClipboardItemRowAssetLoader.clearSourceApplicationIconCache()
+        sourceIconRefreshToken &+= 1
     }
 
     private func waitAndStartJumpScrollIfReady(

@@ -350,6 +350,11 @@ enum ClipboardItemRowAssetLoader {
         LinkPreviewAssetCache.clear()
     }
 
+    static func clearSourceApplicationIconCache() {
+        sourceIconCache.removeAllObjects()
+        missingSourceIconKeys.removeAll()
+    }
+
     static func removeCachedAssets(for itemID: UUID) {
         imageDimensionsTextCache.removeValue(forKey: itemID)
     }

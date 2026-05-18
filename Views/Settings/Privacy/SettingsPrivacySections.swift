@@ -48,6 +48,7 @@ struct SettingsPrivacyAutoClearHistorySection: View {
 struct SettingsPrivacyExcludedAppsSection: View {
     @ObservedObject var settings: SettingsManager
     let onPickExcludedApp: () -> Void
+    @State private var iconRefreshToken = 0
 
     var body: some View {
         Section("Excluded Apps") {
@@ -59,7 +60,10 @@ struct SettingsPrivacyExcludedAppsSection: View {
                 if settings.excludedApps.isEmpty {
                     SettingsPrivacyEmptyExcludedAppsView()
                 } else {
-                    SettingsPrivacyExcludedAppsList(settings: settings)
+                    SettingsPrivacyExcludedAppsList(
+                        settings: settings,
+                        iconRefreshToken: iconRefreshToken
+                    )
                 }
             }
             .frame(height: 220)
@@ -72,6 +76,12 @@ struct SettingsPrivacyExcludedAppsSection: View {
                 }
                 .help("Add App")
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            iconRefreshToken &+= 1
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)) { _ in
+            iconRefreshToken &+= 1
         }
     }
 }
@@ -98,11 +108,12 @@ struct SettingsPrivacyEmptyExcludedAppsView: View {
 
 struct SettingsPrivacyExcludedAppsList: View {
     @ObservedObject var settings: SettingsManager
+    let iconRefreshToken: Int
 
     var body: some View {
         LazyVStack(spacing: 0) {
             ForEach(settings.excludedApps) { app in
-                SettingsPrivacyExcludedAppRow(app: app) {
+                SettingsPrivacyExcludedAppRow(app: app, iconRefreshToken: iconRefreshToken) {
                     settings.removeExcludedApp(app)
                 }
 
@@ -116,12 +127,15 @@ struct SettingsPrivacyExcludedAppsList: View {
 
 struct SettingsPrivacyExcludedAppRow: View {
     let app: ExcludedApp
+    let iconRefreshToken: Int
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: app.bundlePath))
-                .resizable()
+            SettingsPrivacyAppIconView(
+                bundlePath: app.bundlePath,
+                refreshToken: iconRefreshToken
+            )
                 .frame(width: 28, height: 28)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
@@ -145,5 +159,55 @@ struct SettingsPrivacyExcludedAppRow: View {
             .help("Remove app")
         }
         .padding(.vertical, 8)
+    }
+}
+
+private struct SettingsPrivacyAppIconView: NSViewRepresentable {
+    let bundlePath: String
+    let refreshToken: Int
+
+    func makeNSView(context: Context) -> IconImageView {
+        let imageView = IconImageView()
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.bundlePath = bundlePath
+        return imageView
+    }
+
+    func updateNSView(_ nsView: IconImageView, context: Context) {
+        nsView.bundlePath = bundlePath
+        nsView.refreshIcon()
+    }
+
+    final class IconImageView: NSImageView {
+        var bundlePath = ""
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            refreshIcon()
+        }
+
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            refreshIcon()
+        }
+
+        func refreshIcon() {
+            guard !bundlePath.isEmpty else {
+                image = nil
+                return
+            }
+
+            let appearance = effectiveAppearance
+            var resolvedIcon: NSImage?
+            appearance.performAsCurrentDrawingAppearance {
+                resolvedIcon = NSWorkspace.shared.icon(forFile: bundlePath)
+            }
+
+            let iconCopy = resolvedIcon?.copy() as? NSImage ?? resolvedIcon
+            iconCopy?.size = NSSize(width: 28, height: 28)
+            image = nil
+            image = iconCopy
+            needsDisplay = true
+        }
     }
 }

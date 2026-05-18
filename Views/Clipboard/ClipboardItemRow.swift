@@ -17,6 +17,7 @@ struct ClipboardItemRow: View {
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
     let isHovered: Bool
+    let sourceIconRefreshToken: Int
 
     @State private var thumbnail: NSImage?
     @State private var sourceAppIcon: NSImage?
@@ -35,7 +36,8 @@ struct ClipboardItemRow: View {
         joinsSelectionBelow: Bool,
         selectionJoinOverlap: CGFloat,
         quickPasteNumber: Int?,
-        isHovered: Bool
+        isHovered: Bool,
+        sourceIconRefreshToken: Int
     ) {
         self.item = item
         self.store = store
@@ -48,6 +50,7 @@ struct ClipboardItemRow: View {
         self.selectionJoinOverlap = selectionJoinOverlap
         self.quickPasteNumber = quickPasteNumber
         self.isHovered = isHovered
+        self.sourceIconRefreshToken = sourceIconRefreshToken
         self._observedScrollActivityTracker = ObservedObject(wrappedValue: scrollActivityTracker)
     }
 
@@ -84,7 +87,7 @@ struct ClipboardItemRow: View {
     }
 
     private var assetLoadToken: String {
-        "\(item.id.uuidString)-\(observedScrollActivityTracker.isScrolling)-\(settings.enableWebsitePreviews)"
+        "\(item.id.uuidString)-\(observedScrollActivityTracker.isScrolling)-\(settings.enableWebsitePreviews)-\(sourceIconRefreshToken)"
     }
 
     var body: some View {
@@ -141,6 +144,9 @@ struct ClipboardItemRow: View {
             thumbnail = nil
             sourceAppIcon = nil
             imageDimensionsText = nil
+        }
+        .onChange(of: sourceIconRefreshToken) { _ in
+            sourceAppIcon = nil
         }
     }
 
