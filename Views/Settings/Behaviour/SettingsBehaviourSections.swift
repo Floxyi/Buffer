@@ -37,7 +37,15 @@ struct SettingsBehaviourPasteSection: View {
                 )
             )
 
-            Text("When off, the search field is cleared after you paste or copy an item from history.")
+            Toggle(
+                "Keep the search text after closing",
+                isOn: Binding(
+                    get: { settings.keepSearchTextAfterClosing },
+                    set: { settings.setKeepSearchTextAfterClosing($0) }
+                )
+            )
+
+            Text("Choose whether the search field is preserved after pasting or copying an item, and after closing the history window.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

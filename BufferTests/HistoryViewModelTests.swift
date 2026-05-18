@@ -635,4 +635,123 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.suffix(2).map(\.id)))
         XCTAssertTrue(viewModel.scrollTrigger)
     }
+
+    func testClipboardListStructureRebuildsCacheWhenWeekBoundaryChanges() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let mondayReferenceDate = DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 5,
+            day: 18,
+            hour: 9
+        ).date!
+        let sundayReferenceDate = DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 5,
+            day: 17,
+            hour: 9
+        ).date!
+        let lastTuesdayItemDate = DateComponents(
+            calendar: calendar,
+            year: 2026,
+            month: 5,
+            day: 12,
+            hour: 12
+        ).date!
+
+        let items = [
+            ClipboardItem(
+                type: .text,
+                timestamp: lastTuesdayItemDate,
+                textContent: "last week item"
+            )
+        ]
+
+        let staleCache = ClipboardListStructure.makeDisplayCache(
+            from: items,
+            referenceDate: sundayReferenceDate,
+            calendar: calendar
+        )
+
+        XCTAssertFalse(staleCache.matches(items: items, referenceDate: mondayReferenceDate, calendar: calendar))
+
+        let refreshedRows = ClipboardListStructure.displayRows(
+            from: items,
+            referenceDate: mondayReferenceDate,
+            calendar: calendar
+        )
+        let sectionTitle = refreshedRows.compactMap { row -> String? in
+            guard case .header(let title, _) = row.kind else { return nil }
+            return title
+        }.first
+
+        XCTAssertEqual(sectionTitle, "LAST WEEK")
+    }
+
+    func testCopiedAtTextUsesWeekdayAndFixedDetailFormat() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let timestamp = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 12,
+            hour: 12,
+            minute: 36
+        ).date!
+
+        XCTAssertEqual(
+            HistoryViewModel.copiedAtText(for: timestamp),
+            "Tue, 12. May 2026, at 12:36"
+        )
+    }
+
+    func testClearSearchAfterClosingClearsTextByDefault() {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.searchText = "needle"
+        viewModel.clearSearchAfterClosingIfNeeded()
+
+        XCTAssertEqual(viewModel.searchText, "")
+    }
+
+    func testClearSearchAfterClosingKeepsTextWhenEnabled() {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        settings.setKeepSearchTextAfterClosing(true)
+
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.searchText = "needle"
+        viewModel.clearSearchAfterClosingIfNeeded()
+
+        XCTAssertEqual(viewModel.searchText, "needle")
+    }
 }

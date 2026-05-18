@@ -28,19 +28,32 @@ enum ClipboardListStructure {
     }
 
     struct DisplayCache {
+        let sectionGroupingSignature: SectionGroupingSignature
         let itemIDs: [UUID]
         let displayRows: [DisplayRow]
         let itemIndexByID: [UUID: Int]
         let primaryLabelTextByID: [UUID: String]
 
         static let empty = DisplayCache(
+            sectionGroupingSignature: .current(),
             itemIDs: [],
             displayRows: [],
             itemIndexByID: [:],
             primaryLabelTextByID: [:]
         )
 
-        func matches(items: [ClipboardItem]) -> Bool {
+        func matches(
+            items: [ClipboardItem],
+            referenceDate: Date = Date(),
+            calendar: Calendar = .current
+        ) -> Bool {
+            guard sectionGroupingSignature == SectionGroupingSignature(
+                referenceDate: referenceDate,
+                calendar: calendar
+            ) else {
+                return false
+            }
+
             guard itemIDs.count == items.count else {
                 return false
             }
@@ -79,7 +92,29 @@ enum ClipboardListStructure {
         }
     }
 
-    static func makeDisplayCache(from items: [ClipboardItem]) -> DisplayCache {
+    struct SectionGroupingSignature: Equatable {
+        let era: Int
+        let yearForWeekOfYear: Int
+        let weekOfYear: Int
+        let dayOfYear: Int
+
+        init(referenceDate: Date, calendar: Calendar) {
+            self.era = calendar.component(.era, from: referenceDate)
+            self.yearForWeekOfYear = calendar.component(.yearForWeekOfYear, from: referenceDate)
+            self.weekOfYear = calendar.component(.weekOfYear, from: referenceDate)
+            self.dayOfYear = calendar.ordinality(of: .day, in: .year, for: referenceDate) ?? 0
+        }
+
+        static func current() -> SectionGroupingSignature {
+            SectionGroupingSignature(referenceDate: Date(), calendar: .current)
+        }
+    }
+
+    static func makeDisplayCache(
+        from items: [ClipboardItem],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> DisplayCache {
         var primaryLabelTextByID: [UUID: String] = [:]
         primaryLabelTextByID.reserveCapacity(items.count)
 
@@ -88,8 +123,12 @@ enum ClipboardListStructure {
         }
 
         return DisplayCache(
+            sectionGroupingSignature: SectionGroupingSignature(
+                referenceDate: referenceDate,
+                calendar: calendar
+            ),
             itemIDs: items.map(\.id),
-            displayRows: displayRows(from: items),
+            displayRows: displayRows(from: items, referenceDate: referenceDate, calendar: calendar),
             itemIndexByID: Dictionary(
                 uniqueKeysWithValues: items.enumerated().map { index, item in
                     (item.id, index)
@@ -107,14 +146,22 @@ enum ClipboardListStructure {
         items.filter(\.isPinned)
     }
 
-    static func unpinnedSections(from items: [ClipboardItem]) -> [ItemSection] {
+    static func unpinnedSections(
+        from items: [ClipboardItem],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ItemSection] {
         let unpinnedItems = items.filter { !$0.isPinned }
         guard !unpinnedItems.isEmpty else { return [] }
 
         var sections: [ItemSection] = []
 
         for item in unpinnedItems {
-            let title = AppFormatting.historySectionTitle(for: item.timestamp)
+            let title = AppFormatting.historySectionTitle(
+                for: item.timestamp,
+                calendar: calendar,
+                referenceDate: referenceDate
+            )
 
             if let lastIndex = sections.indices.last,
                sections[lastIndex].title == title {
@@ -133,9 +180,17 @@ enum ClipboardListStructure {
         return sections
     }
 
-    static func displayRows(from items: [ClipboardItem]) -> [DisplayRow] {
+    static func displayRows(
+        from items: [ClipboardItem],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [DisplayRow] {
         let pinnedItems = pinnedItems(from: items)
-        let unpinnedSections = unpinnedSections(from: items)
+        let unpinnedSections = unpinnedSections(
+            from: items,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
 
         var rows: [DisplayRow] = []
         rows.reserveCapacity(items.count + unpinnedSections.count + (pinnedItems.isEmpty ? 0 : 2))

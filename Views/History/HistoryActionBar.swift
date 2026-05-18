@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HistoryActionBar: View {
+    let showsPinnedShortcutAsUnpin: Bool
     let showsSaveShortcut: Bool
     let showsJumpToHistory: Bool
     let onJumpToHistory: () -> Void
@@ -10,7 +11,7 @@ struct HistoryActionBar: View {
         ZStack {
             HStack(spacing: 14) {
                 BufferShortcutHint(shortcut: "⇧ ↑↓", label: "Select")
-                BufferShortcutHint(shortcut: "⌘ P", label: "Pin")
+                BufferShortcutHint(shortcut: "⌘ P", label: showsPinnedShortcutAsUnpin ? "Unpin" : "Pin")
                 
                 if showsSaveShortcut {
                     BufferShortcutHint(shortcut: "⌘ S", label: "Save")

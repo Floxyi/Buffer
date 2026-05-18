@@ -85,9 +85,8 @@ final class HistoryViewModel: ObservableObject {
 
     private static let copiedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.doesRelativeDateFormatting = true
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE, d. MMMM yyyy, 'at' HH:mm"
         return formatter
     }()
 
@@ -175,7 +174,7 @@ final class HistoryViewModel: ObservableObject {
 
     var selectedItemCopiedAtText: String? {
         guard let timestamp = selectedItem?.timestamp else { return nil }
-        return Self.copiedAtFormatter.string(from: timestamp)
+        return Self.copiedAtText(for: timestamp)
     }
 
     var activeJumpToHistoryRequest: JumpToHistoryRequest? {
@@ -184,6 +183,10 @@ final class HistoryViewModel: ObservableObject {
 
     var isShowingFullHistory: Bool {
         searchText.isEmpty && filteredItems.count == store.items.count
+    }
+
+    static func copiedAtText(for timestamp: Date) -> String {
+        copiedAtFormatter.string(from: timestamp)
     }
 
     var quickPasteBadgeNumberByItemID: [UUID: Int] {
@@ -254,6 +257,13 @@ final class HistoryViewModel: ObservableObject {
 
     func clearSearchAfterCommittedAction() {
         guard !settingsManager.keepSearchTextAfterPaste else { return }
+        guard !searchText.isEmpty else { return }
+
+        searchText = ""
+    }
+
+    func clearSearchAfterClosingIfNeeded() {
+        guard !settingsManager.keepSearchTextAfterClosing else { return }
         guard !searchText.isEmpty else { return }
 
         searchText = ""

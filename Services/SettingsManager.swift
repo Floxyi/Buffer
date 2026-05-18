@@ -204,6 +204,7 @@ final class SettingsManager: ObservableObject {
     static let historyLimitRange = 1...10_000
     static let defaultHistoryLimit = 100
     static let defaultKeepSearchTextAfterPaste = false
+    static let defaultKeepSearchTextAfterClosing = false
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let quickPasteEntryCountRange = 1...5
     static let defaultQuickPasteEnabled = true
@@ -221,6 +222,7 @@ final class SettingsManager: ObservableObject {
         static let historyLimit = "historyLimit"
         static let excludedApps = "excludedApps"
         static let keepSearchTextAfterPaste = "keepSearchTextAfterPaste"
+        static let keepSearchTextAfterClosing = "keepSearchTextAfterClosing"
         static let historyWindowOpenBehavior = "historyWindowOpenBehavior"
         static let quickPasteEnabled = "quickPasteEnabled"
         static let quickPasteNumberingStart = "quickPasteNumberingStart"
@@ -240,6 +242,7 @@ final class SettingsManager: ObservableObject {
     @Published private(set) var launchAtLogin: Bool
     @Published var historyLimit: Int
     @Published var keepSearchTextAfterPaste: Bool
+    @Published var keepSearchTextAfterClosing: Bool
     @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
     @Published var quickPasteEnabled: Bool
     @Published var quickPasteNumberingStart: QuickPasteNumberingStart
@@ -279,6 +282,11 @@ final class SettingsManager: ObservableObject {
         self.persistedHistoryLimit = initialHistoryLimit
 
         self.keepSearchTextAfterPaste = defaults.bool(forKey: Key.keepSearchTextAfterPaste)
+        if defaults.object(forKey: Key.keepSearchTextAfterClosing) != nil {
+            self.keepSearchTextAfterClosing = defaults.bool(forKey: Key.keepSearchTextAfterClosing)
+        } else {
+            self.keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
+        }
 
         let rawHistoryWindowOpenBehavior =
             defaults.string(forKey: Key.historyWindowOpenBehavior) ?? Self.defaultHistoryWindowOpenBehavior.rawValue
@@ -371,6 +379,11 @@ final class SettingsManager: ObservableObject {
         persist()
     }
 
+    func setKeepSearchTextAfterClosing(_ enabled: Bool) {
+        keepSearchTextAfterClosing = enabled
+        persist()
+    }
+
     func setHistoryWindowOpenBehavior(_ behavior: HistoryWindowOpenBehavior) {
         historyWindowOpenBehavior = behavior
         persist()
@@ -424,6 +437,7 @@ final class SettingsManager: ObservableObject {
         persistedHistoryLimit = Self.defaultHistoryLimit
 
         keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
+        keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
         historyWindowOpenBehavior = Self.defaultHistoryWindowOpenBehavior
         quickPasteEnabled = Self.defaultQuickPasteEnabled
         quickPasteNumberingStart = Self.defaultQuickPasteNumberingStart
@@ -468,6 +482,7 @@ final class SettingsManager: ObservableObject {
         defaults.set(Int(hotkeyKeyCode), forKey: Key.hotkeyKeyCode)
         defaults.set(historyLimit, forKey: Key.historyLimit)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
+        defaults.set(keepSearchTextAfterClosing, forKey: Key.keepSearchTextAfterClosing)
         defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
         defaults.set(quickPasteEnabled, forKey: Key.quickPasteEnabled)
         defaults.set(quickPasteNumberingStart.rawValue, forKey: Key.quickPasteNumberingStart)

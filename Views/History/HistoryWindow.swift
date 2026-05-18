@@ -39,6 +39,7 @@ struct HistoryContentView: View {
             BufferPanelSeparator()
 
             HistoryActionBar(
+                showsPinnedShortcutAsUnpin: viewModel.selectedItemIsPinned,
                 showsSaveShortcut: viewModel.canSaveSelectedImage,
                 showsJumpToHistory: viewModel.canJumpToHistorySelection,
                 onJumpToHistory: jumpToHistorySelection,
@@ -92,7 +93,7 @@ struct HistoryContentView: View {
                 onExtendDown: viewModel.extendSelectionDown,
                 onEnter: performPrimaryPasteAction,
                 onOptionEnter: performCopyOnlyAction,
-                onEscape: onDismiss,
+                onEscape: dismissHistoryWindow,
                 onDelete: viewModel.deleteSelectedItem,
                 onCopy: {
                     if let item = viewModel.selectedItem {
@@ -133,7 +134,7 @@ struct HistoryContentView: View {
                         ? viewModel.quickPasteBadgeNumberByItemID
                         : [:],
                     onCommitSelection: performPrimaryPasteAction,
-                    onDismiss: onDismiss,
+                    onDismiss: dismissHistoryWindow,
                     selectedIDs: Binding(
                         get: { viewModel.selectedIDs },
                         set: { _ in }
@@ -252,6 +253,11 @@ struct HistoryContentView: View {
         guard let item = viewModel.selectedItem else { return }
 
         viewModel.jumpToHistory(for: item)
+    }
+
+    private func dismissHistoryWindow() {
+        viewModel.clearSearchAfterClosingIfNeeded()
+        onDismiss()
     }
 
     private func focusSearchField() {
