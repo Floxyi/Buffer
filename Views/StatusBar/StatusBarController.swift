@@ -131,7 +131,7 @@ final class StatusBarController: NSObject {
 
         window.title = "General"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
+        window.titlebarAppearsTransparent = false
         window.titleVisibility = .visible
         window.isMovableByWindowBackground = true
         window.isOpaque = true

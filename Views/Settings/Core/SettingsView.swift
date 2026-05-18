@@ -37,18 +37,21 @@ struct SettingsView: View {
             SettingsCategoryList(selectedCategory: $selectedCategory)
         } detail: {
             NavigationStack {
-                detailView(for: activeCategory)
-                    .navigationTitle(activeCategory.title)
-                    .toolbar {
-                        ToolbarItem(placement: .navigation) {
-                            SettingsSidebarToggleButton(action: toggleNativeSidebar)
-                        }
+                SettingsDetailContainer {
+                    detailView(for: activeCategory)
+                }
+                .navigationTitle(activeCategory.title)
+                .toolbarBackground(.regularMaterial, for: .windowToolbar)
+                .toolbar {
+                    ToolbarItem(placement: .navigation) {
+                        SettingsSidebarToggleButton(action: toggleNativeSidebar)
                     }
+                }
             }
             .id(detailIdentity)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 760, minHeight: 700)
+        .frame(minWidth: 760, minHeight: 600)
         .task {
             await performInitialNavigationRefreshIfNeeded()
         }
@@ -116,6 +119,15 @@ struct SettingsView: View {
                 from: nil
             )
         }
+    }
+}
+
+private struct SettingsDetailContainer<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
