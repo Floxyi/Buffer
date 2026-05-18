@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class StatusBarController: NSObject {
+final class StatusBarController: NSObject, NSWindowDelegate {
     private static let settingsToolbarIdentifier = NSToolbar.Identifier("BufferSettingsToolbar")
 
     private let store: ClipboardStore
@@ -107,9 +107,7 @@ final class StatusBarController: NSObject {
 
     @objc private func showSettings() {
         if let controller = settingsWindowController, let window = controller.window {
-            window.center()
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            presentSettingsWindow(window)
             return
         }
 
@@ -143,14 +141,12 @@ final class StatusBarController: NSObject {
         window.animationBehavior = .documentWindow
         window.setContentSize(NSSize(width: 780, height: 560))
         window.isReleasedWhenClosed = false
+        window.delegate = self
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
         controller.showWindow(nil)
-
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        presentSettingsWindow(window)
     }
 
     @objc private func togglePause() {
@@ -180,6 +176,16 @@ final class StatusBarController: NSObject {
         NSApplication.shared.terminate(nil)
     }
 
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              settingsWindowController?.window === window else {
+            return
+        }
+
+        settingsWindowController = nil
+        setDockIconVisible(false)
+    }
+
     private func updateIcon(paused: Bool) {
         guard let button = statusItem.button else { return }
 
@@ -191,5 +197,16 @@ final class StatusBarController: NSObject {
         image?.isTemplate = true
 
         button.image = image?.withSymbolConfiguration(config)
+    }
+
+    private func presentSettingsWindow(_ window: NSWindow) {
+        setDockIconVisible(true)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func setDockIconVisible(_ visible: Bool) {
+        NSApp.setActivationPolicy(visible ? .regular : .accessory)
     }
 }
