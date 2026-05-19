@@ -16,8 +16,8 @@ struct SettingsBehaviourView: View {
     var body: some View {
         Form {
             SettingsBehaviourHistoryWindowSection(settings: settings)
+            SettingsBehaviourSearchSection(settings: settings)
             SettingsBehaviourQuickPasteSection(settings: settings)
-            SettingsBehaviourPasteSection(settings: settings)
             SettingsBehaviourTextDetailSection(settings: settings, previewFont: previewFont)
         }
         .formStyle(.grouped)

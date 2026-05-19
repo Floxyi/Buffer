@@ -33,11 +33,11 @@ struct SettingsBehaviourHistoryWindowSection: View {
     }
 }
 
-struct SettingsBehaviourPasteSection: View {
+struct SettingsBehaviourSearchSection: View {
     @ObservedObject var settings: SettingsManager
 
     var body: some View {
-        Section("Paste Behaviour") {
+        Section("Search Behaviour") {
             Toggle(
                 "Keep the search text after pasting",
                 isOn: Binding(
