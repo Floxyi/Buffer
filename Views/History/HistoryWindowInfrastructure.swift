@@ -138,6 +138,10 @@ final class HistoryWindowController: NSWindowController {
     private var suppressQuickPasteUntilModifiersReleasedOnNextOpen = false
     private var shouldIgnoreNextDidBecomeKeyOpenHandling = false
     private var animationGeneration = 0
+    private var lastListScrollOffset = CGFloat.zero
+    private var pendingListScrollOffsetRestore: CGFloat?
+    private var listScrollOffsetProvider: (() -> CGFloat)?
+    private var listScrollOffsetRestorer: ((CGFloat) -> Void)?
 
     private weak var animatedContentView: NSView?
 
@@ -242,6 +246,10 @@ final class HistoryWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
 
+        if settingsManager.keepHistoryWindowSelectionOnReopen {
+            restoreLastListScrollOffsetIfPossible()
+        }
+
         if shouldAnimate {
             animateOpen(generation: currentAnimationGeneration)
         }
@@ -250,6 +258,7 @@ final class HistoryWindowController: NSWindowController {
     override func close() {
         animationGeneration += 1
         resetOpenAnimationState()
+        lastListScrollOffset = max(0, listScrollOffsetProvider?() ?? lastListScrollOffset)
         super.close()
     }
 
@@ -309,6 +318,12 @@ final class HistoryWindowController: NSWindowController {
             },
             onPasteMultiple: { [weak self] items in
                 self?.pasteMultiple(items)
+            },
+            onScrollOffsetProviderChanged: { [weak self] provider in
+                self?.setListScrollOffsetProvider(provider)
+            },
+            onScrollOffsetRestorerChanged: { [weak self] restorer in
+                self?.setListScrollOffsetRestorer(restorer)
             },
             onDismiss: { [weak self] in
                 self?.close()
@@ -480,6 +495,45 @@ final class HistoryWindowController: NSWindowController {
             focusSearch: focusSearchOnNextOpen,
             suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen
         )
+
+        if settingsManager.keepHistoryWindowSelectionOnReopen {
+            restoreLastListScrollOffsetIfPossible()
+        }
+    }
+
+    private func restoreLastListScrollOffsetIfPossible() {
+        guard settingsManager.keepHistoryWindowSelectionOnReopen else {
+            pendingListScrollOffsetRestore = nil
+            return
+        }
+
+        let offset = max(0, lastListScrollOffset)
+        guard offset > 0.5 else {
+            pendingListScrollOffsetRestore = nil
+            return
+        }
+
+        if let listScrollOffsetRestorer {
+            pendingListScrollOffsetRestore = nil
+            listScrollOffsetRestorer(offset)
+        } else {
+            pendingListScrollOffsetRestore = offset
+        }
+    }
+
+    private func setListScrollOffsetProvider(_ provider: (() -> CGFloat)?) {
+        listScrollOffsetProvider = provider
+    }
+
+    private func setListScrollOffsetRestorer(_ restorer: ((CGFloat) -> Void)?) {
+        listScrollOffsetRestorer = restorer
+
+        guard let restorer, let pendingListScrollOffsetRestore else {
+            return
+        }
+
+        self.pendingListScrollOffsetRestore = nil
+        restorer(pendingListScrollOffsetRestore)
     }
 
     private func copyToClipboard(_ item: ClipboardItem) {

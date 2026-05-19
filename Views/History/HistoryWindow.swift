@@ -8,6 +8,8 @@ struct HistoryContentView: View {
     let onCopyToClipboard: (ClipboardItem) -> Void
     let onPaste: (ClipboardItem) -> Void
     let onPasteMultiple: ([ClipboardItem]) -> Void
+    let onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
+    let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
 
     @State private var isSearchFocused = false
@@ -172,6 +174,8 @@ struct HistoryContentView: View {
                     jumpScrollRequest: viewModel.activeJumpToHistoryRequest,
                     onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
                     onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
+                    onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
+                    onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
                     onScrollOffsetChanged: viewModel.updateLastListScrollOffset
                 )
             }

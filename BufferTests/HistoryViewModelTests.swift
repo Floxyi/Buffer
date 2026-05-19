@@ -350,7 +350,7 @@ final class HistoryViewModelTests: XCTestCase {
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
-        settings.setHistoryWindowOpenBehavior(.keepLastSelection)
+        settings.setKeepHistoryWindowSelectionOnReopen(true)
 
         let store = ClipboardStore(
             settingsManager: settings,
@@ -373,7 +373,9 @@ final class HistoryViewModelTests: XCTestCase {
         )
 
         viewModel.selectSingle(first.id)
+        viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
         viewModel.updateLastListScrollOffset(172)
+        viewModel.handleWindowClose()
         viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
 
         XCTAssertEqual(viewModel.selectedItem?.id, first.id)
@@ -408,7 +410,9 @@ final class HistoryViewModelTests: XCTestCase {
         )
 
         viewModel.selectSingle(older.id)
+        viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
         viewModel.updateLastListScrollOffset(240)
+        viewModel.handleWindowClose()
         viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
 
         XCTAssertEqual(viewModel.selectedItem?.id, newer.id)

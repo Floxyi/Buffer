@@ -83,7 +83,6 @@ final class HistoryViewModel: ObservableObject {
     private var quickPasteNeedsModifierReset = false
     private var isApplyingProgrammaticSearchChange = false
     private var pendingPreferredSelectionID: UUID?
-    private var lastListScrollOffset = CGFloat.zero
     private var cancellables: Set<AnyCancellable> = []
 
     private var jumpToHistoryGenerationCounter: UInt = 0
@@ -221,15 +220,14 @@ final class HistoryViewModel: ObservableObject {
             forceModifierReset: suppressQuickPasteUntilModifiersReleased
         )
 
-        if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
+        if settingsManager.keepHistoryWindowSelectionOnReopen {
             syncSelection(preferredID: selectedID ?? preferredTopSelectionID())
-            openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(lastListScrollOffset))
         } else {
             syncSelection(preferredID: preferredTopSelectionID())
             openListScrollRequest = OpenListScrollRequest(mode: .scrollToTop)
+            openListScrollRequestToken &+= 1
         }
 
-        openListScrollRequestToken &+= 1
         windowOpenToken += 1
     }
 
@@ -568,9 +566,7 @@ final class HistoryViewModel: ObservableObject {
         hoveredItemID = isHovered ? itemID : nil
     }
 
-    func updateLastListScrollOffset(_ offset: CGFloat) {
-        lastListScrollOffset = max(0, offset)
-    }
+    func updateLastListScrollOffset(_ offset: CGFloat) {}
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {
         guard settingsManager.quickPasteEnabled,

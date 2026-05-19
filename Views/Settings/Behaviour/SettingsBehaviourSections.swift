@@ -5,6 +5,14 @@ struct SettingsBehaviourHistoryWindowSection: View {
 
     var body: some View {
         Section("History Window") {
+            Toggle(
+                "Keep the previous selection when reopening",
+                isOn: Binding(
+                    get: { settings.keepHistoryWindowSelectionOnReopen },
+                    set: { settings.setKeepHistoryWindowSelectionOnReopen($0) }
+                )
+            )
+
             Picker(
                 "Reopen behavior",
                 selection: Binding(
@@ -12,12 +20,13 @@ struct SettingsBehaviourHistoryWindowSection: View {
                     set: { settings.setHistoryWindowOpenBehavior($0) }
                 )
             ) {
-                ForEach(HistoryWindowOpenBehavior.allCases, id: \.self) { behavior in
+                ForEach(HistoryWindowOpenBehavior.reopenOptions, id: \.self) { behavior in
                     Text(behavior.label).tag(behavior)
                 }
             }
+            .disabled(settings.keepHistoryWindowSelectionOnReopen)
 
-            Text("Choose whether Buffer restores the previous list selection or opens from the top.")
+            Text("When enabled, Buffer restores the previous list selection and ignores Reopen behavior. When disabled, Reopen behavior controls which item is selected at the top of the list.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

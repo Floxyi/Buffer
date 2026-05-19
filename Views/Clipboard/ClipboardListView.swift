@@ -51,6 +51,7 @@ struct ClipboardListView: View {
     @State private var sourceIconRefreshToken = 0
     @State private var lastKeyboardNavigationRequestTimestamp = 0.0
     @State private var isAwaitingInitialOpenScroll = false
+    @State private var lastAppliedOpenScrollRequestToken = -1
 
     let items: [ClipboardItem]
 
@@ -88,6 +89,8 @@ struct ClipboardListView: View {
     var onJumpScrollStarted: (HistoryViewModel.JumpToHistoryRequest) -> Void = { _ in }
     var onJumpScrollCompleted: (HistoryViewModel.JumpToHistoryRequest, Bool) -> Void = { _, _ in }
 
+    var onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void) = { _ in }
+    var onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void) = { _ in }
     var onScrollOffsetChanged: (CGFloat) -> Void = { _ in }
 
     private var itemIDs: [UUID] {
@@ -194,6 +197,7 @@ struct ClipboardListView: View {
                 .background {
                     ClipboardScrollOffsetObserver(
                         scrollController: scrollController,
+                        isEnabled: !isAwaitingInitialOpenScroll,
                         onScrollOffsetChanged: onScrollOffsetChanged
                     )
                 }
@@ -231,7 +235,14 @@ struct ClipboardListView: View {
                 .onAppear {
                     rebuildListCache()
                     prewarmVisibleAssets()
-                    isAwaitingInitialOpenScroll = shouldHideDuringInitialOpenScroll(for: openScrollRequest)
+                    onScrollOffsetProviderChanged {
+                        scrollController.syncMetricsImmediately()
+                        return scrollController.currentScrollOffsetSnapshot()
+                    }
+                    onScrollOffsetRestorerChanged { offset in
+                        restoreScrollOffsetForReopen(offset)
+                    }
+                    applyOpenScrollRequestIfNeeded(using: scrollProxy)
                 }
                 .onDisappear {
                     assetPrewarmTask?.cancel()
@@ -241,15 +252,15 @@ struct ClipboardListView: View {
                     cancelPendingMeasuredScroll()
                     cancelKeyboardNavigationScroll()
                     cancelKeyboardNavigationCommit()
+                    onScrollOffsetProviderChanged(nil)
+                    onScrollOffsetRestorerChanged(nil)
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
                     prewarmVisibleAssets()
                 }
                 .onChange(of: openScrollRequestToken) { _ in
-                    guard let openScrollRequest else { return }
-
-                    applyOpenScrollRequest(openScrollRequest, using: scrollProxy)
+                    applyOpenScrollRequestIfNeeded(using: scrollProxy)
                 }
                 .onChange(of: selectedIndex) { newValue in
                     guard scrollTrigger else { return }
@@ -939,6 +950,11 @@ struct ClipboardListView: View {
         }
     }
 
+    private func restoreScrollOffsetForReopen(_ offset: CGFloat) {
+        isAwaitingInitialOpenScroll = offset > 1
+        scheduleOpenRestoreOffset(offset)
+    }
+
     private func selectFirstItemAndScrollToTop(using scrollProxy: ScrollViewProxy) {
         contextMenuHighlightedItemID = nil
         hoveredItemID = nil
@@ -979,6 +995,20 @@ struct ClipboardListView: View {
                 using: scrollProxy
             )
         }
+    }
+
+    private func applyOpenScrollRequestIfNeeded(using scrollProxy: ScrollViewProxy) {
+        guard openScrollRequestToken != lastAppliedOpenScrollRequestToken else {
+            return
+        }
+
+        lastAppliedOpenScrollRequestToken = openScrollRequestToken
+
+        guard let openScrollRequest else {
+            return
+        }
+
+        applyOpenScrollRequest(openScrollRequest, using: scrollProxy)
     }
 
     private func rebuildListCache() {
@@ -1062,12 +1092,17 @@ struct ClipboardListView: View {
 
 private struct ClipboardScrollOffsetObserver: View {
     @ObservedObject var scrollController: ScrollController
+    let isEnabled: Bool
     let onScrollOffsetChanged: (CGFloat) -> Void
 
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .onChange(of: scrollController.scrollOffset) { newValue in
+                guard isEnabled else {
+                    return
+                }
+
                 onScrollOffsetChanged(newValue)
             }
     }

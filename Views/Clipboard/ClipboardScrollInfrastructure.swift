@@ -168,6 +168,29 @@ final class ScrollController: ObservableObject {
         syncMetricsNow(from: scrollView)
     }
 
+    func currentScrollOffsetSnapshot() -> CGFloat {
+        guard let scrollView else {
+            return scrollOffset
+        }
+
+        let viewportHeight = max(
+            scrollView.contentView.bounds.height,
+            scrollView.contentView.frame.height
+        )
+        let contentHeight: CGFloat
+        if let documentView = scrollView.documentView {
+            contentHeight = measuredContentHeight(
+                scrollView: scrollView,
+                documentView: documentView
+            )
+        } else {
+            contentHeight = self.contentHeight
+        }
+
+        let maxOffset = max(0, contentHeight - viewportHeight)
+        return scrollView.contentView.bounds.minY.clamped(to: 0...maxOffset)
+    }
+
     private func scheduleScrollToTop(remainingPasses: Int) {
         Task { @MainActor [weak self] in
             guard let self else { return }
