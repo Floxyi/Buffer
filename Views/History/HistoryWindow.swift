@@ -175,8 +175,7 @@ struct HistoryContentView: View {
                     onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
                     onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
                     onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
-                    onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
-                    onScrollOffsetChanged: viewModel.updateLastListScrollOffset
+                    onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
                 )
             }
         }

@@ -138,6 +138,8 @@ final class HistoryWindowController: NSWindowController {
     private var suppressQuickPasteUntilModifiersReleasedOnNextOpen = false
     private var shouldIgnoreNextDidBecomeKeyOpenHandling = false
     private var animationGeneration = 0
+    // Reopen scroll restoration is window-owned because the live NSScrollView lifecycle
+    // does not align cleanly with view-model updates during close/open transitions.
     private var lastListScrollOffset = CGFloat.zero
     private var pendingListScrollOffsetRestore: CGFloat?
     private var listScrollOffsetProvider: (() -> CGFloat)?

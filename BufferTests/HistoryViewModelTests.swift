@@ -345,7 +345,7 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedItem?.id, newerUnpinned.id)
     }
 
-    func testHandleWindowOpenRestoresLastListStateWhenConfigured() async {
+    func testHandleWindowOpenKeepsPreviousSelectionWhenConfigured() async {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
@@ -374,12 +374,9 @@ final class HistoryViewModelTests: XCTestCase {
 
         viewModel.selectSingle(first.id)
         viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
-        viewModel.updateLastListScrollOffset(172)
-        viewModel.handleWindowClose()
         viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
 
         XCTAssertEqual(viewModel.selectedItem?.id, first.id)
-        XCTAssertEqual(viewModel.openListScrollRequest, .init(mode: .restoreOffset(172)))
     }
 
     func testHandleWindowOpenCanSelectAnyFirstItemWhenConfigured() async {
@@ -410,9 +407,6 @@ final class HistoryViewModelTests: XCTestCase {
         )
 
         viewModel.selectSingle(older.id)
-        viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
-        viewModel.updateLastListScrollOffset(240)
-        viewModel.handleWindowClose()
         viewModel.handleWindowOpen(focusSearch: true, suppressQuickPasteUntilModifiersReleased: false)
 
         XCTAssertEqual(viewModel.selectedItem?.id, newer.id)
@@ -802,7 +796,7 @@ final class HistoryViewModelTests: XCTestCase {
 
     func testCopiedAtTextUsesWeekdayAndFixedDetailFormat() {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.timeZone = .current
 
         let timestamp = DateComponents(
             calendar: calendar,

@@ -91,7 +91,6 @@ struct ClipboardListView: View {
 
     var onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void) = { _ in }
     var onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void) = { _ in }
-    var onScrollOffsetChanged: (CGFloat) -> Void = { _ in }
 
     private var itemIDs: [UUID] {
         items.map(\.id)
@@ -193,13 +192,6 @@ struct ClipboardListView: View {
                 }
                 .overlay(alignment: .topTrailing) {
                     ClipboardScrollbarOverlay(scrollController: scrollController)
-                }
-                .background {
-                    ClipboardScrollOffsetObserver(
-                        scrollController: scrollController,
-                        isEnabled: !isAwaitingInitialOpenScroll,
-                        onScrollOffsetChanged: onScrollOffsetChanged
-                    )
                 }
                 .opacity(isAwaitingInitialOpenScroll ? 0 : 1)
                 .onPreferenceChange(ClipboardScrollTargetFramePreferenceKey.self) { frame in
@@ -985,9 +977,6 @@ struct ClipboardListView: View {
         case .scrollToTop:
             scheduleOpenScrollToTop()
 
-        case .restoreOffset(let offset):
-            scheduleOpenRestoreOffset(offset)
-
         case .scrollToItem(let itemID):
             scheduleMeasuredScroll(
                 to: itemID,
@@ -1045,9 +1034,6 @@ struct ClipboardListView: View {
         }
 
         switch request.mode {
-        case .restoreOffset(let offset):
-            return offset > 1
-
         case .scrollToTop:
             return scrollController.scrollOffset > 1
 
@@ -1087,24 +1073,6 @@ struct ClipboardListView: View {
         let resolvedMessage = message()
         BufferLogger.ui.debug("\(resolvedMessage, privacy: .public)")
 #endif
-    }
-}
-
-private struct ClipboardScrollOffsetObserver: View {
-    @ObservedObject var scrollController: ScrollController
-    let isEnabled: Bool
-    let onScrollOffsetChanged: (CGFloat) -> Void
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onChange(of: scrollController.scrollOffset) { newValue in
-                guard isEnabled else {
-                    return
-                }
-
-                onScrollOffsetChanged(newValue)
-            }
     }
 }
 

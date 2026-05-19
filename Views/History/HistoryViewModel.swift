@@ -6,7 +6,6 @@ import SwiftUI
 final class HistoryViewModel: ObservableObject {
     struct OpenListScrollRequest: Equatable {
         enum Mode: Equatable {
-            case restoreOffset(CGFloat)
             case scrollToTop
             case scrollToItem(UUID)
         }
@@ -67,7 +66,7 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var shouldFocusSearchOnOpen = true
     @Published private(set) var searchSelectionToken = 0
     @Published private(set) var selectionNavigationToken = 0
-    @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(0))
+    @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .scrollToTop)
     @Published private(set) var openListScrollRequestToken = 0
     @Published private(set) var jumpToHistoryState = JumpToHistoryState.idle
     @Published private(set) var keyboardNavigationRequest: KeyboardNavigationRequest?
@@ -565,8 +564,6 @@ final class HistoryViewModel: ObservableObject {
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
         hoveredItemID = isHovered ? itemID : nil
     }
-
-    func updateLastListScrollOffset(_ offset: CGFloat) {}
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {
         guard settingsManager.quickPasteEnabled,
