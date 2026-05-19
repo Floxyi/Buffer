@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 protocol PasteControlling: AnyObject {
     func copyToClipboard(_ item: ClipboardItem)
+    func copyMultipleToClipboard(_ items: [ClipboardItem])
     func paste(_ item: ClipboardItem, previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void)
     func pasteMultiple(_ items: [ClipboardItem], previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void)
     func saveImageToDisk(_ image: NSImage)
@@ -32,6 +33,36 @@ final class PasteController: PasteControlling {
            let tiffData = image.tiffRepresentation {
             pasteboard.setData(tiffData, forType: .tiff)
         }
+    }
+
+    func copyMultipleToClipboard(_ items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        guard items.count > 1 else {
+            copyToClipboard(items[0])
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        let textItems = items.compactMap { ClipboardItemTypeRegistry.pastedText(for: $0, store: store) }
+
+        if !textItems.isEmpty {
+            pasteboard.clearContents()
+            pasteboard.setString(textItems.joined(separator: "\n"), forType: .string)
+            return
+        }
+
+        let imageURLs = items.enumerated().compactMap { index, item -> URL? in
+            guard ClipboardItemTypeRegistry.supportsImageAssets(for: item),
+                  let image = store.image(for: item) else { return nil }
+
+            let paddedNumber = String(format: "%04d", index + 1)
+            return PasteImageSupport.saveImageToTemp(image, fileName: "image-\(paddedNumber).png")
+        }
+
+        guard !imageURLs.isEmpty else { return }
+
+        pasteboard.clearContents()
+        pasteboard.writeObjects(imageURLs as [NSPasteboardWriting])
     }
 
     func paste(_ item: ClipboardItem, previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void) {

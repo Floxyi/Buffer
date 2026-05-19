@@ -857,4 +857,101 @@ final class HistoryViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.searchText, "needle")
     }
+
+    func testCommandToggleSelectionTracksActionOrderAndRemovesDeselectedItems() async {
+        let viewModel = await makeSelectionViewModel()
+        let newest = viewModel.filteredItems[0]
+        let middle = viewModel.filteredItems[1]
+        let oldest = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(middle.id)
+        viewModel.toggleSelection(oldest.id)
+        viewModel.toggleSelection(newest.id)
+
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, oldest.id, newest.id])
+        XCTAssertEqual(viewModel.selectedItemsInVisualOrder.map(\.id), [newest.id, middle.id, oldest.id])
+
+        viewModel.toggleSelection(oldest.id)
+
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, newest.id])
+        XCTAssertEqual(viewModel.selectedIDs, Set([middle.id, newest.id]))
+    }
+
+    func testShiftRangeSelectionAppendsNewItemsInGestureDirection() async {
+        let viewModel = await makeSelectionViewModel()
+        let newest = viewModel.filteredItems[0]
+        let middle = viewModel.filteredItems[1]
+        let oldest = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionTo(oldest.id)
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, oldest.id])
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionTo(newest.id)
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, newest.id])
+    }
+
+    func testKeyboardExtendAppendsNewEdgeItemInExtensionDirection() async {
+        let viewModel = await makeSelectionViewModel()
+        let newest = viewModel.filteredItems[0]
+        let middle = viewModel.filteredItems[1]
+        let oldest = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionUp()
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, newest.id])
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionDown()
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, oldest.id])
+    }
+
+    func testContextMenuTargetingUsesSelectionScopeForSelectedRowsAndSingleScopeOtherwise() async {
+        let viewModel = await makeSelectionViewModel()
+        let newest = viewModel.filteredItems[0]
+        let middle = viewModel.filteredItems[1]
+        let oldest = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(middle.id)
+        viewModel.toggleSelection(newest.id)
+
+        XCTAssertEqual(
+            viewModel.contextMenuTargetItems(for: newest.id).map(\.id),
+            [middle.id, newest.id]
+        )
+        XCTAssertEqual(
+            viewModel.contextMenuTargetItems(for: oldest.id).map(\.id),
+            [oldest.id]
+        )
+    }
+
+    private func makeSelectionViewModel() async -> HistoryViewModel {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let oldest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 1), textContent: "oldest")
+        let middle = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 2), textContent: "middle")
+        let newest = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "newest")
+
+        store.add(oldest)
+        store.add(middle)
+        store.add(newest)
+
+        await eventually {
+            store.items.count == 3
+        }
+
+        return HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+    }
 }

@@ -34,7 +34,10 @@ struct HistoryDetailScrollView<Content: View>: View {
                             scrollView.automaticallyAdjustsContentInsets = false
                             scrollView.verticalScrollElasticity = .none
                             scrollView.horizontalScrollElasticity = .none
-                            scrollController.configure(scrollView: scrollView)
+                            scrollController.configure(
+                                scrollView: scrollView,
+                                enablesWheelSmoothing: false
+                            )
                         },
                         searchStrategy: .nearestAncestorOnly
                     )

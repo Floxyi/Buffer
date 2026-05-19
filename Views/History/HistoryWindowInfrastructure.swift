@@ -315,6 +315,9 @@ final class HistoryWindowController: NSWindowController {
             onCopyToClipboard: { [weak self] item in
                 self?.copyToClipboard(item)
             },
+            onCopyMultipleToClipboard: { [weak self] items in
+                self?.copyToClipboard(items)
+            },
             onPaste: { [weak self] item in
                 self?.pasteItem(item)
             },
@@ -541,6 +544,11 @@ final class HistoryWindowController: NSWindowController {
     private func copyToClipboard(_ item: ClipboardItem) {
         ignoreNextCapturedChange()
         pasteController.copyToClipboard(item)
+    }
+
+    private func copyToClipboard(_ items: [ClipboardItem]) {
+        ignoreNextCapturedChange()
+        pasteController.copyMultipleToClipboard(items)
     }
 
     private func pasteItem(_ item: ClipboardItem) {

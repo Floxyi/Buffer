@@ -71,9 +71,11 @@ struct ClipboardListView: View {
     var onSelectPreferredTopItem: () -> UUID? = { nil }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
-    var onCopyItem: (ClipboardItem) -> Void = { _ in }
-    var onTogglePinItem: (ClipboardItem) -> Void = { _ in }
-    var onDeleteItem: (ClipboardItem) -> Void = { _ in }
+    var onPasteItems: (UUID) -> Void = { _ in }
+    var onCopyItems: (UUID) -> Void = { _ in }
+    var onTogglePinItems: (UUID) -> Void = { _ in }
+    var onDeleteItems: (UUID) -> Void = { _ in }
+    var isContextMenuTargetFullyPinned: (UUID) -> Bool = { _ in false }
     var onJumpToHistoryItem: ((ClipboardItem) -> Void)? = nil
     var showsJumpToHistoryAction = false
     var selectionNavigationToken: Int = 0
@@ -315,6 +317,8 @@ struct ClipboardListView: View {
         let index = index(for: item)
         let previousItemID = adjacentItemID(before: index)
         let nextItemID = adjacentItemID(after: index)
+        var menuItem = item
+        menuItem.isPinned = isContextMenuTargetFullyPinned(item.id)
 
         return ClipboardItemRow(
             item: item,
@@ -380,34 +384,34 @@ struct ClipboardListView: View {
                 }
         )
         .contextMenu {
-            Button("Copy", systemImage: "doc.on.doc") {
-                contextMenuHighlightedItemID = nil
-                selectedIndex = index
-                onSelectSingle(item.id)
-                onCopyItem(item)
-            }
-
-            Button(item.isPinned ? "Unpin" : "Pin", systemImage: item.isPinned ? "pin.slash" : "pin") {
-                contextMenuHighlightedItemID = nil
-                selectedIndex = index
-                onTogglePinItem(item)
-            }
-
-            if showsJumpToHistoryAction, let onJumpToHistoryItem {
-                Button("Jump to History", systemImage: "arrow.turn.down.right") {
+            ClipboardItemActionMenuContent(
+                item: menuItem,
+                onPaste: {
                     contextMenuHighlightedItemID = nil
                     selectedIndex = index
-                    onJumpToHistoryItem(item)
-                }
-            }
-
-            Divider()
-
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                contextMenuHighlightedItemID = nil
-                selectedIndex = index
-                onDeleteItem(item)
-            }
+                    onPasteItems(item.id)
+                },
+                onCopy: {
+                    contextMenuHighlightedItemID = nil
+                    selectedIndex = index
+                    onCopyItems(item.id)
+                },
+                onTogglePin: {
+                    contextMenuHighlightedItemID = nil
+                    selectedIndex = index
+                    onTogglePinItems(item.id)
+                },
+                onDelete: {
+                    contextMenuHighlightedItemID = nil
+                    selectedIndex = index
+                    onDeleteItems(item.id)
+                },
+                onJumpToHistory: showsJumpToHistoryAction ? {
+                    contextMenuHighlightedItemID = nil
+                    selectedIndex = index
+                    onJumpToHistoryItem?(item)
+                } : nil
+            )
         }
     }
 

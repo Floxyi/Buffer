@@ -120,6 +120,16 @@ struct HistoryDetailHeaderMetadata: View {
     }
 }
 
+struct HistorySelectionCountDetailHeaderMetadata: View {
+    let selectionCount: Int
+
+    var body: some View {
+        Text("\(selectionCount) items selected")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(.primary.opacity(0.8))
+    }
+}
+
 struct HistoryDetailHeaderButtonRow<Content: View>: View {
     let content: Content
 
@@ -161,25 +171,29 @@ struct HistoryCommonDetailHeaderActions: View {
 
 struct HistoryMultiSelectionHeader: View {
     let selectionCount: Int
+    let selectedItemIsPinned: Bool
+    let onCopy: () -> Void
+    let onTogglePin: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HistorySingleDetailHeaderLayout(
             metadata: {
-                Color.clear
-                    .frame(width: 1, height: 1)
+                HistorySelectionCountDetailHeaderMetadata(selectionCount: selectionCount)
             },
             actions: {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.circle")
-                    Text("\(selectionCount) items selected")
-                }
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                HistoryDetailHeaderButtonRow {
+                    BufferGlassSymbolButton(
+                        help: "Copy",
+                        systemName: "doc.on.doc",
+                        action: onCopy
+                    )
+
+                    HistoryCommonDetailHeaderActions(
+                        selectedItemIsPinned: selectedItemIsPinned,
+                        onTogglePin: onTogglePin,
+                        onDelete: onDelete
+                    )
                 }
             }
         )

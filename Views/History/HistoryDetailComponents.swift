@@ -1,9 +1,18 @@
 import AppKit
 import SwiftUI
 
+struct HistoryPanelSurfaceBackground: View {
+    var body: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .opacity(0.16)
+    }
+}
+
 struct HistoryDetailPane: View {
     let selectionCount: Int
     let selectedItem: ClipboardItem?
+    let selectedItems: [ClipboardItem]
     let selectedItemIsPinned: Bool
     let canExtractSelectedImageText: Bool
     let isExtractingText: Bool
@@ -21,6 +30,12 @@ struct HistoryDetailPane: View {
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
     let enableWebsitePreviews: Bool
+    let store: ClipboardStore
+    let onPasteItem: (ClipboardItem) -> Void
+    let onCopyItem: (ClipboardItem) -> Void
+    let onTogglePinItem: (ClipboardItem) -> Void
+    let onDeleteItem: (ClipboardItem) -> Void
+    let onJumpToHistoryItem: ((ClipboardItem) -> Void)?
     let onCopy: () -> Void
     let onSaveImage: () -> Void
     let onExtractText: () -> Void
@@ -53,7 +68,13 @@ struct HistoryDetailPane: View {
                     onDelete: onDelete
                 )
             } else {
-                HistoryMultiSelectionHeader(selectionCount: selectionCount)
+                HistoryMultiSelectionHeader(
+                    selectionCount: selectionCount,
+                    selectedItemIsPinned: selectedItemIsPinned,
+                    onCopy: onCopy,
+                    onTogglePin: onTogglePin,
+                    onDelete: onDelete
+                )
             }
 
             BufferPanelSeparator(isVertical: false)
@@ -61,14 +82,18 @@ struct HistoryDetailPane: View {
             HistoryDetailScrollView {
                 if selectionCount > 1 {
                     HistoryMultiSelectionSummary(
-                        selectionCount: selectionCount,
-                        selectedItemsTotalSizeText: selectedItemsTotalSizeText,
-                        textCount: textSelectionCount,
-                        imageCount: imageSelectionCount,
-                        colorCount: colorSelectionCount,
-                        linkCount: linkSelectionCount,
-                        firstTextPreview: firstTextPreview,
-                        onDownloadAllImages: onDownloadAllImages
+                        items: selectedItems,
+                        store: store,
+                        textDetailFontStyle: textDetailFontStyle,
+                        textDetailFontSize: textDetailFontSize,
+                        enableWebsitePreviews: enableWebsitePreviews,
+                        onPasteItem: onPasteItem,
+                        onCopyItem: onCopyItem,
+                        onTogglePinItem: onTogglePinItem,
+                        onDeleteItem: onDeleteItem,
+                        onJumpToHistoryItem: onJumpToHistoryItem,
+                        onCopyOCRText: onCopyOCRText,
+                        onCopyColorVariant: onCopyColorVariant
                     )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 } else if let selectedItem {
@@ -90,9 +115,7 @@ struct HistoryDetailPane: View {
             .padding(.trailing, 1)
         }
         .background {
-            Rectangle()
-                .fill(.regularMaterial)
-                .opacity(0.16)
+            HistoryPanelSurfaceBackground()
         }
     }
 }

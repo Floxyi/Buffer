@@ -40,12 +40,50 @@ actor ClipboardRepository {
         return items
     }
 
+    func delete(_ itemsToDelete: [ClipboardItem]) -> [ClipboardItem] {
+        let idsToDelete = Set(itemsToDelete.map(\.id))
+        guard !idsToDelete.isEmpty else { return items }
+
+        items.removeAll { item in
+            let shouldDelete = idsToDelete.contains(item.id)
+            if shouldDelete {
+                assetStore.deleteAssociatedFiles(for: item)
+            }
+            return shouldDelete
+        }
+
+        persist()
+        return items
+    }
+
     func togglePin(for item: ClipboardItem) -> [ClipboardItem] {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
 
         items[index].isPinned.toggle()
         items[index].pinnedAt = items[index].isPinned ? Date() : nil
         persist()
+        return items
+    }
+
+    func setPinned(_ isPinned: Bool, for targetItems: [ClipboardItem]) -> [ClipboardItem] {
+        let ids = Set(targetItems.map(\.id))
+        guard !ids.isEmpty else { return items }
+
+        let timestamp = isPinned ? Date() : nil
+        var didChange = false
+
+        for index in items.indices where ids.contains(items[index].id) {
+            if items[index].isPinned != isPinned || items[index].pinnedAt != timestamp {
+                items[index].isPinned = isPinned
+                items[index].pinnedAt = timestamp
+                didChange = true
+            }
+        }
+
+        if didChange {
+            persist()
+        }
+
         return items
     }
 
@@ -186,9 +224,23 @@ final class ClipboardStore: ObservableObject {
         }
     }
 
+    func delete(_ items: [ClipboardItem]) {
+        Task {
+            let nextItems = await repository.delete(items)
+            applySnapshot(nextItems)
+        }
+    }
+
     func togglePin(for item: ClipboardItem) {
         Task {
             let nextItems = await repository.togglePin(for: item)
+            applySnapshot(nextItems)
+        }
+    }
+
+    func setPinned(_ isPinned: Bool, for items: [ClipboardItem]) {
+        Task {
+            let nextItems = await repository.setPinned(isPinned, for: items)
             applySnapshot(nextItems)
         }
     }

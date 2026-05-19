@@ -67,5 +67,8 @@ struct HistoryActionBar: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 52)
+        .background {
+            HistoryPanelSurfaceBackground()
+        }
     }
 }

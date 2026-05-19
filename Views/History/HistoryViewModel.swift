@@ -56,6 +56,7 @@ final class HistoryViewModel: ObservableObject {
 
     @Published private(set) var filteredItems: [ClipboardItem] = []
     @Published private(set) var selectedIDs: Set<UUID> = []
+    @Published private(set) var selectedActionOrderIDs: [UUID] = []
     @Published private(set) var selectedIndex = 0
     @Published private(set) var selectedID: UUID?
     @Published private(set) var previewImage: NSImage?
@@ -114,11 +115,24 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var selectedItem: ClipboardItem? {
-        selectedItems.first
+        guard let selectedID else { return nil }
+        return filteredItems.first(where: { $0.id == selectedID })
     }
 
     var selectedItems: [ClipboardItem] {
         filteredItems.filter { selectedIDs.contains($0.id) }
+    }
+
+    var selectedItemsInVisualOrder: [ClipboardItem] {
+        selectedItems
+    }
+
+    var selectedItemsInActionOrder: [ClipboardItem] {
+        let itemsByID = Dictionary(uniqueKeysWithValues: filteredItems.map { ($0.id, $0) })
+        return selectedActionOrderIDs.compactMap { id in
+            guard selectedIDs.contains(id) else { return nil }
+            return itemsByID[id]
+        }
     }
 
     var selectionCount: Int {
@@ -145,11 +159,13 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var selectedItemIsPinned: Bool {
-        selectedItem?.isPinned == true
+        let targets = selectionCount > 1 ? selectedItemsInActionOrder : selectedItem.map { [$0] } ?? []
+        guard !targets.isEmpty else { return false }
+        return targets.allSatisfy(\.isPinned)
     }
 
     var canJumpToHistorySelection: Bool {
-        selectedItem != nil && !searchText.isEmpty
+        selectionCount == 1 && selectedItem != nil && !searchText.isEmpty
     }
 
     var textSelectionCount: Int {
@@ -220,7 +236,11 @@ final class HistoryViewModel: ObservableObject {
         )
 
         if settingsManager.keepHistoryWindowSelectionOnReopen {
-            syncSelection(preferredID: selectedID ?? preferredTopSelectionID())
+            if selectedIDs.isEmpty {
+                syncSelection(preferredID: selectedID ?? preferredTopSelectionID())
+            } else {
+                syncSelection()
+            }
         } else {
             syncSelection(preferredID: preferredTopSelectionID())
             openListScrollRequest = OpenListScrollRequest(mode: .scrollToTop)
@@ -276,22 +296,13 @@ final class HistoryViewModel: ObservableObject {
 
     func selectSingle(_ id: UUID) {
         keyboardNavigationRequest = nil
-        selectedIDs = [id]
-        selectionAnchor = id
-        selectedID = id
-
-        if let index = filteredItems.firstIndex(where: { $0.id == id }) {
-            selectedIndex = index
-        }
+        applySingleSelection(id)
     }
 
     @discardableResult
     func selectPreferredTopItem() -> UUID? {
         guard let preferredTopSelectionID = preferredTopSelectionID() else {
-            selectedIDs = []
-            selectionAnchor = nil
-            selectedID = nil
-            selectedIndex = 0
+            clearSelection()
             return nil
         }
 
@@ -303,15 +314,25 @@ final class HistoryViewModel: ObservableObject {
         keyboardNavigationRequest = nil
         if selectedIDs.contains(id) {
             selectedIDs.remove(id)
+            selectedActionOrderIDs.removeAll { $0 == id }
         } else {
             selectedIDs.insert(id)
+            selectedActionOrderIDs.append(id)
         }
 
         selectionAnchor = id
 
         if let index = filteredItems.firstIndex(where: { $0.id == id }) {
             selectedIndex = index
-            selectedID = id
+            if selectedIDs.contains(id) {
+                selectedID = id
+            } else {
+                selectedID = nearestSelectedID(around: index)
+            }
+        }
+
+        if selectedIDs.isEmpty {
+            selectionAnchor = nil
         }
     }
 
@@ -326,8 +347,22 @@ final class HistoryViewModel: ObservableObject {
             return
         }
 
+        let direction = targetIndex >= anchorIndex ? 1 : -1
         let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-        selectedIDs = Set(filteredItems[range].map(\.id))
+        let rangeIDs = Set(filteredItems[range].map(\.id))
+        let previousSelection = selectedIDs
+
+        selectedIDs = rangeIDs
+        selectedActionOrderIDs.removeAll { !rangeIDs.contains($0) }
+
+        let steppedIndices = stride(from: anchorIndex, through: targetIndex, by: direction)
+        for index in steppedIndices {
+            let id = filteredItems[index].id
+            if !previousSelection.contains(id) && !selectedActionOrderIDs.contains(id) {
+                selectedActionOrderIDs.append(id)
+            }
+        }
+
         selectedIndex = targetIndex
         selectedID = targetID
     }
@@ -387,6 +422,9 @@ final class HistoryViewModel: ObservableObject {
         }
 
         selectedIDs.insert(previousItem.id)
+        if !selectedActionOrderIDs.contains(previousItem.id) {
+            selectedActionOrderIDs.append(previousItem.id)
+        }
         selectionAnchor = selectionAnchor ?? currentItem.id
         selectedIndex = previousIndex
         selectedID = previousItem.id
@@ -407,24 +445,30 @@ final class HistoryViewModel: ObservableObject {
         }
 
         selectedIDs.insert(nextItem.id)
+        if !selectedActionOrderIDs.contains(nextItem.id) {
+            selectedActionOrderIDs.append(nextItem.id)
+        }
         selectionAnchor = selectionAnchor ?? currentItem.id
         selectedIndex = nextIndex
         selectedID = nextItem.id
     }
 
     func togglePinForSelectedItem() {
-        guard let item = selectedItem else { return }
+        let items = selectedItemsInActionOrder
+        guard !items.isEmpty else { return }
 
-        let selectedItemID = item.id
-        store.togglePin(for: item)
-        syncSelection(preferredID: selectedItemID)
+        let shouldPin = !items.allSatisfy(\.isPinned)
+        let preferredID = selectedID ?? items.first?.id
+        store.setPinned(shouldPin, for: items)
+        syncSelection(preferredID: preferredID)
     }
 
     func deleteSelectedItem() {
-        guard let item = selectedItem else { return }
+        let items = selectedItemsInActionOrder
+        guard !items.isEmpty else { return }
 
-        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: item)
-        store.delete(item)
+        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: items)
+        store.delete(items)
     }
 
     func togglePin(for item: ClipboardItem) {
@@ -435,8 +479,48 @@ final class HistoryViewModel: ObservableObject {
 
     func delete(_ item: ClipboardItem) {
         selectSingle(item.id)
-        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: item)
+        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: [item])
         store.delete(item)
+    }
+
+    func contextMenuTargetItems(for clickedItemID: UUID) -> [ClipboardItem] {
+        let itemsByID = Dictionary(uniqueKeysWithValues: filteredItems.map { ($0.id, $0) })
+
+        if selectedIDs.contains(clickedItemID) {
+            return selectedItemsInActionOrder
+        }
+
+        guard let item = itemsByID[clickedItemID] else { return [] }
+        return [item]
+    }
+
+    func visualContextMenuTargetItems(for clickedItemID: UUID) -> [ClipboardItem] {
+        let targets = contextMenuTargetItems(for: clickedItemID)
+        let targetIDs = Set(targets.map(\.id))
+        return filteredItems.filter { targetIDs.contains($0.id) }
+    }
+
+    func shouldShowUnpinForContextMenuTarget(_ clickedItemID: UUID) -> Bool {
+        let targets = contextMenuTargetItems(for: clickedItemID)
+        return !targets.isEmpty && targets.allSatisfy(\.isPinned)
+    }
+
+    func deleteContextMenuTarget(_ clickedItemID: UUID) {
+        let targets = contextMenuTargetItems(for: clickedItemID)
+        guard !targets.isEmpty else { return }
+
+        pendingPreferredSelectionID = preferredSelectionID(afterDeleting: targets)
+        store.delete(targets)
+    }
+
+    func togglePinForContextMenuTarget(_ clickedItemID: UUID) {
+        let targets = contextMenuTargetItems(for: clickedItemID)
+        guard !targets.isEmpty else { return }
+
+        let shouldPin = !targets.allSatisfy(\.isPinned)
+        let preferredID = selectedIDs.contains(clickedItemID) ? (selectedID ?? clickedItemID) : clickedItemID
+        store.setPinned(shouldPin, for: targets)
+        syncSelection(preferredID: preferredID)
     }
 
     func jumpToHistory(for item: ClipboardItem) {
@@ -554,10 +638,7 @@ final class HistoryViewModel: ObservableObject {
         }
 
         withAnimation(.easeInOut(duration: 0.14)) {
-            selectedIDs = [request.itemID]
-            selectionAnchor = request.itemID
-            selectedID = request.itemID
-            selectedIndex = request.targetIndex
+            applySingleSelection(request.itemID, index: request.targetIndex)
         }
     }
 
@@ -644,30 +725,45 @@ final class HistoryViewModel: ObservableObject {
         keyboardNavigationRequest = nil
 
         guard !filteredItems.isEmpty else {
-            selectedIDs = []
-            selectionAnchor = nil
-            selectedID = nil
-            selectedIndex = 0
+            clearSelection()
             return
         }
 
-        let targetID = preferredID ?? selectedID ?? selectedIDs.first ?? preferredTopSelectionID()
-        guard let targetID,
-              let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
-            if let fallbackID = preferredTopSelectionID(),
-               let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID }) {
-                selectedIDs = [fallbackID]
-                selectionAnchor = fallbackID
-                selectedID = fallbackID
-                selectedIndex = fallbackIndex
+        let validIDs = Set(filteredItems.map(\.id))
+        selectedIDs = selectedIDs.intersection(validIDs)
+        selectedActionOrderIDs.removeAll { !validIDs.contains($0) }
+        if let preferredID, validIDs.contains(preferredID) {
+            if let index = filteredItems.firstIndex(where: { $0.id == preferredID }) {
+                applySingleSelection(preferredID, index: index)
             }
             return
         }
 
-        selectedIDs = [targetID]
-        selectionAnchor = targetID
-        selectedID = targetID
-        selectedIndex = index
+        if !selectedIDs.isEmpty {
+            if selectedActionOrderIDs.isEmpty {
+                selectedActionOrderIDs = selectedItems.map(\.id)
+            }
+
+            if let currentSelectedID = selectedID, validIDs.contains(currentSelectedID),
+               let index = filteredItems.firstIndex(where: { $0.id == currentSelectedID }) {
+                selectedIndex = index
+            } else if let fallbackID = selectedActionOrderIDs.first ?? selectedItems.first?.id,
+                      let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID }) {
+                selectedID = fallbackID
+                selectedIndex = fallbackIndex
+            }
+
+            selectionAnchor = selectionAnchor.flatMap { validIDs.contains($0) ? $0 : nil } ?? selectedID
+            return
+        }
+
+        let targetID = selectedID.flatMap { validIDs.contains($0) ? $0 : nil } ?? preferredTopSelectionID()
+        guard let targetID,
+              let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
+            return
+        }
+
+        applySingleSelection(targetID, index: index)
     }
 
     private func preferredTopSelectionID() -> UUID? {
@@ -730,21 +826,29 @@ final class HistoryViewModel: ObservableObject {
         )
     }
 
-    private func preferredSelectionID(afterDeleting item: ClipboardItem) -> UUID? {
-        guard let deletedIndex = filteredItems.firstIndex(where: { $0.id == item.id }) else {
-            return nil
+    private func preferredSelectionID(afterDeleting items: [ClipboardItem]) -> UUID? {
+        let deletedIDs = Set(items.map(\.id))
+        guard !deletedIDs.isEmpty else { return nil }
+
+        let remainingItems = filteredItems.filter { !deletedIDs.contains($0.id) }
+        guard !remainingItems.isEmpty else { return nil }
+
+        let deletedIndices = items.compactMap { item in
+            filteredItems.firstIndex(where: { $0.id == item.id })
+        }
+        guard let deletedIndex = deletedIndices.min() else {
+            return remainingItems.first?.id
         }
 
-        let nextIndex = deletedIndex + 1
-        if let nextID = filteredItems[safe: nextIndex]?.id {
-            return nextID
+        if let nextVisible = filteredItems[deletedIndex...].first(where: { !deletedIDs.contains($0.id) }) {
+            return nextVisible.id
         }
 
         if deletedIndex > 0 {
-            return filteredItems[safe: deletedIndex - 1]?.id
+            return filteredItems[0..<deletedIndex].last(where: { !deletedIDs.contains($0.id) })?.id
         }
 
-        return nil
+        return remainingItems.first?.id
     }
 
     private func consumePendingPreferredSelectionID() -> UUID? {
@@ -787,5 +891,40 @@ final class HistoryViewModel: ObservableObject {
 
             return lhs.timestamp > rhs.timestamp
         }
+    }
+
+    private func applySingleSelection(_ id: UUID, index: Int? = nil) {
+        selectedIDs = [id]
+        selectedActionOrderIDs = [id]
+        selectionAnchor = id
+        selectedID = id
+
+        if let index {
+            selectedIndex = index
+        } else if let index = filteredItems.firstIndex(where: { $0.id == id }) {
+            selectedIndex = index
+        }
+    }
+
+    private func clearSelection() {
+        selectedIDs = []
+        selectedActionOrderIDs = []
+        selectionAnchor = nil
+        selectedID = nil
+        selectedIndex = 0
+    }
+
+    private func nearestSelectedID(around index: Int) -> UUID? {
+        guard !selectedIDs.isEmpty else { return nil }
+
+        if let next = filteredItems[index...].first(where: { selectedIDs.contains($0.id) }) {
+            return next.id
+        }
+
+        if index > 0 {
+            return filteredItems[0..<index].last(where: { selectedIDs.contains($0.id) })?.id
+        }
+
+        return nil
     }
 }

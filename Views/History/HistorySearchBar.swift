@@ -44,6 +44,9 @@ struct HistorySearchBar: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 52, alignment: .center)
+        .background {
+            HistoryPanelSurfaceBackground()
+        }
     }
 }
 

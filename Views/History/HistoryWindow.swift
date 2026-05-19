@@ -6,6 +6,7 @@ struct HistoryContentView: View {
     @ObservedObject var settings: SettingsManager
     let store: ClipboardStore
     let onCopyToClipboard: (ClipboardItem) -> Void
+    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Void
     let onPaste: (ClipboardItem) -> Void
     let onPasteMultiple: ([ClipboardItem]) -> Void
     let onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
@@ -103,9 +104,7 @@ struct HistoryContentView: View {
                 onEscape: dismissHistoryWindow,
                 onDelete: viewModel.deleteSelectedItem,
                 onCopy: {
-                    if let item = viewModel.selectedItem {
-                        onCopyToClipboard(item)
-                    }
+                    copySelection(dismissAfterCopy: false)
                 },
                 onPin: viewModel.togglePinForSelectedItem,
                 onSaveImage: {
@@ -151,15 +150,11 @@ struct HistoryContentView: View {
                     onSelectPreferredTopItem: viewModel.selectPreferredTopItem,
                     onToggleSelection: viewModel.toggleSelection,
                     onExtendSelectionTo: viewModel.extendSelectionTo,
-                    onCopyItem: { item in
-                        onCopyToClipboard(item)
-                    },
-                    onTogglePinItem: { item in
-                        viewModel.togglePin(for: item)
-                    },
-                    onDeleteItem: { item in
-                        viewModel.delete(item)
-                    },
+                    onPasteItems: pasteContextMenuItems,
+                    onCopyItems: copyContextMenuItems,
+                    onTogglePinItems: viewModel.togglePinForContextMenuTarget,
+                    onDeleteItems: viewModel.deleteContextMenuTarget,
+                    isContextMenuTargetFullyPinned: viewModel.shouldShowUnpinForContextMenuTarget,
                     onJumpToHistoryItem: viewModel.canJumpToHistorySelection ? { item in
                         viewModel.jumpToHistory(for: item)
                     } : nil,
@@ -180,9 +175,7 @@ struct HistoryContentView: View {
             }
         }
         .background {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.34)
+            HistoryPanelSurfaceBackground()
         }
     }
 
@@ -190,6 +183,7 @@ struct HistoryContentView: View {
             HistoryDetailPane(
                 selectionCount: viewModel.selectionCount,
                 selectedItem: viewModel.selectedItem,
+                selectedItems: viewModel.selectedItemsInVisualOrder,
                 selectedItemIsPinned: viewModel.selectedItemIsPinned,
                 canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
                 isExtractingText: viewModel.isExtractingText,
@@ -207,10 +201,26 @@ struct HistoryContentView: View {
                 textDetailFontStyle: settings.textDetailFontStyle,
                 textDetailFontSize: settings.textDetailFontSize,
                 enableWebsitePreviews: settings.enableWebsitePreviews,
+                store: store,
+                onPasteItem: { item in
+                    viewModel.clearSearchAfterCommittedAction()
+                    onPaste(item)
+                },
+                onCopyItem: { item in
+                    viewModel.clearSearchAfterCommittedAction()
+                    onCopyToClipboard(item)
+                },
+                onTogglePinItem: { item in
+                    viewModel.togglePin(for: item)
+                },
+                onDeleteItem: { item in
+                    viewModel.delete(item)
+                },
+                onJumpToHistoryItem: !viewModel.searchText.isEmpty ? { item in
+                    viewModel.jumpToHistory(for: item)
+                } : nil,
                 onCopy: {
-                    if let item = viewModel.selectedItem {
-                        onCopyToClipboard(item)
-                    }
+                    copySelection(dismissAfterCopy: false)
                 },
                 onSaveImage: {
                     guard let item = viewModel.selectedItem,
@@ -244,19 +254,59 @@ struct HistoryContentView: View {
     private func performPrimaryPasteAction() {
         viewModel.clearSearchAfterCommittedAction()
 
-        if !viewModel.selectedItems.isEmpty {
-            onPasteMultiple(viewModel.selectedItems)
-        } else if let item = viewModel.selectedItem {
+        let items = viewModel.selectedItemsInActionOrder
+        if items.count > 1 {
+            onPasteMultiple(items)
+        } else if let item = items.first ?? viewModel.selectedItem {
             onPaste(item)
         }
     }
 
     private func performCopyOnlyAction() {
-        guard let item = viewModel.selectedItem else { return }
+        copySelection(dismissAfterCopy: true)
+    }
+
+    private func copySelection(dismissAfterCopy: Bool) {
+        let items = viewModel.selectedItemsInActionOrder
+        guard !items.isEmpty else { return }
 
         viewModel.clearSearchAfterCommittedAction()
-        onCopyToClipboard(item)
-        onDismiss()
+
+        if items.count == 1, let item = items.first {
+            onCopyToClipboard(item)
+        } else {
+            onCopyMultipleToClipboard(items)
+        }
+
+        if dismissAfterCopy {
+            onDismiss()
+        }
+    }
+
+    private func pasteContextMenuItems(_ clickedItemID: UUID) {
+        let items = viewModel.contextMenuTargetItems(for: clickedItemID)
+        guard !items.isEmpty else { return }
+
+        viewModel.clearSearchAfterCommittedAction()
+
+        if items.count > 1 {
+            onPasteMultiple(items)
+        } else if let item = items.first {
+            onPaste(item)
+        }
+    }
+
+    private func copyContextMenuItems(_ clickedItemID: UUID) {
+        let items = viewModel.contextMenuTargetItems(for: clickedItemID)
+        guard !items.isEmpty else { return }
+
+        viewModel.clearSearchAfterCommittedAction()
+
+        if items.count == 1, let item = items.first {
+            onCopyToClipboard(item)
+        } else {
+            onCopyMultipleToClipboard(items)
+        }
     }
 
     private func jumpToHistorySelection() {
