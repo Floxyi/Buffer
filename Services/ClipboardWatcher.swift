@@ -9,6 +9,7 @@ final class ClipboardWatcher: ObservableObject {
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
     private var watchTask: Task<Void, Never>?
+    private var pendingAsyncCaptureTask: Task<Void, Never>?
     private var lastChangeCount: Int
     private var lastContentHash = 0
     private var ignoreNextChange = false
@@ -42,6 +43,8 @@ final class ClipboardWatcher: ObservableObject {
     func stopWatching() {
         watchTask?.cancel()
         watchTask = nil
+        pendingAsyncCaptureTask?.cancel()
+        pendingAsyncCaptureTask = nil
     }
 
     func pause() {
@@ -65,6 +68,8 @@ final class ClipboardWatcher: ObservableObject {
 
         guard currentChangeCount != lastChangeCount else { return }
         lastChangeCount = currentChangeCount
+        pendingAsyncCaptureTask?.cancel()
+        pendingAsyncCaptureTask = nil
 
         if ignoreNextChange {
             ignoreNextChange = false
@@ -79,10 +84,14 @@ final class ClipboardWatcher: ObservableObject {
            let filePath = filePaths.first,
            ClipboardCaptureSupport.isImageFile(filePath) {
             let priorHash = lastContentHash
-            Task { [store] in
+            pendingAsyncCaptureTask = Task { [store] in
                 let processedImage = await Task.detached(priority: .userInitiated) {
                     ClipboardCaptureSupport.processedImageFile(filePath, skippingHash: priorHash)
                 }.value
+
+                guard !Task.isCancelled else {
+                    return
+                }
 
                 guard let processedImage else {
                     return
@@ -104,12 +113,20 @@ final class ClipboardWatcher: ObservableObject {
             guard hash != lastContentHash else { return }
             lastContentHash = hash
 
-            let item = ClipboardCaptureSupport.classifyTextItem(
-                text,
-                sourceApp: sourceApp,
-                saveText: { store.saveText($0) }
-            )
-            store.add(item)
+            pendingAsyncCaptureTask = Task { [store, settingsManager] in
+                let item = await ClipboardCaptureSupport.classifyTextItem(
+                    text,
+                    sourceApp: sourceApp,
+                    enableWebsitePreviews: settingsManager.enableWebsitePreviews,
+                    saveText: { store.saveText($0) }
+                )
+
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                store.add(item)
+            }
             return
         }
 

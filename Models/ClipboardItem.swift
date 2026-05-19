@@ -299,7 +299,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
             return .color(ColorItemContent(value: parsedValue, originalText: originalText))
         case .link:
             let originalText = textContent ?? ""
-            let parsedURL = ClipboardLinkValue.parse(originalText) ?? URL(string: "https://example.com")!
+            let parsedURL = ClipboardLinkValue.parseExplicit(originalText)
+                ?? ClipboardLinkValue.parseImplicitWebsiteCandidate(originalText)
+                ?? URL(string: "https://example.com")!
             return .link(LinkItemContent(url: parsedURL, originalText: originalText))
         }
     }
@@ -904,15 +906,18 @@ enum ClipboardItemTypeRegistry {
 }
 
 enum ClipboardLinkValue {
-    static func parse(_ string: String) -> URL? {
+    static func parseExplicit(_ string: String, requiringHTTPS: Bool = false) -> URL? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
 
-        if let directURL = normalizedWebURL(from: trimmed) {
-            return directURL
-        }
+        return normalizedWebURL(from: trimmed, requiringHTTPS: requiringHTTPS)
+    }
 
+    static func parseImplicitWebsiteCandidate(_ string: String) -> URL? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
         guard !trimmed.contains("://") else { return nil }
         return normalizedWebURL(from: "https://\(trimmed)")
     }
@@ -946,10 +951,28 @@ enum ClipboardLinkValue {
             .joined(separator: " ")
     }
 
-    private static func normalizedWebURL(from string: String) -> URL? {
+    static func hasActiveWebServer(at url: URL) async -> Bool {
+        var headRequest = URLRequest(url: url)
+        headRequest.httpMethod = "HEAD"
+        headRequest.timeoutInterval = 3
+        headRequest.cachePolicy = .returnCacheDataElseLoad
+
+        if await respondsToWebRequest(headRequest) {
+            return true
+        }
+
+        var getRequest = URLRequest(url: url)
+        getRequest.httpMethod = "GET"
+        getRequest.timeoutInterval = 3
+        getRequest.cachePolicy = .returnCacheDataElseLoad
+        getRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+        return await respondsToWebRequest(getRequest)
+    }
+
+    private static func normalizedWebURL(from string: String, requiringHTTPS: Bool = false) -> URL? {
         guard var components = URLComponents(string: string) else { return nil }
         guard let scheme = components.scheme?.lowercased(),
-              scheme == "http" || scheme == "https",
+              (requiringHTTPS ? scheme == "https" : (scheme == "http" || scheme == "https")),
               let host = components.host,
               hostLooksWebLike(host) else {
             return nil
@@ -957,6 +980,15 @@ enum ClipboardLinkValue {
 
         components.scheme = scheme
         return components.url
+    }
+
+    private static func respondsToWebRequest(_ request: URLRequest) async -> Bool {
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            return response is HTTPURLResponse
+        } catch {
+            return false
+        }
     }
 
     private static func hostLooksWebLike(_ host: String) -> Bool {

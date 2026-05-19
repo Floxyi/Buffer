@@ -14,7 +14,7 @@ struct SettingsPrivacyWebsitePreviewsSection: View {
                 )
             )
 
-            Text("When enabled, Buffer may fetch website metadata and favicons for link items. Disable this to keep link handling fully local-only.")
+            Text("When enabled, Buffer may fetch website metadata and favicons for link items, and bare domains are only treated as links if they resolve to a live website. Disable this to keep link handling fully local-only; in that mode, only full https:// links are recognized as website items.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

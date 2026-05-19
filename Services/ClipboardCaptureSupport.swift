@@ -29,19 +29,40 @@ enum ClipboardCaptureSupport {
         return nil
     }
 
+    @MainActor
     static func classifyTextItem(
         _ text: String,
         sourceApp: SourceApplicationInfo?,
+        enableWebsitePreviews: Bool,
+        websiteReachability: @escaping (URL) async -> Bool = ClipboardLinkValue.hasActiveWebServer,
         saveText: (String) -> String?
-    ) -> ClipboardItem {
+    ) async -> ClipboardItem {
         if let colorValue = ClipboardColorValue.parse(text) {
             return .color(colorValue, originalText: text, sourceApp: sourceApp)
         }
 
-        if let url = ClipboardLinkValue.parse(text) {
+        if let url = ClipboardLinkValue.parseExplicit(
+            text,
+            requiringHTTPS: !enableWebsitePreviews
+        ) {
             return .link(url, originalText: text, sourceApp: sourceApp)
         }
 
+        if enableWebsitePreviews,
+           let candidateURL = ClipboardLinkValue.parseImplicitWebsiteCandidate(text),
+           await websiteReachability(candidateURL) {
+            return .link(candidateURL, originalText: text, sourceApp: sourceApp)
+        }
+
+        return plainTextItem(text, sourceApp: sourceApp, saveText: saveText)
+    }
+
+    @MainActor
+    private static func plainTextItem(
+        _ text: String,
+        sourceApp: SourceApplicationInfo?,
+        saveText: (String) -> String?
+    ) -> ClipboardItem {
         let textSize = text.utf8.count
 
         if textSize <= inlineTextLimit {

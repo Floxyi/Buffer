@@ -136,6 +136,7 @@ final class HistoryWindowController: NSWindowController {
     private let viewModel: HistoryViewModel
     private var focusSearchOnNextOpen = true
     private var suppressQuickPasteUntilModifiersReleasedOnNextOpen = false
+    private var shouldIgnoreNextDidBecomeKeyOpenHandling = false
     private var animationGeneration = 0
 
     private weak var animatedContentView: NSView?
@@ -220,6 +221,12 @@ final class HistoryWindowController: NSWindowController {
 
         window.center()
 
+        shouldIgnoreNextDidBecomeKeyOpenHandling = true
+        viewModel.handleWindowOpen(
+            focusSearch: focusSearchOnNextOpen,
+            suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen
+        )
+
         if shouldAnimate {
             prepareOpenAnimationState()
         } else {
@@ -265,7 +272,7 @@ final class HistoryWindowController: NSWindowController {
         panel.isMovable = false
         panel.isMovableByWindowBackground = false
 
-        panel.hasShadow = false
+        panel.hasShadow = true
 
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.cornerRadius = HistoryWindowStyle.panelCornerRadius
@@ -464,6 +471,11 @@ final class HistoryWindowController: NSWindowController {
     }
 
     private func handlePanelDidBecomeKey() {
+        if shouldIgnoreNextDidBecomeKeyOpenHandling {
+            shouldIgnoreNextDidBecomeKeyOpenHandling = false
+            return
+        }
+
         viewModel.handleWindowOpen(
             focusSearch: focusSearchOnNextOpen,
             suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen

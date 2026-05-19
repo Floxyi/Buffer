@@ -19,6 +19,12 @@ final class HistoryViewModel: ObservableObject {
         let generation: UInt
     }
 
+    struct KeyboardNavigationRequest: Equatable {
+        let itemID: UUID
+        let targetIndex: Int
+        let generation: UInt
+    }
+
     enum JumpToHistoryState: Equatable {
         case idle
         case pending(JumpToHistoryRequest)
@@ -64,6 +70,7 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var openListScrollRequest = OpenListScrollRequest(mode: .restoreOffset(0))
     @Published private(set) var openListScrollRequestToken = 0
     @Published private(set) var jumpToHistoryState = JumpToHistoryState.idle
+    @Published private(set) var keyboardNavigationRequest: KeyboardNavigationRequest?
 
     @Published var scrollTrigger = false
     @Published var hoveredItemID: UUID?
@@ -82,6 +89,7 @@ final class HistoryViewModel: ObservableObject {
     private var jumpToHistoryGenerationCounter: UInt = 0
     private var jumpToHistoryFailureCount = 0
     private let maxJumpToHistoryRetryCount = 2
+    private var keyboardNavigationGenerationCounter: UInt = 0
 
     private static let copiedAtFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -270,6 +278,7 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func selectSingle(_ id: UUID) {
+        keyboardNavigationRequest = nil
         selectedIDs = [id]
         selectionAnchor = id
         selectedID = id
@@ -294,6 +303,7 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func toggleSelection(_ id: UUID) {
+        keyboardNavigationRequest = nil
         if selectedIDs.contains(id) {
             selectedIDs.remove(id)
         } else {
@@ -326,19 +336,11 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func navigateUp() {
-        guard selectedIndex > 0 else { return }
-
-        scrollTrigger = true
-        selectedIndex -= 1
-        syncSelection(preferredID: filteredItems[safe: selectedIndex]?.id)
+        requestKeyboardNavigation(by: -1)
     }
 
     func navigateDown() {
-        guard selectedIndex < filteredItems.count - 1 else { return }
-
-        scrollTrigger = true
-        selectedIndex += 1
-        syncSelection(preferredID: filteredItems[safe: selectedIndex]?.id)
+        requestKeyboardNavigation(by: 1)
     }
 
     func jumpToFirstItem() {
@@ -542,6 +544,26 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
+    func completeKeyboardNavigation(_ request: KeyboardNavigationRequest) {
+        guard keyboardNavigationRequest == request else {
+            return
+        }
+
+        keyboardNavigationRequest = nil
+
+        guard filteredItems[safe: request.targetIndex]?.id == request.itemID else {
+            syncSelection(preferredID: request.itemID)
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.14)) {
+            selectedIDs = [request.itemID]
+            selectionAnchor = request.itemID
+            selectedID = request.itemID
+            selectedIndex = request.targetIndex
+        }
+    }
+
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
         hoveredItemID = isHovered ? itemID : nil
     }
@@ -626,6 +648,8 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func syncSelection(preferredID: UUID? = nil) {
+        keyboardNavigationRequest = nil
+
         guard !filteredItems.isEmpty else {
             selectedIDs = []
             selectionAnchor = nil
@@ -690,6 +714,27 @@ final class HistoryViewModel: ObservableObject {
     private func rebuildFilteredItems(preferredID: UUID? = nil) {
         filteredItems = Self.makeFilteredItems(from: store.items, query: searchText, store: store)
         syncSelection(preferredID: preferredID)
+    }
+
+    private func requestKeyboardNavigation(by delta: Int) {
+        if let pendingRequest = keyboardNavigationRequest {
+            completeKeyboardNavigation(pendingRequest)
+        }
+
+        let baseIndex = keyboardNavigationRequest?.targetIndex ?? selectedIndex
+        let targetIndex = baseIndex + delta
+
+        guard filteredItems.indices.contains(targetIndex),
+              let itemID = filteredItems[safe: targetIndex]?.id else {
+            return
+        }
+
+        keyboardNavigationGenerationCounter &+= 1
+        keyboardNavigationRequest = KeyboardNavigationRequest(
+            itemID: itemID,
+            targetIndex: targetIndex,
+            generation: keyboardNavigationGenerationCounter
+        )
     }
 
     private func preferredSelectionID(afterDeleting item: ClipboardItem) -> UUID? {

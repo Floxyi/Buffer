@@ -132,8 +132,7 @@ struct ClipboardItemRow: View {
         }
         .task(id: assetLoadToken) {
             guard !observedScrollActivityTracker.isScrolling else { return }
-
-            try? await Task.sleep(nanoseconds: 25_000_000)
+            await Task.yield()
 
             guard !Task.isCancelled else { return }
             guard !observedScrollActivityTracker.isScrolling else { return }

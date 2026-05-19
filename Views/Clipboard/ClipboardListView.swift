@@ -27,6 +27,14 @@ private struct JumpScrollTaskKey: Equatable {
 
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
+    private static let keyboardNavigationComfortPadding = ClipboardListStructure.LayoutMetrics.itemRowHeight
+    private static let keyboardNavigationTopSnapThreshold =
+        ClipboardListStructure.LayoutMetrics.contentPadding +
+        ClipboardListStructure.LayoutMetrics.sectionHeaderHeight +
+        ClipboardListStructure.LayoutMetrics.rowSpacing +
+        ClipboardListStructure.LayoutMetrics.itemRowHeight
+    private static let rapidKeyboardNavigationThreshold = 0.12
+
     @StateObject private var scrollController = ScrollController()
     @State private var contextMenuHighlightedItemID: UUID?
     @State private var scrollRequestID: UInt = 0
@@ -34,11 +42,15 @@ struct ClipboardListView: View {
     @State private var pendingMeasuredScrollCompletion: ((Bool) -> Void)?
     @State private var measuredScrollTask: Task<Void, Never>?
     @State private var keyboardNavigationScrollTask: Task<Void, Never>?
+    @State private var keyboardNavigationCommitTask: Task<Void, Never>?
     @State private var measuredTargetFrame: CGRect?
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmTask: Task<Void, Never>?
+    @State private var keyboardAssetPrewarmTask: Task<Void, Never>?
     @State private var activeJumpScrollRequest: HistoryViewModel.JumpToHistoryRequest?
     @State private var sourceIconRefreshToken = 0
+    @State private var lastKeyboardNavigationRequestTimestamp = 0.0
+    @State private var isAwaitingInitialOpenScroll = false
 
     let items: [ClipboardItem]
 
@@ -68,6 +80,8 @@ struct ClipboardListView: View {
     var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
     var openScrollRequestToken: Int = 0
     var isShowingFullHistory = false
+    var keyboardNavigationRequest: HistoryViewModel.KeyboardNavigationRequest? = nil
+    var onCompleteKeyboardNavigation: (HistoryViewModel.KeyboardNavigationRequest) -> Void = { _ in }
 
     /// Dedicated jump-to-history request. This must stay separate from open/keyboard scrolling.
     var jumpScrollRequest: HistoryViewModel.JumpToHistoryRequest? = nil
@@ -183,6 +197,7 @@ struct ClipboardListView: View {
                         onScrollOffsetChanged: onScrollOffsetChanged
                     )
                 }
+                .opacity(isAwaitingInitialOpenScroll ? 0 : 1)
                 .onPreferenceChange(ClipboardScrollTargetFramePreferenceKey.self) { frame in
                     measuredTargetFrame = frame
 
@@ -216,12 +231,16 @@ struct ClipboardListView: View {
                 .onAppear {
                     rebuildListCache()
                     prewarmVisibleAssets()
+                    isAwaitingInitialOpenScroll = shouldHideDuringInitialOpenScroll(for: openScrollRequest)
                 }
                 .onDisappear {
                     assetPrewarmTask?.cancel()
                     assetPrewarmTask = nil
+                    keyboardAssetPrewarmTask?.cancel()
+                    keyboardAssetPrewarmTask = nil
                     cancelPendingMeasuredScroll()
                     cancelKeyboardNavigationScroll()
+                    cancelKeyboardNavigationCommit()
                 }
                 .onChange(of: itemIDs) { _ in
                     rebuildListCache()
@@ -257,6 +276,17 @@ struct ClipboardListView: View {
                         centered: true,
                         using: scrollProxy
                     )
+                }
+                .onChange(of: keyboardNavigationRequest) { newRequest in
+                    guard let newRequest else {
+                        keyboardAssetPrewarmTask?.cancel()
+                        keyboardAssetPrewarmTask = nil
+                        cancelKeyboardNavigationCommit()
+                        return
+                    }
+
+                    prewarmAssetsForKeyboardNavigation(request: newRequest)
+                    scheduleKeyboardNavigationCommit(for: newRequest)
                 }
                 .onChange(of: jumpScrollRequest) { newRequest in
                     if activeJumpScrollRequest != nil,
@@ -405,8 +435,8 @@ struct ClipboardListView: View {
                 return
             }
 
-                rebuildListCache()
-                scrollController.syncMetricsImmediately()
+            rebuildListCache()
+            scrollController.syncMetricsImmediately()
 
             let fullHistoryReady = isShowingFullHistory
             let targetExists = itemExists(request.itemID)
@@ -597,6 +627,59 @@ struct ClipboardListView: View {
         keyboardNavigationScrollTask = nil
     }
 
+    private func scheduleKeyboardNavigationCommit(for request: HistoryViewModel.KeyboardNavigationRequest) {
+        cancelKeyboardNavigationCommit()
+        let requestTimestamp = Date.timeIntervalSinceReferenceDate
+        let shouldPreferImmediateScroll =
+            requestTimestamp - lastKeyboardNavigationRequestTimestamp < Self.rapidKeyboardNavigationThreshold
+        lastKeyboardNavigationRequestTimestamp = requestTimestamp
+
+        keyboardNavigationCommitTask = Task { @MainActor in
+            let didAnimateScroll = await performAnimatedKeyboardNavigationScrollIfNeeded(
+                to: request.itemID,
+                preferImmediateScroll: shouldPreferImmediateScroll
+            )
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            if didAnimateScroll {
+                try? await Task.sleep(nanoseconds: 30_000_000)
+            } else {
+                await Task.yield()
+            }
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            onCompleteKeyboardNavigation(request)
+            keyboardNavigationCommitTask = nil
+        }
+    }
+
+    private func cancelKeyboardNavigationCommit() {
+        keyboardNavigationCommitTask?.cancel()
+        keyboardNavigationCommitTask = nil
+    }
+
+    private func prewarmAssetsForKeyboardNavigation(request: HistoryViewModel.KeyboardNavigationRequest) {
+        keyboardAssetPrewarmTask?.cancel()
+
+        let startIndex = max(0, request.targetIndex - 8)
+        let endIndex = min(items.count, request.targetIndex + 9)
+        let nearbyItems = Array(items[startIndex..<endIndex])
+
+        keyboardAssetPrewarmTask = Task { @MainActor in
+            await ClipboardItemRowAssetLoader.prewarmSourceIcons(
+                for: nearbyItems,
+                settings: settings,
+                limit: 20
+            )
+        }
+    }
+
     private func scrollToEstimatedPosition(itemID: UUID, centered: Bool) {
         let rows = listCache.matches(items: items)
             ? listCache.displayRows
@@ -622,6 +705,61 @@ struct ClipboardListView: View {
     }
 
     private func performKeyboardNavigationScroll(to itemID: UUID) {
+        guard let navigationMetrics = keyboardNavigationMetrics(for: itemID) else {
+            return
+        }
+        guard abs(navigationMetrics.targetOffset - navigationMetrics.currentOffset) > 0.5 else {
+            return
+        }
+
+        scrollController.scrollTo(offset: navigationMetrics.targetOffset)
+        scrollController.syncMetricsImmediately()
+    }
+
+    private func performAnimatedKeyboardNavigationScrollIfNeeded(
+        to itemID: UUID,
+        preferImmediateScroll: Bool
+    ) async -> Bool {
+        guard let navigationMetrics = keyboardNavigationMetrics(for: itemID) else {
+            return false
+        }
+        guard abs(navigationMetrics.targetOffset - navigationMetrics.currentOffset) > 0.5 else {
+            return false
+        }
+
+        if preferImmediateScroll {
+            scrollController.scrollTo(offset: navigationMetrics.targetOffset)
+            scrollController.syncMetricsImmediately()
+            return true
+        }
+
+        let duration = 0.08
+        let frameCount = 6
+
+        for step in 1...frameCount {
+            guard !Task.isCancelled else {
+                return false
+            }
+
+            let progress = CGFloat(step) / CGFloat(frameCount)
+            let easedProgress = 1 - pow(1 - progress, 3)
+            let offset = navigationMetrics.currentOffset
+                + (navigationMetrics.targetOffset - navigationMetrics.currentOffset) * easedProgress
+
+            scrollController.scrollTo(offset: offset)
+
+            if step < frameCount {
+                try? await Task.sleep(nanoseconds: UInt64((duration / Double(frameCount)) * 1_000_000_000))
+            }
+        }
+
+        scrollController.syncMetricsImmediately()
+        return true
+    }
+
+    private func keyboardNavigationMetrics(
+        for itemID: UUID
+    ) -> (currentOffset: CGFloat, targetOffset: CGFloat)? {
         let rows = listCache.matches(items: items)
             ? listCache.displayRows
             : ClipboardListStructure.displayRows(from: items)
@@ -630,7 +768,7 @@ struct ClipboardListView: View {
             forItemID: itemID,
             in: rows
         ) else {
-            return
+            return nil
         }
 
         scrollController.syncMetricsImmediately()
@@ -638,30 +776,40 @@ struct ClipboardListView: View {
         let viewportHeight = max(1, scrollController.viewportHeight)
         let currentOffset = scrollController.scrollOffset
         let maxOffset = max(0, scrollController.contentHeight - viewportHeight)
-        let edgePadding = CGFloat(12)
+        let edgePadding = Self.keyboardNavigationComfortPadding
         let visibleMinY = currentOffset + edgePadding
         let visibleMaxY = currentOffset + viewportHeight - edgePadding
 
-        let targetOffset: CGFloat?
+        let rawTargetOffset: CGFloat?
         if estimatedFrame.minY < visibleMinY {
-            targetOffset = estimatedFrame.minY - edgePadding
+            rawTargetOffset = estimatedFrame.minY - edgePadding
         } else if estimatedFrame.maxY > visibleMaxY {
-            targetOffset = estimatedFrame.maxY - viewportHeight + edgePadding
+            rawTargetOffset = estimatedFrame.maxY - viewportHeight + edgePadding
         } else {
-            targetOffset = nil
+            rawTargetOffset = nil
         }
 
-        guard let targetOffset else {
-            return
+        guard let rawTargetOffset else {
+            return nil
         }
 
-        let clampedTargetOffset = targetOffset.clamped(to: 0...maxOffset)
-        guard abs(clampedTargetOffset - currentOffset) > 0.5 else {
-            return
+        return (
+            currentOffset: currentOffset,
+            targetOffset: resolvedKeyboardNavigationTargetOffset(
+                rawTargetOffset: rawTargetOffset,
+                maxOffset: maxOffset
+            )
+        )
+    }
+
+    private func resolvedKeyboardNavigationTargetOffset(rawTargetOffset: CGFloat, maxOffset: CGFloat) -> CGFloat {
+        let clampedTargetOffset = rawTargetOffset.clamped(to: 0...maxOffset)
+
+        if clampedTargetOffset <= Self.keyboardNavigationTopSnapThreshold {
+            return 0
         }
 
-        scrollController.scrollTo(offset: clampedTargetOffset)
-        scrollController.syncMetricsImmediately()
+        return clampedTargetOffset
     }
 
     @discardableResult
@@ -712,6 +860,9 @@ struct ClipboardListView: View {
     }
 
     private func scheduleOpenScrollToTop() {
+        scrollController.scrollToTopImmediately()
+        scrollController.syncMetricsImmediately()
+        isAwaitingInitialOpenScroll = false
         scheduleScrollToTop()
     }
 
@@ -768,6 +919,10 @@ struct ClipboardListView: View {
         cancelPendingMeasuredScroll()
         cancelKeyboardNavigationScroll()
 
+        scrollController.scrollTo(offset: offset)
+        scrollController.syncMetricsImmediately()
+        isAwaitingInitialOpenScroll = false
+
         Task { @MainActor in
             for attempt in 0..<12 {
                 guard requestID == scrollRequestID else { return }
@@ -808,6 +963,8 @@ struct ClipboardListView: View {
         _ request: HistoryViewModel.OpenListScrollRequest,
         using scrollProxy: ScrollViewProxy
     ) {
+        isAwaitingInitialOpenScroll = shouldHideDuringInitialOpenScroll(for: request)
+
         switch request.mode {
         case .scrollToTop:
             scheduleOpenScrollToTop()
@@ -831,13 +988,13 @@ struct ClipboardListView: View {
     private func prewarmVisibleAssets() {
         assetPrewarmTask?.cancel()
 
-        let prewarmItems = Array(items.prefix(100))
+        let prewarmItems = Array(items.prefix(160))
 
         assetPrewarmTask = Task { @MainActor in
             await ClipboardItemRowAssetLoader.prewarmSourceIcons(
                 for: prewarmItems,
                 settings: settings,
-                limit: 40
+                limit: 72
             )
         }
     }
@@ -848,6 +1005,25 @@ struct ClipboardListView: View {
 
     private func primaryLabelText(for item: ClipboardItem) -> String {
         listCache.primaryLabelText(for: item)
+    }
+
+    private func shouldHideDuringInitialOpenScroll(
+        for request: HistoryViewModel.OpenListScrollRequest?
+    ) -> Bool {
+        guard let request else {
+            return false
+        }
+
+        switch request.mode {
+        case .restoreOffset(let offset):
+            return offset > 1
+
+        case .scrollToTop:
+            return scrollController.scrollOffset > 1
+
+        case .scrollToItem:
+            return false
+        }
     }
 
     private func index(for item: ClipboardItem) -> Int {

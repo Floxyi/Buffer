@@ -33,6 +33,10 @@ struct HistoryContentView: View {
                 if viewModel.selectionCount > 0 {
                     detailPane
                         .frame(minWidth: 500, maxWidth: .infinity)
+                        .transition(.identity)
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
                 }
             }
 
@@ -53,6 +57,7 @@ struct HistoryContentView: View {
             RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(HistoryWindowStyle.panelBorderOpacity), lineWidth: 1)
         }
+        .shadow(color: Color.black.opacity(0.18), radius: 24, y: 10)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
             if NSApp.isActive {
@@ -162,6 +167,8 @@ struct HistoryContentView: View {
                     openScrollRequest: viewModel.openListScrollRequest,
                     openScrollRequestToken: viewModel.openListScrollRequestToken,
                     isShowingFullHistory: viewModel.isShowingFullHistory,
+                    keyboardNavigationRequest: viewModel.keyboardNavigationRequest,
+                    onCompleteKeyboardNavigation: viewModel.completeKeyboardNavigation,
                     jumpScrollRequest: viewModel.activeJumpToHistoryRequest,
                     onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
                     onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,

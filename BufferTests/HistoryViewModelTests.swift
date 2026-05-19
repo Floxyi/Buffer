@@ -60,8 +60,12 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [linkItem.id])
     }
 
-    func testColorClassificationCreatesStructuredColorItem() {
-        let item = ClipboardCaptureSupport.classifyTextItem("#ff0000", sourceApp: nil) { _ in
+    func testColorClassificationCreatesStructuredColorItem() async {
+        let item = await ClipboardCaptureSupport.classifyTextItem(
+            "#ff0000",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline color item")
             return nil
         }
@@ -71,12 +75,20 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(item.textContent, nil)
     }
 
-    func testColorClassificationRecognizesRGBAndHSL() {
-        let rgbItem = ClipboardCaptureSupport.classifyTextItem("rgba(255, 0, 128, 0.5)", sourceApp: nil) { _ in
+    func testColorClassificationRecognizesRGBAndHSL() async {
+        let rgbItem = await ClipboardCaptureSupport.classifyTextItem(
+            "rgba(255, 0, 128, 0.5)",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline color item")
             return nil
         }
-        let hslItem = ClipboardCaptureSupport.classifyTextItem("hsl(330, 100%, 50%)", sourceApp: nil) { _ in
+        let hslItem = await ClipboardCaptureSupport.classifyTextItem(
+            "hsl(330, 100%, 50%)",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline color item")
             return nil
         }
@@ -87,16 +99,28 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(hslItem.colorPayload?.originalText, "hsl(330, 100%, 50%)")
     }
 
-    func testColorClassificationRejectsNonColorHashText() {
-        let headingItem = ClipboardCaptureSupport.classifyTextItem("## Phase 1: Polish", sourceApp: nil) { _ in
+    func testColorClassificationRejectsNonColorHashText() async {
+        let headingItem = await ClipboardCaptureSupport.classifyTextItem(
+            "## Phase 1: Polish",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
-        let malformedHexItem = ClipboardCaptureSupport.classifyTextItem("#12 nope", sourceApp: nil) { _ in
+        let malformedHexItem = await ClipboardCaptureSupport.classifyTextItem(
+            "#12 nope",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
-        let malformedRGBItem = ClipboardCaptureSupport.classifyTextItem("rgb(255, blue, 0)", sourceApp: nil) { _ in
+        let malformedRGBItem = await ClipboardCaptureSupport.classifyTextItem(
+            "rgb(255, blue, 0)",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
@@ -112,12 +136,21 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertNil(malformedRGBItem.colorPayload)
     }
 
-    func testLinkClassificationCreatesStructuredLinkItem() {
-        let httpsItem = ClipboardCaptureSupport.classifyTextItem("https://www.youtube.com/watch?v=123", sourceApp: nil) { _ in
+    func testLinkClassificationCreatesStructuredLinkItem() async {
+        let httpsItem = await ClipboardCaptureSupport.classifyTextItem(
+            "https://www.youtube.com/watch?v=123",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline link item")
             return nil
         }
-        let schemeLessItem = ClipboardCaptureSupport.classifyTextItem("openai.com/research", sourceApp: nil) { _ in
+        let schemeLessItem = await ClipboardCaptureSupport.classifyTextItem(
+            "openai.com/research",
+            sourceApp: nil,
+            enableWebsitePreviews: true,
+            websiteReachability: { _ in true }
+        ) { _ in
             XCTFail("Expected inline link item")
             return nil
         }
@@ -130,16 +163,28 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(schemeLessItem.linkPayload?.url.absoluteString, "https://openai.com/research")
     }
 
-    func testLinkClassificationRejectsNonURLText() {
-        let plainTextItem = ClipboardCaptureSupport.classifyTextItem("openai research", sourceApp: nil) { _ in
+    func testLinkClassificationRejectsNonURLText() async {
+        let plainTextItem = await ClipboardCaptureSupport.classifyTextItem(
+            "openai research",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
-        let markdownHeadingItem = ClipboardCaptureSupport.classifyTextItem("# Release Notes", sourceApp: nil) { _ in
+        let markdownHeadingItem = await ClipboardCaptureSupport.classifyTextItem(
+            "# Release Notes",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
-        let nonWebSchemeItem = ClipboardCaptureSupport.classifyTextItem("file:///tmp/test.txt", sourceApp: nil) { _ in
+        let nonWebSchemeItem = await ClipboardCaptureSupport.classifyTextItem(
+            "file:///tmp/test.txt",
+            sourceApp: nil,
+            enableWebsitePreviews: true
+        ) { _ in
             XCTFail("Expected inline plain text item")
             return nil
         }
@@ -152,6 +197,66 @@ final class HistoryViewModelTests: XCTestCase {
 
         XCTAssertEqual(nonWebSchemeItem.kind, .text)
         XCTAssertNil(nonWebSchemeItem.linkPayload)
+    }
+
+    func testImplicitLinkClassificationRequiresReachableWebsite() async {
+        let reachableItem = await ClipboardCaptureSupport.classifyTextItem(
+            "youtube.com",
+            sourceApp: nil,
+            enableWebsitePreviews: true,
+            websiteReachability: { _ in true }
+        ) { _ in
+            XCTFail("Expected inline link item")
+            return nil
+        }
+
+        let unreachableItem = await ClipboardCaptureSupport.classifyTextItem(
+            "bla.bla",
+            sourceApp: nil,
+            enableWebsitePreviews: true,
+            websiteReachability: { _ in false }
+        ) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+
+        XCTAssertEqual(reachableItem.kind, .link)
+        XCTAssertEqual(reachableItem.linkPayload?.url.absoluteString, "https://youtube.com")
+        XCTAssertEqual(unreachableItem.kind, .text)
+        XCTAssertNil(unreachableItem.linkPayload)
+    }
+
+    func testLocalOnlyModeRequiresExplicitHTTPSLinks() async {
+        let httpsItem = await ClipboardCaptureSupport.classifyTextItem(
+            "https://youtube.com/watch?v=123",
+            sourceApp: nil,
+            enableWebsitePreviews: false
+        ) { _ in
+            XCTFail("Expected inline link item")
+            return nil
+        }
+
+        let httpItem = await ClipboardCaptureSupport.classifyTextItem(
+            "http://youtube.com/watch?v=123",
+            sourceApp: nil,
+            enableWebsitePreviews: false
+        ) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+
+        let schemeLessItem = await ClipboardCaptureSupport.classifyTextItem(
+            "youtube.com/watch?v=123",
+            sourceApp: nil,
+            enableWebsitePreviews: false
+        ) { _ in
+            XCTFail("Expected inline plain text item")
+            return nil
+        }
+
+        XCTAssertEqual(httpsItem.kind, .link)
+        XCTAssertEqual(httpItem.kind, .text)
+        XCTAssertEqual(schemeLessItem.kind, .text)
     }
 
     func testTypeDrivenImageActionsExcludeColorItems() async {
