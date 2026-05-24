@@ -7,7 +7,17 @@ struct BufferApp: App {
     
     var body: some Scene {
         Settings {
-            SettingsView(settings: appDelegate.settingsManager, store: appDelegate.clipboardStore)
+            EmptyView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    appDelegate.showSettingsWindow()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
+            CommandGroup(replacing: .help) {}
         }
     }
 }

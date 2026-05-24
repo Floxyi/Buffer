@@ -3,14 +3,12 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class StatusBarController: NSObject, NSWindowDelegate {
-    private static let settingsToolbarIdentifier = NSToolbar.Identifier("BufferSettingsToolbar")
-
+final class StatusBarController: NSObject {
     private let store: ClipboardStore
     private let watcher: ClipboardWatcher
     private let settingsManager: SettingsManager
     private let onToggleHistory: () -> Void
-    private var settingsWindowController: NSWindowController?
+    private let onShowSettings: () -> Void
     private let statusItem: NSStatusItem
     private var cancellables = Set<AnyCancellable>()
 
@@ -18,12 +16,14 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         store: ClipboardStore,
         watcher: ClipboardWatcher,
         settingsManager: SettingsManager,
-        onShowHistory: @escaping () -> Void
+        onShowHistory: @escaping () -> Void,
+        onShowSettings: @escaping () -> Void
     ) {
         self.store = store
         self.watcher = watcher
         self.settingsManager = settingsManager
         self.onToggleHistory = onShowHistory
+        self.onShowSettings = onShowSettings
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         super.init()
@@ -106,47 +106,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     @objc private func showSettings() {
-        if let controller = settingsWindowController, let window = controller.window {
-            presentSettingsWindow(window)
-            return
-        }
-
-        var settingsWindow: NSWindow?
-        let hostingController = NSHostingController(
-            rootView: SettingsView(settings: settingsManager, store: store) { title in
-                settingsWindow?.title = title
-            }
-        )
-
-        let window = NSWindow(contentViewController: hostingController)
-        settingsWindow = window
-
-        let toolbar = NSToolbar(identifier: Self.settingsToolbarIdentifier)
-        toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-
-        window.title = "General"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = false
-        window.titleVisibility = .visible
-        window.isMovableByWindowBackground = true
-        window.isOpaque = true
-        window.backgroundColor = .windowBackgroundColor
-        window.hasShadow = true
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
-        window.titlebarSeparatorStyle = .none
-        window.animationBehavior = .documentWindow
-        window.setContentSize(NSSize(width: 780, height: 560))
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-
-        let controller = NSWindowController(window: window)
-        settingsWindowController = controller
-        controller.showWindow(nil)
-        presentSettingsWindow(window)
+        onShowSettings()
     }
 
     @objc private func togglePause() {
@@ -176,16 +136,6 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow,
-              settingsWindowController?.window === window else {
-            return
-        }
-
-        settingsWindowController = nil
-        setDockIconVisible(false)
-    }
-
     private func updateIcon(paused: Bool) {
         guard let button = statusItem.button else { return }
 
@@ -197,16 +147,5 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         image?.isTemplate = true
 
         button.image = image?.withSymbolConfiguration(config)
-    }
-
-    private func presentSettingsWindow(_ window: NSWindow) {
-        setDockIconVisible(true)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func setDockIconVisible(_ visible: Bool) {
-        NSApp.setActivationPolicy(visible ? .regular : .accessory)
     }
 }
