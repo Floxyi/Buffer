@@ -17,6 +17,7 @@ struct SettingsBehaviourView: View {
         Form {
             SettingsBehaviourHistoryWindowSection(settings: settings)
             SettingsBehaviourSearchSection(settings: settings)
+            SettingsBehaviourItemActionsSection(settings: settings)
             SettingsBehaviourQuickPasteSection(settings: settings)
             SettingsBehaviourTextDetailSection(settings: settings, previewFont: previewFont)
         }

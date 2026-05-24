@@ -14,7 +14,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
     let onEnter: () -> Void
     let onOptionEnter: () -> Void
     let onEscape: () -> Void
-    let onDelete: () -> Void
+    let onDeleteShortcut: () -> Void
     let onCopy: () -> Void
     let onPin: () -> Void
     let onSaveImage: () -> Void
@@ -37,7 +37,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                 onEnter: onEnter,
                 onOptionEnter: onOptionEnter,
                 onEscape: onEscape,
-                onDelete: onDelete,
+                onDeleteShortcut: onDeleteShortcut,
                 onCopy: onCopy,
                 onPin: onPin,
                 onSaveImage: onSaveImage,
@@ -72,7 +72,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
             onEnter: @escaping () -> Void,
             onOptionEnter: @escaping () -> Void,
             onEscape: @escaping () -> Void,
-            onDelete: @escaping () -> Void,
+            onDeleteShortcut: @escaping () -> Void,
             onCopy: @escaping () -> Void,
             onPin: @escaping () -> Void,
             onSaveImage: @escaping () -> Void,
@@ -90,6 +90,10 @@ struct GlobalKeyMonitor: NSViewRepresentable {
 
             monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { event in
                 if event.window !== window {
+                    return event
+                }
+
+                if window.attachedSheet != nil || NSApp.modalWindow?.parent == window {
                     return event
                 }
 
@@ -133,7 +137,7 @@ struct GlobalKeyMonitor: NSViewRepresentable {
                     return nil
                 case 51:
                     guard event.modifierFlags.contains(.command) else { return event }
-                    onDelete()
+                    onDeleteShortcut()
                     return nil
                 case 8:
                     guard event.modifierFlags.contains(.command) else { return event }

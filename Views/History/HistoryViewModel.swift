@@ -216,7 +216,28 @@ final class HistoryViewModel: ObservableObject {
     }
 
     static func copiedAtText(for timestamp: Date) -> String {
-        copiedAtFormatter.string(from: timestamp)
+        copiedAtText(for: timestamp, now: Date(), calendar: .current)
+    }
+
+    static func copiedAtText(for timestamp: Date, now: Date, calendar: Calendar) -> String {
+        let effectiveCalendar = calendar
+
+        if effectiveCalendar.isDate(timestamp, inSameDayAs: now) {
+            let elapsedMinutes = max(1, Int(now.timeIntervalSince(timestamp) / 60))
+
+            if elapsedMinutes < 60 {
+                return elapsedMinutes == 1 ? "1 minute ago" : "\(elapsedMinutes) minutes ago"
+            }
+
+            let elapsedHours = max(1, elapsedMinutes / 60)
+            return elapsedHours == 1 ? "1 hour ago" : "\(elapsedHours) hours ago"
+        }
+
+        if effectiveCalendar.isDateInYesterday(timestamp) {
+            return "Yesterday"
+        }
+
+        return copiedAtFormatter.string(from: timestamp)
     }
 
     var quickPasteBadgeNumberByItemID: [UUID: Int] {

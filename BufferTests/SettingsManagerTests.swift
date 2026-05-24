@@ -43,6 +43,7 @@ final class SettingsManagerTests: XCTestCase {
 
         settings.setKeepSearchTextAfterPaste(true)
         settings.setKeepSearchTextAfterClosing(false)
+        settings.setConfirmDeleteWithKeyboardShortcut(false)
         settings.setHistoryWindowOpenBehavior(.keepLastSelection)
         settings.setQuickPasteEnabled(false)
         settings.setQuickPasteNumberingStart(.normalEntries)
@@ -53,6 +54,7 @@ final class SettingsManagerTests: XCTestCase {
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
+        XCTAssertFalse(settings.confirmDeleteWithKeyboardShortcut)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .keepLastSelection)
         XCTAssertFalse(settings.quickPasteEnabled)
         XCTAssertEqual(settings.quickPasteNumberingStart, .normalEntries)
@@ -62,6 +64,7 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertFalse(settings.enableWebsitePreviews)
         XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
         XCTAssertFalse(defaults.bool(forKey: "keepSearchTextAfterClosing"))
+        XCTAssertFalse(defaults.bool(forKey: "confirmDeleteWithKeyboardShortcut"))
         XCTAssertEqual(
             defaults.string(forKey: "historyWindowOpenBehavior"),
             HistoryWindowOpenBehavior.keepLastSelection.rawValue
@@ -85,6 +88,7 @@ final class SettingsManagerTests: XCTestCase {
         )
 
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
+        XCTAssertTrue(settings.confirmDeleteWithKeyboardShortcut)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
     }
 

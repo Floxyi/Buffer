@@ -15,6 +15,7 @@ struct HistoryContentView: View {
 
     @State private var isSearchFocused = false
     @State private var shouldRefocusSearchOnActivate = false
+    @State private var isPresentingDeleteShortcutConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,20 +100,38 @@ struct HistoryContentView: View {
                 onExtendToLast: viewModel.extendSelectionToLastItem,
                 onExtendUp: viewModel.extendSelectionUp,
                 onExtendDown: viewModel.extendSelectionDown,
-                onEnter: performPrimaryPasteAction,
-                onOptionEnter: performCopyOnlyAction,
-                onEscape: dismissHistoryWindow,
-                onDelete: viewModel.deleteSelectedItem,
+                onEnter: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
+                    performPrimaryPasteAction()
+                },
+                onOptionEnter: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
+                    performCopyOnlyAction()
+                },
+                onEscape: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
+                    dismissHistoryWindow()
+                },
+                onDeleteShortcut: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
+                    handleDeleteShortcut()
+                },
                 onCopy: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
                     copySelection(dismissAfterCopy: false)
                 },
-                onPin: viewModel.togglePinForSelectedItem,
+                onPin: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
+                    viewModel.togglePinForSelectedItem()
+                },
                 onSaveImage: {
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
                     if let image = viewModel.previewImage {
                         PasteImageSupport.saveImageToDisk(image)
                     }
                 },
                 onQuickPaste: { index in
+                    guard !isPresentingDeleteShortcutConfirmation else { return }
                     if let item = viewModel.performQuickPaste(at: index) {
                         onPaste(item)
                     }
@@ -226,6 +245,92 @@ struct HistoryContentView: View {
         copySelection(dismissAfterCopy: true)
     }
 
+    private func handleDeleteShortcut() {
+        guard viewModel.selectionCount > 0 else { return }
+
+        if settings.confirmDeleteWithKeyboardShortcut {
+            presentDeleteShortcutConfirmation()
+        } else {
+            viewModel.deleteSelectedItem()
+        }
+    }
+
+    private func presentDeleteShortcutConfirmation() {
+        guard !isPresentingDeleteShortcutConfirmation else { return }
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+
+        isPresentingDeleteShortcutConfirmation = true
+
+        let alert = makeDeleteShortcutConfirmationAlert()
+        let deleteButton = alert.buttons[0]
+        let alertWindow = alert.window
+        alertWindow.defaultButtonCell = deleteButton.cell as? NSButtonCell
+
+        nonisolated(unsafe) var alertKeyMonitor: Any?
+        alertKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard NSApp.modalWindow === alertWindow || event.window === alertWindow else { return event }
+
+            switch event.keyCode {
+            case 36:
+                finishDeleteShortcutConfirmationSheet(
+                    attachedTo: window,
+                    alertWindow: alertWindow,
+                    response: .alertFirstButtonReturn
+                )
+                return nil
+            case 53:
+                finishDeleteShortcutConfirmationSheet(
+                    attachedTo: window,
+                    alertWindow: alertWindow,
+                    response: .alertSecondButtonReturn
+                )
+                return nil
+            default:
+                return event
+            }
+        }
+
+        alert.beginSheetModal(for: window) { response in
+            if let alertKeyMonitor {
+                NSEvent.removeMonitor(alertKeyMonitor)
+            }
+            isPresentingDeleteShortcutConfirmation = false
+
+            if response == .alertFirstButtonReturn {
+                viewModel.deleteSelectedItem()
+            }
+        }
+    }
+
+    private func makeDeleteShortcutConfirmationAlert() -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = deleteShortcutConfirmationTitle
+        alert.informativeText = deleteShortcutConfirmationMessage
+
+        let deleteButton = alert.addButton(withTitle: "Delete")
+        deleteButton.keyEquivalent = "\r"
+        deleteButton.keyEquivalentModifierMask = []
+        if #available(macOS 11.0, *) {
+            deleteButton.hasDestructiveAction = true
+        }
+
+        let cancelButton = alert.addButton(withTitle: "Cancel")
+        cancelButton.keyEquivalent = "\u{1b}"
+        cancelButton.keyEquivalentModifierMask = []
+
+        return alert
+    }
+
+    private func finishDeleteShortcutConfirmationSheet(
+        attachedTo window: NSWindow,
+        alertWindow: NSWindow,
+        response: NSApplication.ModalResponse
+    ) {
+        window.endSheet(alertWindow, returnCode: response)
+        alertWindow.orderOut(nil)
+    }
+
     private func copySelection(dismissAfterCopy: Bool) {
         let items = viewModel.selectedItemsInActionOrder
         guard !items.isEmpty else { return }
@@ -247,6 +352,16 @@ struct HistoryContentView: View {
         guard let item = viewModel.selectedItem else { return }
 
         viewModel.jumpToHistory(for: item)
+    }
+
+    private var deleteShortcutConfirmationTitle: String {
+        viewModel.selectionCount == 1 ? "Delete item?" : "Delete \(viewModel.selectionCount) items?"
+    }
+
+    private var deleteShortcutConfirmationMessage: String {
+        viewModel.selectionCount == 1
+            ? "This item will be removed from your clipboard history."
+            : "These items will be removed from your clipboard history."
     }
 
     private func performDetailAction(_ action: HistoryItemAction) {

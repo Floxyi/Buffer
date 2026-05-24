@@ -52,6 +52,26 @@ struct SettingsBehaviourSearchSection: View {
     }
 }
 
+struct SettingsBehaviourItemActionsSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    var body: some View {
+        Section("Item Actions") {
+            Toggle(
+                "Confirm before deleting with Command-Delete",
+                isOn: Binding(
+                    get: { settings.confirmDeleteWithKeyboardShortcut },
+                    set: { settings.setConfirmDeleteWithKeyboardShortcut($0) }
+                )
+            )
+
+            Text("Choose whether deleting items with Command-Delete asks for confirmation.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SettingsBehaviourQuickPasteSection: View {
     @ObservedObject var settings: SettingsManager
 

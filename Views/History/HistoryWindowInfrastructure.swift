@@ -118,6 +118,11 @@ final class HistoryPanel: NSPanel {
 
     override func resignKey() {
         super.resignKey()
+
+        if attachedSheet != nil || NSApp.modalWindow?.parent == self {
+            return
+        }
+
         onClickOutside?()
     }
 }

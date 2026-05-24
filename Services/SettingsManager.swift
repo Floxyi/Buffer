@@ -205,6 +205,7 @@ final class SettingsManager: ObservableObject {
     static let defaultHistoryLimit = 100
     static let defaultKeepSearchTextAfterPaste = false
     static let defaultKeepSearchTextAfterClosing = false
+    static let defaultConfirmDeleteWithKeyboardShortcut = true
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let quickPasteEntryCountRange = 1...5
     static let defaultQuickPasteEnabled = true
@@ -223,6 +224,7 @@ final class SettingsManager: ObservableObject {
         static let excludedApps = "excludedApps"
         static let keepSearchTextAfterPaste = "keepSearchTextAfterPaste"
         static let keepSearchTextAfterClosing = "keepSearchTextAfterClosing"
+        static let confirmDeleteWithKeyboardShortcut = "confirmDeleteWithKeyboardShortcut"
         static let keepHistoryWindowSelectionOnReopen = "keepHistoryWindowSelectionOnReopen"
         static let historyWindowOpenBehavior = "historyWindowOpenBehavior"
         static let quickPasteEnabled = "quickPasteEnabled"
@@ -244,6 +246,7 @@ final class SettingsManager: ObservableObject {
     @Published var historyLimit: Int
     @Published var keepSearchTextAfterPaste: Bool
     @Published var keepSearchTextAfterClosing: Bool
+    @Published var confirmDeleteWithKeyboardShortcut: Bool
     @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
     @Published var quickPasteEnabled: Bool
     @Published var quickPasteNumberingStart: QuickPasteNumberingStart
@@ -287,6 +290,11 @@ final class SettingsManager: ObservableObject {
             self.keepSearchTextAfterClosing = defaults.bool(forKey: Key.keepSearchTextAfterClosing)
         } else {
             self.keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
+        }
+        if defaults.object(forKey: Key.confirmDeleteWithKeyboardShortcut) != nil {
+            self.confirmDeleteWithKeyboardShortcut = defaults.bool(forKey: Key.confirmDeleteWithKeyboardShortcut)
+        } else {
+            self.confirmDeleteWithKeyboardShortcut = Self.defaultConfirmDeleteWithKeyboardShortcut
         }
 
         self.historyWindowOpenBehavior = Self.initialHistoryWindowOpenBehavior(defaults: defaults)
@@ -406,6 +414,11 @@ final class SettingsManager: ObservableObject {
         persist()
     }
 
+    func setConfirmDeleteWithKeyboardShortcut(_ enabled: Bool) {
+        confirmDeleteWithKeyboardShortcut = enabled
+        persist()
+    }
+
     func setHistoryWindowOpenBehavior(_ behavior: HistoryWindowOpenBehavior) {
         historyWindowOpenBehavior = Self.normalizedHistoryWindowOpenBehavior(behavior)
         persist()
@@ -460,6 +473,7 @@ final class SettingsManager: ObservableObject {
 
         keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
         keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
+        confirmDeleteWithKeyboardShortcut = Self.defaultConfirmDeleteWithKeyboardShortcut
         historyWindowOpenBehavior = Self.defaultHistoryWindowOpenBehavior
         quickPasteEnabled = Self.defaultQuickPasteEnabled
         quickPasteNumberingStart = Self.defaultQuickPasteNumberingStart
@@ -505,6 +519,7 @@ final class SettingsManager: ObservableObject {
         defaults.set(historyLimit, forKey: Key.historyLimit)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
         defaults.set(keepSearchTextAfterClosing, forKey: Key.keepSearchTextAfterClosing)
+        defaults.set(confirmDeleteWithKeyboardShortcut, forKey: Key.confirmDeleteWithKeyboardShortcut)
         defaults.removeObject(forKey: Key.keepHistoryWindowSelectionOnReopen)
         defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
         defaults.set(quickPasteEnabled, forKey: Key.quickPasteEnabled)

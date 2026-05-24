@@ -861,9 +861,106 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertEqual(sectionTitle, "LAST WEEK")
     }
 
-    func testCopiedAtTextUsesWeekdayAndFixedDetailFormat() {
+    func testCopiedAtTextUsesRelativeMinuteFormatForToday() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
+
+        let now = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 12,
+            minute: 36
+        ).date!
+        let timestamp = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 12,
+            minute: 35
+        ).date!
+
+        XCTAssertEqual(
+            HistoryViewModel.copiedAtText(for: timestamp, now: now, calendar: calendar),
+            "1 minute ago"
+        )
+    }
+
+    func testCopiedAtTextUsesRelativeHourFormatForToday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let now = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 12,
+            minute: 36
+        ).date!
+        let timestamp = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 9,
+            minute: 20
+        ).date!
+
+        XCTAssertEqual(
+            HistoryViewModel.copiedAtText(for: timestamp, now: now, calendar: calendar),
+            "3 hours ago"
+        )
+    }
+
+    func testCopiedAtTextUsesYesterdayForPreviousDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let now = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 12,
+            minute: 36
+        ).date!
+        let timestamp = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 23,
+            hour: 21,
+            minute: 15
+        ).date!
+
+        XCTAssertEqual(
+            HistoryViewModel.copiedAtText(for: timestamp, now: now, calendar: calendar),
+            "Yesterday"
+        )
+    }
+
+    func testCopiedAtTextUsesWeekdayAndFixedDetailFormatForOlderDates() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+
+        let now = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 5,
+            day: 24,
+            hour: 12,
+            minute: 36
+        ).date!
 
         let timestamp = DateComponents(
             calendar: calendar,
@@ -876,7 +973,7 @@ final class HistoryViewModelTests: XCTestCase {
         ).date!
 
         XCTAssertEqual(
-            HistoryViewModel.copiedAtText(for: timestamp),
+            HistoryViewModel.copiedAtText(for: timestamp, now: now, calendar: calendar),
             "Tue, 12. May 2026, at 12:36"
         )
     }
