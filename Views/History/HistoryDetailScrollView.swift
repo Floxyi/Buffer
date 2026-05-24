@@ -32,7 +32,7 @@ struct HistoryDetailScrollView<Content: View>: View {
                             scrollView.autohidesScrollers = true
                             scrollView.scrollerStyle = .overlay
                             scrollView.automaticallyAdjustsContentInsets = false
-                            scrollView.verticalScrollElasticity = .none
+                            scrollView.verticalScrollElasticity = hasVisibleScrollbar ? .automatic : .none
                             scrollView.horizontalScrollElasticity = .none
                             scrollController.configure(
                                 scrollView: scrollView,
