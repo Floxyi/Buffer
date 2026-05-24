@@ -6,11 +6,8 @@ struct HistoryMultiSelectionSummary: View {
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
     let enableWebsitePreviews: Bool
-    let onPasteItem: (ClipboardItem) -> Void
-    let onCopyItem: (ClipboardItem) -> Void
-    let onTogglePinItem: (ClipboardItem) -> Void
-    let onDeleteItem: (ClipboardItem) -> Void
-    let onJumpToHistoryItem: ((ClipboardItem) -> Void)?
+    let actionsForItem: (ClipboardItem) -> [HistoryItemActionDescriptor]
+    let onSelectAction: (ClipboardItem, HistoryItemAction) -> Void
     let onCopyOCRText: (String) -> Void
     let onCopyColorVariant: (String) -> Void
 
@@ -29,20 +26,9 @@ struct HistoryMultiSelectionSummary: View {
                         onToggleCollapsed: {
                             toggleCollapsed(item.id)
                         },
-                        onPaste: {
-                            onPasteItem(item)
-                        },
-                        onCopy: {
-                            onCopyItem(item)
-                        },
-                        onTogglePin: {
-                            onTogglePinItem(item)
-                        },
-                        onDelete: {
-                            onDeleteItem(item)
-                        },
-                        onJumpToHistory: onJumpToHistoryItem.map { action in
-                            { action(item) }
+                        actions: actionsForItem(item),
+                        onSelectAction: { action in
+                            onSelectAction(item, action)
                         }
                     )
                     .padding(.horizontal, 12)
@@ -112,11 +98,8 @@ private struct HistoryMultiSelectionCardHeader: View {
     let item: ClipboardItem
     let isCollapsed: Bool
     let onToggleCollapsed: () -> Void
-    let onPaste: () -> Void
-    let onCopy: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
-    let onJumpToHistory: (() -> Void)?
+    let actions: [HistoryItemActionDescriptor]
+    let onSelectAction: (HistoryItemAction) -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -152,14 +135,7 @@ private struct HistoryMultiSelectionCardHeader: View {
                 .lineLimit(1)
 
             Menu {
-                ClipboardItemActionMenuContent(
-                    item: item,
-                    onPaste: onPaste,
-                    onCopy: onCopy,
-                    onTogglePin: onTogglePin,
-                    onDelete: onDelete,
-                    onJumpToHistory: onJumpToHistory
-                )
+                HistoryActionMenuContent(actions: actions, onSelect: onSelectAction)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 20, weight: .semibold))

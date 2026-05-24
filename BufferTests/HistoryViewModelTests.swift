@@ -303,6 +303,73 @@ final class HistoryViewModelTests: XCTestCase {
         XCTAssertFalse(ClipboardItemTypeRegistry.canExtractImageText(for: linkItem))
     }
 
+    func testDetailActionsMatchSingleLinkSelection() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let item = ClipboardItem.link(
+            URL(string: "https://openai.com/research")!,
+            originalText: "openai.com/research"
+        )
+        store.add(item)
+
+        await eventually {
+            store.items.count == 1
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+        viewModel.searchText = "openai"
+
+        XCTAssertEqual(
+            viewModel.detailActions.map(\.action),
+            [.copy, .openLink, .jumpToHistory, .togglePin, .delete]
+        )
+    }
+
+    func testContextMenuActionsMatchMultiSelection() async {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(
+            settingsManager: settings,
+            storagePaths: TestStorageFactory.makePaths()
+        )
+
+        let first = ClipboardItem.text("first")
+        let second = ClipboardItem.text("second")
+        store.add(first)
+        store.add(second)
+
+        await eventually {
+            store.items.count == 2
+        }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(first.id)
+        viewModel.toggleSelection(second.id)
+
+        XCTAssertEqual(
+            viewModel.contextMenuActions(for: first.id).map(\.action),
+            [.copy, .togglePin, .delete]
+        )
+    }
+
     func testHandleWindowOpenSelectsFirstNonPinnedItemWhenConfigured() async {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
@@ -350,7 +417,7 @@ final class HistoryViewModelTests: XCTestCase {
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
-        settings.setKeepHistoryWindowSelectionOnReopen(true)
+        settings.setHistoryWindowOpenBehavior(.keepLastSelection)
 
         let store = ClipboardStore(
             settingsManager: settings,

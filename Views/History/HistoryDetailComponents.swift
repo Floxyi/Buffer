@@ -13,10 +13,7 @@ struct HistoryDetailPane: View {
     let selectionCount: Int
     let selectedItem: ClipboardItem?
     let selectedItems: [ClipboardItem]
-    let selectedItemIsPinned: Bool
-    let canExtractSelectedImageText: Bool
     let isExtractingText: Bool
-    let showsJumpToHistory: Bool
     let selectedItemSourceName: String?
     let selectedItemCopiedAtText: String?
     let selectedItemsTotalSizeText: String
@@ -31,18 +28,10 @@ struct HistoryDetailPane: View {
     let textDetailFontSize: TextDetailFontSize
     let enableWebsitePreviews: Bool
     let store: ClipboardStore
-    let onPasteItem: (ClipboardItem) -> Void
-    let onCopyItem: (ClipboardItem) -> Void
-    let onTogglePinItem: (ClipboardItem) -> Void
-    let onDeleteItem: (ClipboardItem) -> Void
-    let onJumpToHistoryItem: ((ClipboardItem) -> Void)?
-    let onCopy: () -> Void
-    let onSaveImage: () -> Void
-    let onExtractText: () -> Void
-    let onOpenLink: () -> Void
-    let onJumpToHistory: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
+    let actions: [HistoryItemActionDescriptor]
+    let actionsForItem: (ClipboardItem) -> [HistoryItemActionDescriptor]
+    let onSelectItemAction: (ClipboardItem, HistoryItemAction) -> Void
+    let onSelectAction: (HistoryItemAction) -> Void
     let onDownloadAllImages: () -> Void
     let onCopyOCRText: (String) -> Void
     let onCopyColorVariant: (String) -> Void
@@ -53,27 +42,16 @@ struct HistoryDetailPane: View {
             if let selectedItem, selectionCount == 1 {
                 HistoryDetailHeader(
                     item: selectedItem,
-                    selectedItemIsPinned: selectedItemIsPinned,
-                    canExtractSelectedImageText: canExtractSelectedImageText,
-                    isExtractingText: isExtractingText,
-                    showsJumpToHistory: showsJumpToHistory,
                     sourceAppName: selectedItemSourceName,
                     copiedAtText: selectedItemCopiedAtText,
-                    onCopy: onCopy,
-                    onSaveImage: onSaveImage,
-                    onExtractText: onExtractText,
-                    onOpenLink: onOpenLink,
-                    onJumpToHistory: onJumpToHistory,
-                    onTogglePin: onTogglePin,
-                    onDelete: onDelete
+                    actions: actions,
+                    onSelectAction: onSelectAction
                 )
             } else {
                 HistoryMultiSelectionHeader(
                     selectionCount: selectionCount,
-                    selectedItemIsPinned: selectedItemIsPinned,
-                    onCopy: onCopy,
-                    onTogglePin: onTogglePin,
-                    onDelete: onDelete
+                    actions: actions,
+                    onSelectAction: onSelectAction
                 )
             }
 
@@ -87,11 +65,8 @@ struct HistoryDetailPane: View {
                         textDetailFontStyle: textDetailFontStyle,
                         textDetailFontSize: textDetailFontSize,
                         enableWebsitePreviews: enableWebsitePreviews,
-                        onPasteItem: onPasteItem,
-                        onCopyItem: onCopyItem,
-                        onTogglePinItem: onTogglePinItem,
-                        onDeleteItem: onDeleteItem,
-                        onJumpToHistoryItem: onJumpToHistoryItem,
+                        actionsForItem: actionsForItem,
+                        onSelectAction: onSelectItemAction,
                         onCopyOCRText: onCopyOCRText,
                         onCopyColorVariant: onCopyColorVariant
                     )

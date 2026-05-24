@@ -499,38 +499,3 @@ enum ClipboardItemRowAssetLoader {
         return components.url
     }
 }
-
-struct ClipboardItemActionMenuContent: View {
-    let item: ClipboardItem
-    let onPaste: () -> Void
-    let onCopy: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
-    let onJumpToHistory: (() -> Void)?
-
-    var body: some View {
-        Group {
-            Button("Paste", systemImage: "return", action: onPaste)
-
-            Button("Copy", systemImage: "doc.on.doc", action: onCopy)
-
-            Button(
-                item.isPinned ? "Unpin" : "Pin",
-                systemImage: item.isPinned ? "pin.slash" : "pin",
-                action: onTogglePin
-            )
-
-            if let onJumpToHistory {
-                Button(
-                    "Jump to History",
-                    systemImage: "arrow.turn.down.right",
-                    action: onJumpToHistory
-                )
-            }
-
-            Divider()
-
-            Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
-        }
-    }
-}

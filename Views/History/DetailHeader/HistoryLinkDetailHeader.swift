@@ -2,14 +2,9 @@ import SwiftUI
 
 struct HistoryLinkDetailHeader: View {
     let websiteName: String
-    let selectedItemIsPinned: Bool
-    let showsJumpToHistory: Bool
     let copiedAtText: String?
-    let onCopy: () -> Void
-    let onOpenLink: () -> Void
-    let onJumpToHistory: () -> Void
-    let onTogglePin: () -> Void
-    let onDelete: () -> Void
+    let actions: [HistoryItemActionDescriptor]
+    let onSelectAction: (HistoryItemAction) -> Void
 
     var body: some View {
         HistorySingleDetailHeaderLayout(
@@ -20,33 +15,7 @@ struct HistoryLinkDetailHeader: View {
                 )
             },
             actions: {
-                HistoryDetailHeaderButtonRow {
-                    BufferGlassSymbolButton(
-                        help: "Copy",
-                        systemName: "doc.on.doc",
-                        action: onCopy
-                    )
-
-                    BufferGlassSymbolButton(
-                        help: "Open website",
-                        systemName: "arrow.up.forward.app",
-                        action: onOpenLink
-                    )
-
-                    if showsJumpToHistory {
-                        BufferGlassSymbolButton(
-                            help: "Jump to history",
-                            systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90",
-                            action: onJumpToHistory
-                        )
-                    }
-
-                    HistoryCommonDetailHeaderActions(
-                        selectedItemIsPinned: selectedItemIsPinned,
-                        onTogglePin: onTogglePin,
-                        onDelete: onDelete
-                    )
-                }
+                HistoryDetailHeaderActionButtons(actions: actions, onSelect: onSelectAction)
             }
         )
     }

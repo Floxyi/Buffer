@@ -115,10 +115,6 @@ enum HistoryWindowOpenBehavior: String, CaseIterable, Codable, Sendable {
         case .selectAnyFirstItem: return "Select any first item"
         }
     }
-
-    static var reopenOptions: [HistoryWindowOpenBehavior] {
-        [.selectFirstNonPinnedItem, .selectAnyFirstItem]
-    }
 }
 
 enum QuickPasteNumberingStart: String, CaseIterable, Codable, Sendable {
@@ -209,7 +205,6 @@ final class SettingsManager: ObservableObject {
     static let defaultHistoryLimit = 100
     static let defaultKeepSearchTextAfterPaste = false
     static let defaultKeepSearchTextAfterClosing = false
-    static let defaultKeepHistoryWindowSelectionOnReopen = false
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let quickPasteEntryCountRange = 1...5
     static let defaultQuickPasteEnabled = true
@@ -249,7 +244,6 @@ final class SettingsManager: ObservableObject {
     @Published var historyLimit: Int
     @Published var keepSearchTextAfterPaste: Bool
     @Published var keepSearchTextAfterClosing: Bool
-    @Published var keepHistoryWindowSelectionOnReopen: Bool
     @Published var historyWindowOpenBehavior: HistoryWindowOpenBehavior
     @Published var quickPasteEnabled: Bool
     @Published var quickPasteNumberingStart: QuickPasteNumberingStart
@@ -295,15 +289,7 @@ final class SettingsManager: ObservableObject {
             self.keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
         }
 
-        let rawHistoryWindowOpenBehavior =
-            defaults.string(forKey: Key.historyWindowOpenBehavior) ?? Self.defaultHistoryWindowOpenBehavior.rawValue
-        if defaults.object(forKey: Key.keepHistoryWindowSelectionOnReopen) != nil {
-            self.keepHistoryWindowSelectionOnReopen = defaults.bool(forKey: Key.keepHistoryWindowSelectionOnReopen)
-        } else {
-            self.keepHistoryWindowSelectionOnReopen = rawHistoryWindowOpenBehavior == HistoryWindowOpenBehavior.keepLastSelection.rawValue
-        }
-        self.historyWindowOpenBehavior =
-            Self.normalizedHistoryWindowOpenBehavior(rawHistoryWindowOpenBehavior)
+        self.historyWindowOpenBehavior = Self.initialHistoryWindowOpenBehavior(defaults: defaults)
 
         if defaults.object(forKey: Key.quickPasteEnabled) != nil {
             self.quickPasteEnabled = defaults.bool(forKey: Key.quickPasteEnabled)
@@ -369,6 +355,20 @@ final class SettingsManager: ObservableObject {
         count.clamped(to: quickPasteEntryCountRange)
     }
 
+    static func initialHistoryWindowOpenBehavior(defaults: UserDefaults) -> HistoryWindowOpenBehavior {
+        if defaults.object(forKey: Key.keepHistoryWindowSelectionOnReopen) != nil {
+            return defaults.bool(forKey: Key.keepHistoryWindowSelectionOnReopen)
+                ? .keepLastSelection
+                : Self.defaultHistoryWindowOpenBehavior
+        }
+
+        let rawValue = defaults.string(forKey: Key.historyWindowOpenBehavior)
+        return normalizedHistoryWindowOpenBehavior(
+            HistoryWindowOpenBehavior(rawValue: rawValue ?? Self.defaultHistoryWindowOpenBehavior.rawValue)
+                ?? Self.defaultHistoryWindowOpenBehavior
+        )
+    }
+
     static func normalizedHistoryWindowOpenBehavior(_ rawValue: String) -> HistoryWindowOpenBehavior {
         normalizedHistoryWindowOpenBehavior(
             HistoryWindowOpenBehavior(rawValue: rawValue) ?? Self.defaultHistoryWindowOpenBehavior
@@ -376,12 +376,7 @@ final class SettingsManager: ObservableObject {
     }
 
     static func normalizedHistoryWindowOpenBehavior(_ behavior: HistoryWindowOpenBehavior) -> HistoryWindowOpenBehavior {
-        switch behavior {
-        case .keepLastSelection:
-            return Self.defaultHistoryWindowOpenBehavior
-        case .selectFirstNonPinnedItem, .selectAnyFirstItem:
-            return behavior
-        }
+        behavior
     }
 
     func setHistoryLimit(_ limit: Int) {
@@ -408,11 +403,6 @@ final class SettingsManager: ObservableObject {
 
     func setKeepSearchTextAfterClosing(_ enabled: Bool) {
         keepSearchTextAfterClosing = enabled
-        persist()
-    }
-
-    func setKeepHistoryWindowSelectionOnReopen(_ enabled: Bool) {
-        keepHistoryWindowSelectionOnReopen = enabled
         persist()
     }
 
@@ -470,7 +460,6 @@ final class SettingsManager: ObservableObject {
 
         keepSearchTextAfterPaste = Self.defaultKeepSearchTextAfterPaste
         keepSearchTextAfterClosing = Self.defaultKeepSearchTextAfterClosing
-        keepHistoryWindowSelectionOnReopen = Self.defaultKeepHistoryWindowSelectionOnReopen
         historyWindowOpenBehavior = Self.defaultHistoryWindowOpenBehavior
         quickPasteEnabled = Self.defaultQuickPasteEnabled
         quickPasteNumberingStart = Self.defaultQuickPasteNumberingStart
@@ -516,7 +505,7 @@ final class SettingsManager: ObservableObject {
         defaults.set(historyLimit, forKey: Key.historyLimit)
         defaults.set(keepSearchTextAfterPaste, forKey: Key.keepSearchTextAfterPaste)
         defaults.set(keepSearchTextAfterClosing, forKey: Key.keepSearchTextAfterClosing)
-        defaults.set(keepHistoryWindowSelectionOnReopen, forKey: Key.keepHistoryWindowSelectionOnReopen)
+        defaults.removeObject(forKey: Key.keepHistoryWindowSelectionOnReopen)
         defaults.set(historyWindowOpenBehavior.rawValue, forKey: Key.historyWindowOpenBehavior)
         defaults.set(quickPasteEnabled, forKey: Key.quickPasteEnabled)
         defaults.set(quickPasteNumberingStart.rawValue, forKey: Key.quickPasteNumberingStart)

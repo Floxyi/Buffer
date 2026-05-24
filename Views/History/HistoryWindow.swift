@@ -150,15 +150,8 @@ struct HistoryContentView: View {
                     onSelectPreferredTopItem: viewModel.selectPreferredTopItem,
                     onToggleSelection: viewModel.toggleSelection,
                     onExtendSelectionTo: viewModel.extendSelectionTo,
-                    onPasteItems: pasteContextMenuItems,
-                    onCopyItems: copyContextMenuItems,
-                    onTogglePinItems: viewModel.togglePinForContextMenuTarget,
-                    onDeleteItems: viewModel.deleteContextMenuTarget,
-                    isContextMenuTargetFullyPinned: viewModel.shouldShowUnpinForContextMenuTarget,
-                    onJumpToHistoryItem: viewModel.canJumpToHistorySelection ? { item in
-                        viewModel.jumpToHistory(for: item)
-                    } : nil,
-                    showsJumpToHistoryAction: viewModel.canJumpToHistorySelection,
+                    contextMenuActions: viewModel.contextMenuActions,
+                    onContextMenuAction: performContextMenuAction,
                     selectionNavigationToken: viewModel.selectionNavigationToken,
                     selectedItemID: viewModel.selectedID,
                     openScrollRequest: viewModel.openListScrollRequest,
@@ -184,10 +177,7 @@ struct HistoryContentView: View {
                 selectionCount: viewModel.selectionCount,
                 selectedItem: viewModel.selectedItem,
                 selectedItems: viewModel.selectedItemsInVisualOrder,
-                selectedItemIsPinned: viewModel.selectedItemIsPinned,
-                canExtractSelectedImageText: viewModel.canExtractSelectedImageText,
                 isExtractingText: viewModel.isExtractingText,
-                showsJumpToHistory: viewModel.canJumpToHistorySelection,
                 selectedItemSourceName: viewModel.selectedItemSourceName,
                 selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
                 selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
@@ -202,44 +192,14 @@ struct HistoryContentView: View {
                 textDetailFontSize: settings.textDetailFontSize,
                 enableWebsitePreviews: settings.enableWebsitePreviews,
                 store: store,
-                onPasteItem: { item in
-                    viewModel.clearSearchAfterCommittedAction()
-                    onPaste(item)
+                actions: viewModel.detailActions,
+                actionsForItem: { item in
+                    viewModel.contextMenuActions(for: item.id)
                 },
-                onCopyItem: { item in
-                    viewModel.clearSearchAfterCommittedAction()
-                    onCopyToClipboard(item)
+                onSelectItemAction: { item, action in
+                    performAction(action, items: [item])
                 },
-                onTogglePinItem: { item in
-                    viewModel.togglePin(for: item)
-                },
-                onDeleteItem: { item in
-                    viewModel.delete(item)
-                },
-                onJumpToHistoryItem: !viewModel.searchText.isEmpty ? { item in
-                    viewModel.jumpToHistory(for: item)
-                } : nil,
-                onCopy: {
-                    copySelection(dismissAfterCopy: false)
-                },
-                onSaveImage: {
-                    guard let item = viewModel.selectedItem,
-                          let image = viewModel.previewImage ?? store.image(for: item) else { return }
-
-                    PasteImageSupport.saveImageToDisk(image)
-                },
-                onExtractText: {
-                    Task {
-                        await viewModel.extractSelectedImageText()
-                    }
-                },
-                onOpenLink: {
-                    guard let url = viewModel.selectedItem?.linkPayload?.url else { return }
-                    NSWorkspace.shared.open(url)
-                },
-                onJumpToHistory: jumpToHistorySelection,
-                onTogglePin: viewModel.togglePinForSelectedItem,
-                onDelete: viewModel.deleteSelectedItem,
+                onSelectAction: performDetailAction,
                 onDownloadAllImages: downloadAllImages,
                 onCopyOCRText: copyOCRText,
                 onCopyColorVariant: copyPlainText,
@@ -283,36 +243,74 @@ struct HistoryContentView: View {
         }
     }
 
-    private func pasteContextMenuItems(_ clickedItemID: UUID) {
-        let items = viewModel.contextMenuTargetItems(for: clickedItemID)
-        guard !items.isEmpty else { return }
-
-        viewModel.clearSearchAfterCommittedAction()
-
-        if items.count > 1 {
-            onPasteMultiple(items)
-        } else if let item = items.first {
-            onPaste(item)
-        }
-    }
-
-    private func copyContextMenuItems(_ clickedItemID: UUID) {
-        let items = viewModel.contextMenuTargetItems(for: clickedItemID)
-        guard !items.isEmpty else { return }
-
-        viewModel.clearSearchAfterCommittedAction()
-
-        if items.count == 1, let item = items.first {
-            onCopyToClipboard(item)
-        } else {
-            onCopyMultipleToClipboard(items)
-        }
-    }
-
     private func jumpToHistorySelection() {
         guard let item = viewModel.selectedItem else { return }
 
         viewModel.jumpToHistory(for: item)
+    }
+
+    private func performDetailAction(_ action: HistoryItemAction) {
+        performAction(
+            action,
+            items: viewModel.selectedItemsInActionOrder.isEmpty ? viewModel.selectedItem.map { [$0] } ?? [] : viewModel.selectedItemsInActionOrder
+        )
+    }
+
+    private func performContextMenuAction(_ clickedItemID: UUID, _ action: HistoryItemAction) {
+        performAction(action, items: viewModel.contextMenuTargetItems(for: clickedItemID))
+    }
+
+    private func performAction(_ action: HistoryItemAction, items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+
+        switch action {
+        case .copy:
+            viewModel.clearSearchAfterCommittedAction()
+            if items.count == 1, let item = items.first {
+                onCopyToClipboard(item)
+            } else {
+                onCopyMultipleToClipboard(items)
+            }
+
+        case .openLink:
+            guard let url = items.first?.linkPayload?.url else { return }
+            NSWorkspace.shared.open(url)
+
+        case .jumpToHistory:
+            guard let item = items.first else { return }
+            viewModel.jumpToHistory(for: item)
+
+        case .saveImage:
+            guard let item = items.first else { return }
+            let image = viewModel.selectedItem?.id == item.id
+                ? (viewModel.previewImage ?? store.image(for: item))
+                : store.image(for: item)
+            guard let image else { return }
+            PasteImageSupport.saveImageToDisk(image)
+
+        case .extractImageText:
+            Task {
+                guard let item = items.first else { return }
+                await viewModel.extractImageText(for: item)
+            }
+
+        case .togglePin:
+            if items.count == 1, let item = items.first {
+                viewModel.togglePin(for: item)
+            } else {
+                let targetIDs = Set(items.map(\.id))
+                if let clickedID = items.first(where: { targetIDs.contains($0.id) })?.id {
+                    viewModel.togglePinForContextMenuTarget(clickedID)
+                }
+            }
+
+        case .delete:
+            if items.count == 1, let item = items.first {
+                viewModel.delete(item)
+            } else if let clickedID = items.first?.id {
+                viewModel.deleteContextMenuTarget(clickedID)
+            }
+        }
     }
 
     private func dismissHistoryWindow() {

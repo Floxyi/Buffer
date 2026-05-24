@@ -43,8 +43,7 @@ final class SettingsManagerTests: XCTestCase {
 
         settings.setKeepSearchTextAfterPaste(true)
         settings.setKeepSearchTextAfterClosing(false)
-        settings.setKeepHistoryWindowSelectionOnReopen(true)
-        settings.setHistoryWindowOpenBehavior(.selectFirstNonPinnedItem)
+        settings.setHistoryWindowOpenBehavior(.keepLastSelection)
         settings.setQuickPasteEnabled(false)
         settings.setQuickPasteNumberingStart(.normalEntries)
         settings.setQuickPasteEntryCount(10)
@@ -54,8 +53,7 @@ final class SettingsManagerTests: XCTestCase {
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
-        XCTAssertTrue(settings.keepHistoryWindowSelectionOnReopen)
-        XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
+        XCTAssertEqual(settings.historyWindowOpenBehavior, .keepLastSelection)
         XCTAssertFalse(settings.quickPasteEnabled)
         XCTAssertEqual(settings.quickPasteNumberingStart, .normalEntries)
         XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.upperBound)
@@ -64,11 +62,11 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertFalse(settings.enableWebsitePreviews)
         XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
         XCTAssertFalse(defaults.bool(forKey: "keepSearchTextAfterClosing"))
-        XCTAssertTrue(defaults.bool(forKey: "keepHistoryWindowSelectionOnReopen"))
         XCTAssertEqual(
             defaults.string(forKey: "historyWindowOpenBehavior"),
-            HistoryWindowOpenBehavior.selectFirstNonPinnedItem.rawValue
+            HistoryWindowOpenBehavior.keepLastSelection.rawValue
         )
+        XCTAssertNil(defaults.object(forKey: "keepHistoryWindowSelectionOnReopen"))
         XCTAssertFalse(defaults.bool(forKey: "quickPasteEnabled"))
         XCTAssertEqual(
             defaults.string(forKey: "quickPasteNumberingStart"),
@@ -87,10 +85,10 @@ final class SettingsManagerTests: XCTestCase {
         )
 
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
-        XCTAssertFalse(settings.keepHistoryWindowSelectionOnReopen)
+        XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
     }
 
-    func testLegacyKeepLastSelectionMigratesToDedicatedToggle() {
+    func testLegacyKeepLastSelectionValueMigratesToUnifiedReopenBehavior() {
         let defaults = makeTestDefaults()
         defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: "historyWindowOpenBehavior")
 
@@ -99,8 +97,20 @@ final class SettingsManagerTests: XCTestCase {
             launchAtLoginController: FakeLaunchAtLoginController()
         )
 
-        XCTAssertTrue(settings.keepHistoryWindowSelectionOnReopen)
-        XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
+        XCTAssertEqual(settings.historyWindowOpenBehavior, .keepLastSelection)
+    }
+
+    func testLegacyDedicatedToggleMigratesToUnifiedReopenBehavior() {
+        let defaults = makeTestDefaults()
+        defaults.set(true, forKey: "keepHistoryWindowSelectionOnReopen")
+        defaults.set(HistoryWindowOpenBehavior.selectAnyFirstItem.rawValue, forKey: "historyWindowOpenBehavior")
+
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        XCTAssertEqual(settings.historyWindowOpenBehavior, .keepLastSelection)
     }
 
     func testHistoryRetentionPreferencePersistsChanges() {

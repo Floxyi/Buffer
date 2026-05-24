@@ -71,13 +71,8 @@ struct ClipboardListView: View {
     var onSelectPreferredTopItem: () -> UUID? = { nil }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
-    var onPasteItems: (UUID) -> Void = { _ in }
-    var onCopyItems: (UUID) -> Void = { _ in }
-    var onTogglePinItems: (UUID) -> Void = { _ in }
-    var onDeleteItems: (UUID) -> Void = { _ in }
-    var isContextMenuTargetFullyPinned: (UUID) -> Bool = { _ in false }
-    var onJumpToHistoryItem: ((ClipboardItem) -> Void)? = nil
-    var showsJumpToHistoryAction = false
+    var contextMenuActions: (UUID) -> [HistoryItemActionDescriptor] = { _ in [] }
+    var onContextMenuAction: (UUID, HistoryItemAction) -> Void = { _, _ in }
     var selectionNavigationToken: Int = 0
     var selectedItemID: UUID? = nil
     var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
@@ -317,8 +312,6 @@ struct ClipboardListView: View {
         let index = index(for: item)
         let previousItemID = adjacentItemID(before: index)
         let nextItemID = adjacentItemID(after: index)
-        var menuItem = item
-        menuItem.isPinned = isContextMenuTargetFullyPinned(item.id)
 
         return ClipboardItemRow(
             item: item,
@@ -384,33 +377,13 @@ struct ClipboardListView: View {
                 }
         )
         .contextMenu {
-            ClipboardItemActionMenuContent(
-                item: menuItem,
-                onPaste: {
+            HistoryActionMenuContent(
+                actions: contextMenuActions(item.id),
+                onSelect: { action in
                     contextMenuHighlightedItemID = nil
                     selectedIndex = index
-                    onPasteItems(item.id)
-                },
-                onCopy: {
-                    contextMenuHighlightedItemID = nil
-                    selectedIndex = index
-                    onCopyItems(item.id)
-                },
-                onTogglePin: {
-                    contextMenuHighlightedItemID = nil
-                    selectedIndex = index
-                    onTogglePinItems(item.id)
-                },
-                onDelete: {
-                    contextMenuHighlightedItemID = nil
-                    selectedIndex = index
-                    onDeleteItems(item.id)
-                },
-                onJumpToHistory: showsJumpToHistoryAction ? {
-                    contextMenuHighlightedItemID = nil
-                    selectedIndex = index
-                    onJumpToHistoryItem?(item)
-                } : nil
+                    onContextMenuAction(item.id, action)
+                }
             )
         }
     }

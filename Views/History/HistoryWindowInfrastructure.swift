@@ -248,7 +248,7 @@ final class HistoryWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
 
-        if settingsManager.keepHistoryWindowSelectionOnReopen {
+        if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
             restoreLastListScrollOffsetIfPossible()
         }
 
@@ -501,13 +501,13 @@ final class HistoryWindowController: NSWindowController {
             suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen
         )
 
-        if settingsManager.keepHistoryWindowSelectionOnReopen {
+        if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
             restoreLastListScrollOffsetIfPossible()
         }
     }
 
     private func restoreLastListScrollOffsetIfPossible() {
-        guard settingsManager.keepHistoryWindowSelectionOnReopen else {
+        guard settingsManager.historyWindowOpenBehavior == .keepLastSelection else {
             pendingListScrollOffsetRestore = nil
             return
         }
