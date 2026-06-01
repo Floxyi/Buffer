@@ -41,16 +41,30 @@ final class SettingsManagerTests: XCTestCase {
             launchAtLoginController: FakeLaunchAtLoginController()
         )
 
-        settings.setKeepSearchTextAfterPaste(true)
-        settings.setKeepSearchTextAfterClosing(false)
-        settings.setConfirmDeleteWithKeyboardShortcut(false)
+        settings.setSearchBehavior(
+            SearchBehaviorSettings(
+                keepSearchTextAfterPaste: true,
+                keepSearchTextAfterClosing: false,
+                confirmDeleteWithKeyboardShortcut: false
+            )
+        )
         settings.setHistoryWindowOpenBehavior(.keepLastSelection)
-        settings.setQuickPasteEnabled(false)
-        settings.setQuickPasteNumberingStart(.normalEntries)
-        settings.setQuickPasteEntryCount(10)
-        settings.setTextDetailFontStyle(.regular)
-        settings.setTextDetailFontSize(.large)
-        settings.setEnableWebsitePreviews(false)
+        settings.setQuickPasteSettings(
+            QuickPasteSettings(
+                enabled: false,
+                numberingStart: .normalEntries,
+                entryCount: 10
+            )
+        )
+        settings.setTextDetailSettings(
+            TextDetailSettings(style: .regular, size: .large)
+        )
+        settings.setPrivacySettings(
+            PrivacySettings(
+                historyRetentionPeriod: settings.historyRetentionPeriod,
+                enableWebsitePreviews: false
+            )
+        )
 
         XCTAssertTrue(settings.keepSearchTextAfterPaste)
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
@@ -58,27 +72,27 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertEqual(settings.historyWindowOpenBehavior, .keepLastSelection)
         XCTAssertFalse(settings.quickPasteEnabled)
         XCTAssertEqual(settings.quickPasteNumberingStart, .normalEntries)
-        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsDefaults.quickPasteEntryCountRange.upperBound)
         XCTAssertEqual(settings.textDetailFontStyle, .regular)
         XCTAssertEqual(settings.textDetailFontSize, .large)
         XCTAssertFalse(settings.enableWebsitePreviews)
-        XCTAssertTrue(defaults.bool(forKey: "keepSearchTextAfterPaste"))
-        XCTAssertFalse(defaults.bool(forKey: "keepSearchTextAfterClosing"))
-        XCTAssertFalse(defaults.bool(forKey: "confirmDeleteWithKeyboardShortcut"))
+        XCTAssertTrue(defaults.bool(forKey: SettingsKey.keepSearchTextAfterPaste.rawValue))
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.keepSearchTextAfterClosing.rawValue))
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.confirmDeleteWithKeyboardShortcut.rawValue))
         XCTAssertEqual(
-            defaults.string(forKey: "historyWindowOpenBehavior"),
+            defaults.string(forKey: SettingsKey.historyWindowOpenBehavior.rawValue),
             HistoryWindowOpenBehavior.keepLastSelection.rawValue
         )
-        XCTAssertNil(defaults.object(forKey: "keepHistoryWindowSelectionOnReopen"))
-        XCTAssertFalse(defaults.bool(forKey: "quickPasteEnabled"))
+        XCTAssertNil(defaults.object(forKey: SettingsKey.keepHistoryWindowSelectionOnReopen.rawValue))
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.quickPasteEnabled.rawValue))
         XCTAssertEqual(
-            defaults.string(forKey: "quickPasteNumberingStart"),
+            defaults.string(forKey: SettingsKey.quickPasteNumberingStart.rawValue),
             QuickPasteNumberingStart.normalEntries.rawValue
         )
-        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.upperBound)
-        XCTAssertEqual(defaults.string(forKey: "textDetailFontStyle"), TextDetailFontStyle.regular.rawValue)
-        XCTAssertEqual(defaults.integer(forKey: "textDetailFontSize"), TextDetailFontSize.large.rawValue)
-        XCTAssertFalse(defaults.bool(forKey: "enableWebsitePreviews"))
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(defaults.string(forKey: SettingsKey.textDetailFontStyle.rawValue), TextDetailFontStyle.regular.rawValue)
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.textDetailFontSize.rawValue), TextDetailFontSize.large.rawValue)
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.enableWebsitePreviews.rawValue))
     }
 
     func testKeepSearchTextAfterClosingDefaultsToDisabled() {
@@ -94,7 +108,7 @@ final class SettingsManagerTests: XCTestCase {
 
     func testLegacyKeepLastSelectionValueMigratesToUnifiedReopenBehavior() {
         let defaults = makeTestDefaults()
-        defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: "historyWindowOpenBehavior")
+        defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
 
         let settings = SettingsManager(
             defaults: defaults,
@@ -106,8 +120,8 @@ final class SettingsManagerTests: XCTestCase {
 
     func testLegacyDedicatedToggleMigratesToUnifiedReopenBehavior() {
         let defaults = makeTestDefaults()
-        defaults.set(true, forKey: "keepHistoryWindowSelectionOnReopen")
-        defaults.set(HistoryWindowOpenBehavior.selectAnyFirstItem.rawValue, forKey: "historyWindowOpenBehavior")
+        defaults.set(true, forKey: SettingsKey.keepHistoryWindowSelectionOnReopen.rawValue)
+        defaults.set(HistoryWindowOpenBehavior.selectAnyFirstItem.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
 
         let settings = SettingsManager(
             defaults: defaults,
@@ -124,10 +138,15 @@ final class SettingsManagerTests: XCTestCase {
             launchAtLoginController: FakeLaunchAtLoginController()
         )
 
-        settings.setHistoryRetentionPeriod(.oneWeek)
+        settings.setPrivacySettings(
+            PrivacySettings(
+                historyRetentionPeriod: .oneWeek,
+                enableWebsitePreviews: settings.enableWebsitePreviews
+            )
+        )
 
         XCTAssertEqual(settings.historyRetentionPeriod, .oneWeek)
-        XCTAssertEqual(defaults.string(forKey: "historyRetentionPeriod"), HistoryRetentionPeriod.oneWeek.rawValue)
+        XCTAssertEqual(defaults.string(forKey: SettingsKey.historyRetentionPeriod.rawValue), HistoryRetentionPeriod.oneWeek.rawValue)
     }
 
     func testHistoryLimitIsClampedAndPersistedAsInteger() {
@@ -138,12 +157,12 @@ final class SettingsManagerTests: XCTestCase {
         )
 
         settings.setHistoryLimit(0)
-        XCTAssertEqual(settings.historyLimit, SettingsManager.historyLimitRange.lowerBound)
-        XCTAssertEqual(defaults.integer(forKey: "historyLimit"), SettingsManager.historyLimitRange.lowerBound)
+        XCTAssertEqual(settings.historyLimit, SettingsDefaults.historyLimitRange.lowerBound)
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.lowerBound)
 
         settings.setHistoryLimit(25_000)
-        XCTAssertEqual(settings.historyLimit, SettingsManager.historyLimitRange.upperBound)
-        XCTAssertEqual(defaults.integer(forKey: "historyLimit"), SettingsManager.historyLimitRange.upperBound)
+        XCTAssertEqual(settings.historyLimit, SettingsDefaults.historyLimitRange.upperBound)
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.upperBound)
     }
 
     func testQuickPasteEntryCountIsClamped() {
@@ -153,12 +172,48 @@ final class SettingsManagerTests: XCTestCase {
             launchAtLoginController: FakeLaunchAtLoginController()
         )
 
-        settings.setQuickPasteEntryCount(0)
-        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.lowerBound)
-        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.lowerBound)
+        settings.setQuickPasteSettings(
+            QuickPasteSettings(
+                enabled: settings.quickPasteEnabled,
+                numberingStart: settings.quickPasteNumberingStart,
+                entryCount: 0
+            )
+        )
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsDefaults.quickPasteEntryCountRange.lowerBound)
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.lowerBound)
 
-        settings.setQuickPasteEntryCount(25)
-        XCTAssertEqual(settings.quickPasteEntryCount, SettingsManager.quickPasteEntryCountRange.upperBound)
-        XCTAssertEqual(defaults.integer(forKey: "quickPasteEntryCount"), SettingsManager.quickPasteEntryCountRange.upperBound)
+        settings.setQuickPasteSettings(
+            QuickPasteSettings(
+                enabled: settings.quickPasteEnabled,
+                numberingStart: settings.quickPasteNumberingStart,
+                entryCount: 25
+            )
+        )
+        XCTAssertEqual(settings.quickPasteEntryCount, SettingsDefaults.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.upperBound)
+    }
+
+    func testInvalidHistoryWindowBehaviorFallsBackToDefault() {
+        let defaults = makeTestDefaults()
+        defaults.set("invalid", forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
+
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        XCTAssertEqual(settings.historyWindowOpenBehavior, SettingsDefaults.defaultHistoryWindowOpenBehavior)
+    }
+
+    func testInvalidExcludedAppsPayloadFallsBackToEmptyList() {
+        let defaults = makeTestDefaults()
+        defaults.set(Data("invalid".utf8), forKey: SettingsKey.excludedApps.rawValue)
+
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        XCTAssertEqual(settings.excludedApps, [])
     }
 }

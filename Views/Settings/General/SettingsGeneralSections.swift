@@ -4,15 +4,11 @@ import SwiftUI
 struct SettingsGeneralLaunchAtLoginSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Launch at Login") {
-            Toggle(
-                "Open Buffer when you sign in",
-                isOn: Binding(
-                    get: { settings.launchAtLogin },
-                    set: { settings.toggleLaunchAtLogin($0) }
-                )
-            )
+            Toggle("Open Buffer when you sign in", isOn: bindings.launchAtLogin)
 
             Text("Keep clipboard history running automatically in the background.")
                 .font(.caption)
@@ -24,15 +20,11 @@ struct SettingsGeneralLaunchAtLoginSection: View {
 struct SettingsGeneralMenuBarSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Menu Bar") {
-            Picker(
-                "Menu Bar Icon",
-                selection: Binding(
-                    get: { settings.menuBarIcon },
-                    set: { settings.setMenuBarIcon($0) }
-                )
-            ) {
+            Picker("Menu Bar Icon", selection: bindings.menuBarIcon) {
                 ForEach(MenuBarIcon.allCases, id: \.self) { icon in
                     Label(icon.label, systemImage: icon.symbolName)
                         .tag(icon)

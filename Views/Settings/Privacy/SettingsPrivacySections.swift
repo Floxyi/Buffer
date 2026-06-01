@@ -4,15 +4,11 @@ import SwiftUI
 struct SettingsPrivacyWebsitePreviewsSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Website Data") {
-            Toggle(
-                "Enable Website Previews and Icons",
-                isOn: Binding(
-                    get: { settings.enableWebsitePreviews },
-                    set: { settings.setEnableWebsitePreviews($0) }
-                )
-            )
+            Toggle("Enable Website Previews and Icons", isOn: bindings.privacy.enableWebsitePreviews)
 
             Text("When enabled, Buffer may fetch website metadata and favicons for link items, and bare domains are only treated as links if they resolve to a live website. Disable this to keep link handling fully local-only; in that mode, only full https:// links are recognized as website items.")
                 .font(.caption)
@@ -24,15 +20,11 @@ struct SettingsPrivacyWebsitePreviewsSection: View {
 struct SettingsPrivacyAutoClearHistorySection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Auto-Clear History") {
-            Picker(
-                "Clear History Entries",
-                selection: Binding(
-                    get: { settings.historyRetentionPeriod },
-                    set: { settings.setHistoryRetentionPeriod($0) }
-                )
-            ) {
+            Picker("Clear History Entries", selection: bindings.privacy.historyRetentionPeriod) {
                 ForEach(HistoryRetentionPeriod.allCases, id: \.self) { period in
                     Text(period.label).tag(period)
                 }

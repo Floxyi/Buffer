@@ -5,25 +5,25 @@ struct HistoryLinkDetailContent: View {
     let item: ClipboardItem
     let enableWebsitePreviews: Bool
 
-    @State private var metadata: LPLinkMetadata?
-    @State private var isLoadingMetadata = false
-    @State private var requestedURL: URL?
+    @State private var previewState = HistoryLinkPreviewState()
+
+    private let previewStateController = HistoryLinkPreviewStateController()
 
     var body: some View {
         if let linkPayload = item.linkPayload {
             VStack(alignment: .leading, spacing: 12) {
                 HistoryLinkPreviewCard {
                     Group {
-                        if let metadata {
+                        if let metadata = previewState.metadata {
                             HistoryLinkPreviewView(metadata: metadata)
                                 .clipped()
                         } else {
                             HistoryLinkFallbackCard(
                                 websiteName: linkPayload.websiteName,
                                 displayURL: linkPayload.displayURL,
-                                icon: LinkPreviewAssetCache.cachedWebsiteIcon(for: linkPayload.url),
-                                isLoadingMetadata: isLoadingMetadata,
-                                previewsEnabled: enableWebsitePreviews
+                                icon: ClipboardWebsiteIconLoader.cachedWebsiteIcon(for: linkPayload.url),
+                                statusText: previewState.statusText(previewsEnabled: enableWebsitePreviews),
+                                isLoadingMetadata: previewState.isLoadingMetadata
                             )
                         }
                     }
@@ -32,7 +32,7 @@ struct HistoryLinkDetailContent: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(displayTitle(for: linkPayload))
+                    Text(previewState.displayTitle(for: linkPayload))
                         .font(.system(size: 13, weight: .medium))
                         .textSelection(.enabled)
                         .lineLimit(2)
@@ -55,31 +55,18 @@ struct HistoryLinkDetailContent: View {
 
     @MainActor
     private func loadMetadataState(for url: URL) async {
-        requestedURL = url
-        metadata = nil
-
-        guard enableWebsitePreviews else {
-            isLoadingMetadata = false
-            return
-        }
-
-        isLoadingMetadata = true
-        let loadedMetadata = await LinkPreviewAssetCache.metadata(for: url)
+        previewState = previewStateController.makeLoadingState(
+            for: url,
+            previewsEnabled: enableWebsitePreviews
+        )
+        let loadedState = await previewStateController.loadState(
+            for: url,
+            previewsEnabled: enableWebsitePreviews
+        )
 
         guard !Task.isCancelled else { return }
-        guard requestedURL == url else { return }
-
-        metadata = loadedMetadata
-        isLoadingMetadata = false
-    }
-
-    private func displayTitle(for linkPayload: LinkItemContent) -> String {
-        let metadataTitle = metadata?.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let metadataTitle, !metadataTitle.isEmpty {
-            return metadataTitle
-        }
-
-        return linkPayload.websiteName
+        guard previewState.requestedURL == url else { return }
+        previewState = loadedState
     }
 }
 
@@ -87,8 +74,8 @@ private struct HistoryLinkFallbackCard: View {
     let websiteName: String
     let displayURL: String
     let icon: NSImage?
+    let statusText: String
     let isLoadingMetadata: Bool
-    let previewsEnabled: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -139,14 +126,6 @@ private struct HistoryLinkFallbackCard: View {
             }
         }
         .padding(20)
-    }
-
-    private var statusText: String {
-        if !previewsEnabled {
-            return "Website previews disabled"
-        }
-
-        return isLoadingMetadata ? "Loading preview…" : "Preview unavailable"
     }
 }
 

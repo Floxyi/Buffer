@@ -3,15 +3,11 @@ import SwiftUI
 struct SettingsBehaviourHistoryWindowSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("History Window") {
-            Picker(
-                "Reopen behavior",
-                selection: Binding(
-                    get: { settings.historyWindowOpenBehavior },
-                    set: { settings.setHistoryWindowOpenBehavior($0) }
-                )
-            ) {
+            Picker("Reopen behavior", selection: bindings.historyWindowOpenBehavior) {
                 ForEach(HistoryWindowOpenBehavior.allCases, id: \.self) { behavior in
                     Text(behavior.label).tag(behavior)
                 }
@@ -27,23 +23,13 @@ struct SettingsBehaviourHistoryWindowSection: View {
 struct SettingsBehaviourSearchSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Search Behaviour") {
-            Toggle(
-                "Keep the search text after pasting",
-                isOn: Binding(
-                    get: { settings.keepSearchTextAfterPaste },
-                    set: { settings.setKeepSearchTextAfterPaste($0) }
-                )
-            )
+            Toggle("Keep the search text after pasting", isOn: bindings.searchBehavior.keepSearchTextAfterPaste)
 
-            Toggle(
-                "Keep the search text after closing",
-                isOn: Binding(
-                    get: { settings.keepSearchTextAfterClosing },
-                    set: { settings.setKeepSearchTextAfterClosing($0) }
-                )
-            )
+            Toggle("Keep the search text after closing", isOn: bindings.searchBehavior.keepSearchTextAfterClosing)
 
             Text("Choose whether the search field is preserved after pasting or copying an item, and after closing the history window.")
                 .font(.caption)
@@ -55,15 +41,11 @@ struct SettingsBehaviourSearchSection: View {
 struct SettingsBehaviourItemActionsSection: View {
     @ObservedObject var settings: SettingsManager
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Item Actions") {
-            Toggle(
-                "Confirm before deleting with Command-Delete",
-                isOn: Binding(
-                    get: { settings.confirmDeleteWithKeyboardShortcut },
-                    set: { settings.setConfirmDeleteWithKeyboardShortcut($0) }
-                )
-            )
+            Toggle("Confirm before deleting with hotkey (⌘ ⌫)", isOn: bindings.searchBehavior.confirmDeleteWithKeyboardShortcut)
 
             Text("Choose whether deleting items with Command-Delete asks for confirmation.")
                 .font(.caption)
@@ -75,38 +57,21 @@ struct SettingsBehaviourItemActionsSection: View {
 struct SettingsBehaviourQuickPasteSection: View {
     @ObservedObject var settings: SettingsManager
 
-    private let entryCountOptions = Array(SettingsManager.quickPasteEntryCountRange)
+    private let entryCountOptions = Array(SettingsDefaults.quickPasteEntryCountRange)
+    private var bindings: SettingsFormBindings { settings.formBindings }
 
     var body: some View {
         Section("Quick Paste Shortcuts") {
-            Toggle(
-                "Enable Command-number quick paste",
-                isOn: Binding(
-                    get: { settings.quickPasteEnabled },
-                    set: { settings.setQuickPasteEnabled($0) }
-                )
-            )
+            Toggle("Enable Command-number quick paste", isOn: bindings.quickPaste.enabled)
 
-            Picker(
-                "Start numbers at",
-                selection: Binding(
-                    get: { settings.quickPasteNumberingStart },
-                    set: { settings.setQuickPasteNumberingStart($0) }
-                )
-            ) {
+            Picker("Start numbers at", selection: bindings.quickPaste.numberingStart) {
                 ForEach(QuickPasteNumberingStart.allCases, id: \.self) { start in
                     Text(start.label).tag(start)
                 }
             }
             .disabled(!settings.quickPasteEnabled)
 
-            Picker(
-                "Addressable entries",
-                selection: Binding(
-                    get: { settings.quickPasteEntryCount },
-                    set: { settings.setQuickPasteEntryCount($0) }
-                )
-            ) {
+            Picker("Addressable entries", selection: bindings.quickPaste.entryCount) {
                 ForEach(entryCountOptions, id: \.self) { count in
                     Text("\(count)").tag(count)
                 }
@@ -124,27 +89,17 @@ struct SettingsBehaviourTextDetailSection: View {
     @ObservedObject var settings: SettingsManager
     let previewFont: Font
 
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
     var body: some View {
         Section("Text Detail View") {
-            Picker(
-                "Text Size",
-                selection: Binding(
-                    get: { settings.textDetailFontSize },
-                    set: { settings.setTextDetailFontSize($0) }
-                )
-            ) {
+            Picker("Text Size", selection: bindings.textDetail.fontSize) {
                 ForEach(TextDetailFontSize.allCases, id: \.self) { size in
                     Text(size.label).tag(size)
                 }
             }
 
-            Picker(
-                "Font",
-                selection: Binding(
-                    get: { settings.textDetailFontStyle },
-                    set: { settings.setTextDetailFontStyle($0) }
-                )
-            ) {
+            Picker("Font", selection: bindings.textDetail.fontStyle) {
                 ForEach(TextDetailFontStyle.allCases, id: \.self) { style in
                     Text(style.label).tag(style)
                 }

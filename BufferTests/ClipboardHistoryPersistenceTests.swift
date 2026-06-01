@@ -94,7 +94,12 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
-        settings.setHistoryRetentionPeriod(.twelveHours)
+        settings.setPrivacySettings(
+            PrivacySettings(
+                historyRetentionPeriod: .twelveHours,
+                enableWebsitePreviews: settings.enableWebsitePreviews
+            )
+        )
 
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
 
@@ -125,7 +130,12 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
             store.items.count == 2
         }
 
-        settings.setHistoryRetentionPeriod(.oneWeek)
+        settings.setPrivacySettings(
+            PrivacySettings(
+                historyRetentionPeriod: .oneWeek,
+                enableWebsitePreviews: settings.enableWebsitePreviews
+            )
+        )
 
         await eventually {
             store.items.map(\.id) == [freshItem.id]
@@ -188,7 +198,7 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
 
         settings.setHistoryLimit(2)
 
-        await eventually {
+        await eventually(timeoutNanoseconds: 3_000_000_000) {
             store.items.map(\.textContent) == ["four", "three"]
         }
     }

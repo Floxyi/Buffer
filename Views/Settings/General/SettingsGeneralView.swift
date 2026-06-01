@@ -89,7 +89,7 @@ struct SettingsGeneralView: View {
 
     private var canApplyHistoryLimit: Bool {
         guard let parsedLimit = parsedHistoryLimit else { return false }
-        return SettingsManager.normalizedHistoryLimit(parsedLimit) != settings.persistedHistoryLimit
+        return SettingsDefaults.normalizedHistoryLimit(parsedLimit) != settings.persistedHistoryLimit
     }
 
     private var parsedHistoryLimit: Int? {
@@ -105,7 +105,7 @@ struct SettingsGeneralView: View {
     private func applyDraftHistoryLimit() {
         guard let parsedLimit = parsedHistoryLimit else { return }
 
-        let normalizedLimit = SettingsManager.normalizedHistoryLimit(parsedLimit)
+        let normalizedLimit = SettingsDefaults.normalizedHistoryLimit(parsedLimit)
         if normalizedLimit != parsedLimit {
             draftHistoryLimitText = String(normalizedLimit)
         }

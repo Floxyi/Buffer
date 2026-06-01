@@ -1,17 +1,23 @@
 import Cocoa
 import Combine
-import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private static let settingsToolbarIdentifier = NSToolbar.Identifier("BufferSettingsToolbar")
-
+final class AppDelegate: NSObject, NSApplicationDelegate {
     private let container = AppContainer()
 
     private var statusBarController: StatusBarController?
-    private var historyWindowController: HistoryWindowController?
-    private var settingsWindowController: NSWindowController?
     private var cancellables: Set<AnyCancellable> = []
+    private lazy var appStartupService = AppStartupService(launchAtLoginUpdater: container.settingsManager)
+    private lazy var historyWindowCoordinator = HistoryWindowCoordinator { [unowned self] in
+        self.makeHistoryWindowController()
+    }
+    private lazy var settingsWindowCoordinator = SettingsWindowCoordinator { [unowned self] delegate in
+        SettingsWindowCoordinator.makeDefaultController(
+            settingsManager: self.settingsManager,
+            clipboardStore: self.clipboardStore,
+            delegate: delegate
+        )
+    }
 
     var settingsManager: SettingsManager {
         container.settingsManager
@@ -38,18 +44,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showHistoryWindow(openedViaHotkey: false)
+        historyWindowCoordinator.present(.standard(for: .reopen))
         return false
     }
 
-    private func configureFirstLaunchBehavior() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: "hasLaunchedBefore") else { return }
+    func showSettingsWindow() {
+        settingsWindowCoordinator.showWindow()
+    }
 
+    private func configureFirstLaunchBehavior() {
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            self.container.settingsManager.toggleLaunchAtLogin(true)
-            defaults.set(true, forKey: "hasLaunchedBefore")
+            await self.appStartupService.performFirstLaunchBootstrapIfNeeded()
         }
     }
 
@@ -63,17 +68,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             watcher: container.clipboardWatcher,
             settingsManager: container.settingsManager,
             onShowHistory: { [weak self] in
-                self?.showHistoryWindow(openedViaHotkey: false)
+                self?.historyWindowCoordinator.present(.standard(for: .statusBar))
             },
             onShowSettings: { [weak self] in
-                self?.showSettingsWindow()
+                self?.settingsWindowCoordinator.showWindow()
             }
         )
     }
 
     private func configureHotkeyHandling() {
         container.hotkeyManager.register { [weak self] in
-            self?.toggleHistoryWindow(openedViaHotkey: true)
+            self?.historyWindowCoordinator.toggle(trigger: .hotkey)
         }
 
         container.settingsManager.hotkeyPublisher
@@ -87,31 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func openHistoryWindowOnStartup() {
         Task { @MainActor [weak self] in
             await Task.yield()
-            self?.showHistoryWindow(openedViaHotkey: false)
+            self?.historyWindowCoordinator.present(.standard(for: .startup))
         }
-    }
-
-    private func toggleHistoryWindow(openedViaHotkey: Bool) {
-        let historyWindowController = historyWindowController ?? makeHistoryWindowController()
-        if let window = historyWindowController.window, window.isVisible {
-            historyWindowController.close()
-        } else {
-            showHistoryWindow(openedViaHotkey: openedViaHotkey)
-        }
-    }
-
-    private func showHistoryWindow(
-        focusSearch: Bool = true,
-        activateApp: Bool = true,
-        openedViaHotkey: Bool
-    ) {
-        let historyWindowController = historyWindowController ?? makeHistoryWindowController()
-        historyWindowController.showWindow(
-            nil,
-            focusSearch: focusSearch,
-            activateApp: activateApp,
-            suppressQuickPasteUntilModifiersReleased: openedViaHotkey
-        )
     }
 
     private func makeHistoryWindowController() -> HistoryWindowController {
@@ -125,72 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 watcher?.ignoreNextCapturedChange()
             }
         )
-        historyWindowController = controller
         return controller
-    }
-
-    func showSettingsWindow() {
-        if let controller = settingsWindowController, let window = controller.window {
-            presentSettingsWindow(window)
-            return
-        }
-
-        var settingsWindow: NSWindow?
-        let hostingController = NSHostingController(
-            rootView: SettingsView(settings: settingsManager, store: clipboardStore) { title in
-                settingsWindow?.title = title
-            }
-        )
-
-        let window = NSWindow(contentViewController: hostingController)
-        settingsWindow = window
-
-        let toolbar = NSToolbar(identifier: Self.settingsToolbarIdentifier)
-        toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
-        toolbar.displayMode = .iconOnly
-        toolbar.showsBaselineSeparator = false
-
-        window.title = "General"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = false
-        window.titleVisibility = .visible
-        window.isMovableByWindowBackground = true
-        window.isOpaque = true
-        window.backgroundColor = .windowBackgroundColor
-        window.hasShadow = true
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
-        window.titlebarSeparatorStyle = .none
-        window.animationBehavior = .documentWindow
-        window.setContentSize(NSSize(width: 780, height: 560))
-        window.isReleasedWhenClosed = false
-        window.delegate = self
-
-        let controller = NSWindowController(window: window)
-        settingsWindowController = controller
-        controller.showWindow(nil)
-        presentSettingsWindow(window)
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow,
-              settingsWindowController?.window === window else {
-            return
-        }
-
-        settingsWindowController = nil
-        setDockIconVisible(false)
-    }
-
-    private func presentSettingsWindow(_ window: NSWindow) {
-        setDockIconVisible(true)
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func setDockIconVisible(_ visible: Bool) {
-        NSApp.setActivationPolicy(visible ? .regular : .accessory)
     }
 }

@@ -10,6 +10,8 @@ final class StatusBarController: NSObject {
     private let onToggleHistory: () -> Void
     private let onShowSettings: () -> Void
     private let statusItem: NSStatusItem
+    private let menuBuilder = StatusBarMenuBuilder()
+    private let clearHistoryConfirmationPresenter = StatusBarClearHistoryConfirmationPresenter()
     private var cancellables = Set<AnyCancellable>()
 
     init(
@@ -68,38 +70,15 @@ final class StatusBarController: NSObject {
     }
 
     private func showContextMenu() {
-        let menu = NSMenu()
-        let shortcutDisplay = AppFormatting.shortcutDisplay(
-            modifiers: settingsManager.hotkeyModifiers,
-            keyCode: settingsManager.hotkeyKeyCode
+        let menu = menuBuilder.makeMenu(
+            settings: settingsManager,
+            isPaused: watcher.isPaused,
+            target: self,
+            pauseAction: #selector(togglePause),
+            clearHistoryAction: #selector(clearHistory),
+            showSettingsAction: #selector(showSettings),
+            quitAction: #selector(quit)
         )
-        let shortcutItem = NSMenuItem(title: "Shortcut: \(shortcutDisplay)", action: nil, keyEquivalent: "")
-        shortcutItem.isEnabled = false
-        menu.addItem(shortcutItem)
-
-        menu.addItem(.separator())
-
-        let pauseTitle = watcher.isPaused ? "Resume Capture" : "Pause Capture"
-        let pauseItem = NSMenuItem(title: pauseTitle, action: #selector(togglePause), keyEquivalent: "")
-        pauseItem.target = self
-        menu.addItem(pauseItem)
-
-        let clearItem = NSMenuItem(title: "Clear History", action: #selector(clearHistory), keyEquivalent: "")
-        clearItem.target = self
-        menu.addItem(clearItem)
-
-        menu.addItem(.separator())
-        
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-        
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(title: "Quit Buffer", action: #selector(quit), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
-
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
@@ -120,14 +99,7 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func clearHistory() {
-        let alert = NSAlert()
-        alert.messageText = "Clear Clipboard History?"
-        alert.informativeText = "This will permanently delete all clipboard items."
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Clear")
-        alert.addButton(withTitle: "Cancel")
-
-        if alert.runModal() == .alertFirstButtonReturn {
+        if clearHistoryConfirmationPresenter.confirmClearHistory() {
             store.clear()
         }
     }

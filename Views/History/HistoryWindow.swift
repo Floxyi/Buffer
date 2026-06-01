@@ -13,16 +13,15 @@ struct HistoryContentView: View {
     let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
 
-    @State private var isSearchFocused = false
-    @State private var shouldRefocusSearchOnActivate = false
-    @State private var isPresentingDeleteShortcutConfirmation = false
+    @StateObject private var searchFocusController = HistorySearchFocusController()
+    @StateObject private var deleteConfirmationController = HistoryDeleteConfirmationController()
 
     var body: some View {
         VStack(spacing: 0) {
             HistorySearchBar(
                 searchText: $viewModel.searchText,
                 filteredItemCount: viewModel.filteredItems.count,
-                isSearchFocused: $isSearchFocused,
+                isSearchFocused: $searchFocusController.isSearchFocused,
                 searchSelectionToken: viewModel.searchSelectionToken
             )
 
@@ -47,11 +46,11 @@ struct HistoryContentView: View {
             BufferPanelSeparator()
 
             HistoryActionBar(
-                showsPinnedShortcutAsUnpin: viewModel.selectedItemIsPinned,
-                showsSaveShortcut: viewModel.canSaveSelectedImage,
-                showsJumpToHistory: viewModel.canJumpToHistorySelection,
-                onJumpToHistory: jumpToHistorySelection,
-                onPaste: performPrimaryPasteAction
+                showsPinnedShortcutAsUnpin: viewModel.detailViewState.selectedItemIsPinned,
+                showsSaveShortcut: viewModel.detailViewState.canSaveSelectedImage,
+                showsJumpToHistory: viewModel.detailViewState.canJumpToHistorySelection,
+                onJumpToHistory: actionHandler.jumpToHistorySelection,
+                onPaste: actionHandler.performPrimaryPasteAction
             )
         }
         .frame(minWidth: 800, minHeight: 500)
@@ -64,25 +63,13 @@ struct HistoryContentView: View {
         .shadow(color: Color.black.opacity(0.18), radius: 24, y: 10)
         .ignoresSafeArea(.container, edges: .top)
         .onAppear {
-            if NSApp.isActive {
-                focusSearchField()
-            }
+            searchFocusController.handleAppear(isAppActive: NSApp.isActive)
         }
         .onChange(of: viewModel.windowOpenToken) { _ in
-            if viewModel.shouldFocusSearchOnOpen {
-                shouldRefocusSearchOnActivate = true
-                focusSearchField()
-            }
+            searchFocusController.handleWindowOpen(shouldFocusSearch: viewModel.shouldFocusSearchOnOpen)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            guard shouldRefocusSearchOnActivate else { return }
-
-            focusSearchField()
-
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                shouldRefocusSearchOnActivate = false
-            }
+            searchFocusController.handleDidBecomeActive()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             viewModel.handleAppResignActive()
@@ -91,137 +78,44 @@ struct HistoryContentView: View {
             await viewModel.loadPreviewIfNeeded()
         }
         .background(
-            GlobalKeyMonitor(
-                onUp: viewModel.navigateUp,
-                onDown: viewModel.navigateDown,
-                onJumpToFirst: viewModel.jumpToFirstItem,
-                onJumpToLast: viewModel.jumpToLastItem,
-                onExtendToFirst: viewModel.extendSelectionToFirstItem,
-                onExtendToLast: viewModel.extendSelectionToLastItem,
-                onExtendUp: viewModel.extendSelectionUp,
-                onExtendDown: viewModel.extendSelectionDown,
-                onEnter: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    performPrimaryPasteAction()
-                },
-                onOptionEnter: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    performCopyOnlyAction()
-                },
-                onEscape: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    dismissHistoryWindow()
-                },
-                onDeleteShortcut: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    handleDeleteShortcut()
-                },
-                onCopy: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    copySelection(dismissAfterCopy: false)
-                },
-                onPin: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    viewModel.togglePinForSelectedItem()
-                },
-                onSaveImage: {
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    if let image = viewModel.previewImage {
-                        PasteImageSupport.saveImageToDisk(image)
-                    }
-                },
-                onQuickPaste: { index in
-                    guard !isPresentingDeleteShortcutConfirmation else { return }
-                    if let item = viewModel.performQuickPaste(at: index) {
-                        onPaste(item)
-                    }
-                },
-                onCommandChanged: viewModel.handleQuickPasteModifierFlagsChange
+            HistoryWindowKeyMonitor(
+                onCommand: handleKeyboardCommand(_:)
             )
         )
     }
 
+    private func handleKeyboardCommand(_ command: HistoryKeyboardCommand) {
+        keyboardCommandHandler.handle(command)
+    }
+
     private var listPane: some View {
-        Group {
-            if viewModel.filteredItems.isEmpty {
-                Spacer()
-            } else {
-                ClipboardListView(
-                    items: viewModel.filteredItems,
-                    selectedIndex: Binding(
-                        get: { viewModel.selectedIndex },
-                        set: { _ in }
-                    ),
-                    scrollTrigger: $viewModel.scrollTrigger,
-                    store: store,
-                    settings: settings,
-                    quickPasteBadgeNumberByItemID: viewModel.showsQuickPasteNumbers
-                        ? viewModel.quickPasteBadgeNumberByItemID
-                        : [:],
-                    onCommitSelection: performPrimaryPasteAction,
-                    onDismiss: dismissHistoryWindow,
-                    selectedIDs: Binding(
-                        get: { viewModel.selectedIDs },
-                        set: { _ in }
-                    ),
-                    hoveredItemID: $viewModel.hoveredItemID,
-                    onSelectSingle: viewModel.selectSingle,
-                    onSelectPreferredTopItem: viewModel.selectPreferredTopItem,
-                    onToggleSelection: viewModel.toggleSelection,
-                    onExtendSelectionTo: viewModel.extendSelectionTo,
-                    contextMenuActions: viewModel.contextMenuActions,
-                    onContextMenuAction: performContextMenuAction,
-                    selectionNavigationToken: viewModel.selectionNavigationToken,
-                    selectedItemID: viewModel.selectedID,
-                    openScrollRequest: viewModel.openListScrollRequest,
-                    openScrollRequestToken: viewModel.openListScrollRequestToken,
-                    isShowingFullHistory: viewModel.isShowingFullHistory,
-                    keyboardNavigationRequest: viewModel.keyboardNavigationRequest,
-                    onCompleteKeyboardNavigation: viewModel.completeKeyboardNavigation,
-                    jumpScrollRequest: viewModel.activeJumpToHistoryRequest,
-                    onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
-                    onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
-                    onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
-                    onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
-                )
-            }
-        }
-        .background {
-            HistoryPanelSurfaceBackground()
-        }
+        HistoryClipboardListPane(
+            viewModel: viewModel,
+            settings: settings,
+            store: store,
+            actionHandler: actionHandler,
+            onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
+            onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
+        )
     }
 
     private var detailPane: some View {
             HistoryDetailPane(
-                selectionCount: viewModel.selectionCount,
-                selectedItem: viewModel.selectedItem,
-                selectedItems: viewModel.selectedItemsInVisualOrder,
-                isExtractingText: viewModel.isExtractingText,
-                selectedItemSourceName: viewModel.selectedItemSourceName,
-                selectedItemCopiedAtText: viewModel.selectedItemCopiedAtText,
-                selectedItemsTotalSizeText: viewModel.selectedItemsTotalSizeText,
-                textSelectionCount: viewModel.textSelectionCount,
-                imageSelectionCount: viewModel.imageSelectionCount,
-                colorSelectionCount: viewModel.colorSelectionCount,
-                linkSelectionCount: viewModel.linkSelectionCount,
-                firstTextPreview: viewModel.firstTextPreview,
-                previewImage: viewModel.previewImage,
-                chunkedText: viewModel.chunkedText,
+                detailState: viewModel.detailViewState,
                 textDetailFontStyle: settings.textDetailFontStyle,
                 textDetailFontSize: settings.textDetailFontSize,
                 enableWebsitePreviews: settings.enableWebsitePreviews,
                 store: store,
-                actions: viewModel.detailActions,
                 actionsForItem: { item in
                     viewModel.contextMenuActions(for: item.id)
                 },
                 onSelectItemAction: { item, action in
-                    performAction(action, items: [item])
+                    actionHandler.performContextMenuAction(item.id, action)
                 },
-                onSelectAction: performDetailAction,
-                onDownloadAllImages: downloadAllImages,
-                onCopyOCRText: copyOCRText,
-                onCopyColorVariant: copyPlainText,
+                onSelectAction: actionHandler.performDetailAction,
+                onDownloadAllImages: actionHandler.downloadAllImages,
+                onCopyOCRText: actionHandler.copyOCRText,
+                onCopyColorVariant: actionHandler.copyPlainText,
                 onLoadNextChunk: { _ in
                     Task {
                         await viewModel.loadNextChunk()
@@ -230,263 +124,62 @@ struct HistoryContentView: View {
             )
     }
 
-    private func performPrimaryPasteAction() {
-        viewModel.clearSearchAfterCommittedAction()
-
-        let items = viewModel.selectedItemsInActionOrder
-        if items.count > 1 {
-            onPasteMultiple(items)
-        } else if let item = items.first ?? viewModel.selectedItem {
-            onPaste(item)
-        }
-    }
-
-    private func performCopyOnlyAction() {
-        copySelection(dismissAfterCopy: true)
-    }
-
-    private func handleDeleteShortcut() {
-        guard viewModel.selectionCount > 0 else { return }
-
-        if settings.confirmDeleteWithKeyboardShortcut {
-            presentDeleteShortcutConfirmation()
-        } else {
-            viewModel.deleteSelectedItem()
-        }
-    }
-
-    private func presentDeleteShortcutConfirmation() {
-        guard !isPresentingDeleteShortcutConfirmation else { return }
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
-
-        isPresentingDeleteShortcutConfirmation = true
-
-        let alert = makeDeleteShortcutConfirmationAlert()
-        let deleteButton = alert.buttons[0]
-        let alertWindow = alert.window
-        alertWindow.defaultButtonCell = deleteButton.cell as? NSButtonCell
-
-        nonisolated(unsafe) var alertKeyMonitor: Any?
-        alertKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            guard NSApp.modalWindow === alertWindow || event.window === alertWindow else { return event }
-
-            switch event.keyCode {
-            case 36:
-                finishDeleteShortcutConfirmationSheet(
-                    attachedTo: window,
-                    alertWindow: alertWindow,
-                    response: .alertFirstButtonReturn
-                )
-                return nil
-            case 53:
-                finishDeleteShortcutConfirmationSheet(
-                    attachedTo: window,
-                    alertWindow: alertWindow,
-                    response: .alertSecondButtonReturn
-                )
-                return nil
-            default:
-                return event
-            }
-        }
-
-        alert.beginSheetModal(for: window) { response in
-            if let alertKeyMonitor {
-                NSEvent.removeMonitor(alertKeyMonitor)
-            }
-            isPresentingDeleteShortcutConfirmation = false
-
-            if response == .alertFirstButtonReturn {
-                viewModel.deleteSelectedItem()
-            }
-        }
-    }
-
-    private func makeDeleteShortcutConfirmationAlert() -> NSAlert {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = deleteShortcutConfirmationTitle
-        alert.informativeText = deleteShortcutConfirmationMessage
-
-        let deleteButton = alert.addButton(withTitle: "Delete")
-        deleteButton.keyEquivalent = "\r"
-        deleteButton.keyEquivalentModifierMask = []
-        if #available(macOS 11.0, *) {
-            deleteButton.hasDestructiveAction = true
-        }
-
-        let cancelButton = alert.addButton(withTitle: "Cancel")
-        cancelButton.keyEquivalent = "\u{1b}"
-        cancelButton.keyEquivalentModifierMask = []
-
-        return alert
-    }
-
-    private func finishDeleteShortcutConfirmationSheet(
-        attachedTo window: NSWindow,
-        alertWindow: NSWindow,
-        response: NSApplication.ModalResponse
-    ) {
-        window.endSheet(alertWindow, returnCode: response)
-        alertWindow.orderOut(nil)
-    }
-
-    private func copySelection(dismissAfterCopy: Bool) {
-        let items = viewModel.selectedItemsInActionOrder
-        guard !items.isEmpty else { return }
-
-        viewModel.clearSearchAfterCommittedAction()
-
-        if items.count == 1, let item = items.first {
-            onCopyToClipboard(item)
-        } else {
-            onCopyMultipleToClipboard(items)
-        }
-
-        if dismissAfterCopy {
-            onDismiss()
-        }
-    }
-
-    private func jumpToHistorySelection() {
-        guard let item = viewModel.selectedItem else { return }
-
-        viewModel.jumpToHistory(for: item)
-    }
-
-    private var deleteShortcutConfirmationTitle: String {
-        viewModel.selectionCount == 1 ? "Delete item?" : "Delete \(viewModel.selectionCount) items?"
-    }
-
-    private var deleteShortcutConfirmationMessage: String {
-        viewModel.selectionCount == 1
-            ? "This item will be removed from your clipboard history."
-            : "These items will be removed from your clipboard history."
-    }
-
-    private func performDetailAction(_ action: HistoryItemAction) {
-        performAction(
-            action,
-            items: viewModel.selectedItemsInActionOrder.isEmpty ? viewModel.selectedItem.map { [$0] } ?? [] : viewModel.selectedItemsInActionOrder
+    private var actionHandler: HistoryActionHandler {
+        HistoryActionHandler(
+            viewModel: viewModel,
+            store: store,
+            onCopyToClipboard: onCopyToClipboard,
+            onCopyMultipleToClipboard: onCopyMultipleToClipboard,
+            onPaste: onPaste,
+            onPasteMultiple: onPasteMultiple,
+            onDismiss: onDismiss
         )
     }
 
-    private func performContextMenuAction(_ clickedItemID: UUID, _ action: HistoryItemAction) {
-        performAction(action, items: viewModel.contextMenuTargetItems(for: clickedItemID))
-    }
-
-    private func performAction(_ action: HistoryItemAction, items: [ClipboardItem]) {
-        guard !items.isEmpty else { return }
-
-        switch action {
-        case .copy:
-            viewModel.clearSearchAfterCommittedAction()
-            if items.count == 1, let item = items.first {
-                onCopyToClipboard(item)
-            } else {
-                onCopyMultipleToClipboard(items)
-            }
-
-        case .openLink:
-            guard let url = items.first?.linkPayload?.url else { return }
-            NSWorkspace.shared.open(url)
-
-        case .jumpToHistory:
-            guard let item = items.first else { return }
-            viewModel.jumpToHistory(for: item)
-
-        case .saveImage:
-            guard let item = items.first else { return }
-            let image = viewModel.selectedItem?.id == item.id
-                ? (viewModel.previewImage ?? store.image(for: item))
-                : store.image(for: item)
-            guard let image else { return }
-            PasteImageSupport.saveImageToDisk(image)
-
-        case .extractImageText:
-            Task {
-                guard let item = items.first else { return }
-                await viewModel.extractImageText(for: item)
-            }
-
-        case .togglePin:
-            if items.count == 1, let item = items.first {
-                viewModel.togglePin(for: item)
-            } else {
-                let targetIDs = Set(items.map(\.id))
-                if let clickedID = items.first(where: { targetIDs.contains($0.id) })?.id {
-                    viewModel.togglePinForContextMenuTarget(clickedID)
+    private var keyboardCommandHandler: HistoryKeyboardCommandHandler {
+        HistoryKeyboardCommandHandler(
+            isDeleteConfirmationPresenting: deleteConfirmationController.isPresenting,
+            selectionCount: viewModel.selectionCount,
+            confirmDeleteWithKeyboardShortcut: settings.confirmDeleteWithKeyboardShortcut,
+            actions: .init(
+                handleModifierFlagsChange: viewModel.handleQuickPasteModifierFlagsChange,
+                moveUp: { extendSelection in
+                    extendSelection ? viewModel.extendSelectionUp() : viewModel.navigateUp()
+                },
+                moveDown: { extendSelection in
+                    extendSelection ? viewModel.extendSelectionDown() : viewModel.navigateDown()
+                },
+                moveToFirst: { extendSelection in
+                    extendSelection ? viewModel.extendSelectionToFirstItem() : viewModel.jumpToFirstItem()
+                },
+                moveToLast: { extendSelection in
+                    extendSelection ? viewModel.extendSelectionToLastItem() : viewModel.jumpToLastItem()
+                },
+                commitSelection: { copyOnly in
+                    copyOnly ? actionHandler.performCopyOnlyAction() : actionHandler.performPrimaryPasteAction()
+                },
+                dismiss: actionHandler.dismissHistoryWindow,
+                deleteSelection: viewModel.deleteSelectedItem,
+                copySelection: {
+                    actionHandler.copySelection(dismissAfterCopy: false)
+                },
+                togglePinned: viewModel.togglePinForSelectedItem,
+                saveImage: {
+                    if let image = viewModel.detailViewState.previewImage {
+                        PasteImageSupport.saveImageToDisk(image)
+                    }
+                },
+                quickPaste: { index in
+                    if let item = viewModel.performQuickPaste(at: index) {
+                        onPaste(item)
+                    }
+                },
+                presentDeleteConfirmation: { selectionCount in
+                    deleteConfirmationController.presentDeleteConfirmation(selectionCount: selectionCount) {
+                        viewModel.deleteSelectedItem()
+                    }
                 }
-            }
-
-        case .delete:
-            if items.count == 1, let item = items.first {
-                viewModel.delete(item)
-            } else if let clickedID = items.first?.id {
-                viewModel.deleteContextMenuTarget(clickedID)
-            }
-        }
-    }
-
-    private func dismissHistoryWindow() {
-        viewModel.clearSearchAfterClosingIfNeeded()
-        onDismiss()
-    }
-
-    private func focusSearchField() {
-        isSearchFocused = false
-
-        Task { @MainActor in
-            isSearchFocused = true
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            isSearchFocused = true
-            try? await Task.sleep(nanoseconds: 100_000_000)
-            isSearchFocused = true
-        }
-    }
-
-    private func downloadAllImages() {
-        let openPanel = NSOpenPanel()
-        openPanel.canChooseDirectories = true
-        openPanel.canChooseFiles = false
-        openPanel.canCreateDirectories = true
-        openPanel.title = "Select Folder to Save Images"
-        openPanel.prompt = "Select"
-
-        guard let window = NSApplication.shared.windows.first else { return }
-
-        openPanel.beginSheetModal(for: window) { response in
-            guard response == .OK, let folderURL = openPanel.url else { return }
-
-            let imageItems = self.viewModel.selectedItems.filter { ClipboardItemTypeRegistry.supportsImageAssets(for: $0) }
-
-            for (index, item) in imageItems.enumerated() {
-                guard let image = store.image(for: item) else { continue }
-
-                let paddedNumber = String(format: "%04d", index + 1)
-                let fileURL = folderURL.appendingPathComponent("image-\(paddedNumber).png")
-
-                guard let tiffData = image.tiffRepresentation,
-                      let bitmapImage = NSBitmapImageRep(data: tiffData),
-                      let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
-                    continue
-                }
-
-                do {
-                    try pngData.write(to: fileURL, options: .atomic)
-                } catch {
-                    BufferLogger.ui.error("Failed to save image to \(fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
-                }
-            }
-        }
-    }
-
-    private func copyOCRText(_ text: String) {
-        copyPlainText(text)
-    }
-
-    private func copyPlainText(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+            )
+        )
     }
 }

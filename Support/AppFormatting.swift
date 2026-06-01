@@ -12,11 +12,12 @@ enum AppFormatting {
     ]
 
     static func historySectionTitle(for date: Date, calendar: Calendar = .current, referenceDate: Date = Date()) -> String {
-        if calendar.isDateInToday(date) {
+        if calendar.isDate(date, inSameDayAs: referenceDate) {
             return "TODAY"
         }
 
-        if calendar.isDateInYesterday(date) {
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate),
+           calendar.isDate(date, inSameDayAs: yesterday) {
             return "YESTERDAY"
         }
 

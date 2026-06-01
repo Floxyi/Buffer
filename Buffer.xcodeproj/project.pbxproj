@@ -24,15 +24,12 @@
 		AAA00017 /* ActiveApplicationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00019 /* ActiveApplicationMonitor.swift */; };
 		AAA00018 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BBB00020 /* Assets.xcassets */; };
 		AAA00022 /* HistoryWindowInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00024 /* HistoryWindowInfrastructure.swift */; };
-		AAA00023 /* HistoryInputInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00025 /* HistoryInputInfrastructure.swift */; };
 		AAA00024 /* ClipboardScrollInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00026 /* ClipboardScrollInfrastructure.swift */; };
 		AAA00025 /* HistoryDetailComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00027 /* HistoryDetailComponents.swift */; };
 		AAA00027 /* ClipboardItemRowSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00029 /* ClipboardItemRowSupport.swift */; };
 		AAA00028 /* ClipboardScrollbarComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00030 /* ClipboardScrollbarComponents.swift */; };
-		AAA00029 /* ClipboardScrollBridges.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00031 /* ClipboardScrollBridges.swift */; };
 		AAA00031 /* SettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00033 /* SettingsSupport.swift */; };
 		AAA00032 /* HistoryContentState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00034 /* HistoryContentState.swift */; };
-		AAA00036 /* ClipboardStorageSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00038 /* ClipboardStorageSupport.swift */; };
 		AAA00037 /* KeyRecorderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00039 /* KeyRecorderBridge.swift */; };
 		AAA00039 /* PasteSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00041 /* PasteSupport.swift */; };
 		AAA00040 /* ClipboardCaptureSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00042 /* ClipboardCaptureSupport.swift */; };
@@ -81,10 +78,179 @@
 		AAA00088 /* HistoryColorDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00090 /* HistoryColorDetailContent.swift */; };
 		AAA00089 /* HistoryLinkDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00091 /* HistoryLinkDetailHeader.swift */; };
 		AAA00090 /* HistoryLinkDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00092 /* HistoryLinkDetailContent.swift */; };
+		AAA00091 /* ClipboardItemKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00093 /* ClipboardItemKind.swift */; };
+		AAA00092 /* ClipboardItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00094 /* ClipboardItemContent.swift */; };
+		AAA00093 /* TextItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00095 /* TextItemContent.swift */; };
+		AAA00094 /* ImageItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00096 /* ImageItemContent.swift */; };
+		AAA00095 /* ColorItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00097 /* ColorItemContent.swift */; };
+		AAA00096 /* LinkItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00098 /* LinkItemContent.swift */; };
+		AAA00097 /* ClipboardColorValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00099 /* ClipboardColorValue.swift */; };
+		AAA00098 /* ClipboardLinkValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00100 /* ClipboardLinkValue.swift */; };
+		AAA00099 /* ClipboardItemPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00101 /* ClipboardItemPresentation.swift */; };
+		AAA00155 /* ClipboardColorFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00169 /* ClipboardColorFormatter.swift */; };
+		AAA00156 /* ClipboardColorHSLConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00170 /* ClipboardColorHSLConverter.swift */; };
+		AAA00157 /* ClipboardColorParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00171 /* ClipboardColorParser.swift */; };
+		AAA00158 /* ClipboardItemContentFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00172 /* ClipboardItemContentFactory.swift */; };
+		AAA00159 /* ClipboardItemSourceApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00173 /* ClipboardItemSourceApplication.swift */; };
+		AAA00160 /* ClipboardPinState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00174 /* ClipboardPinState.swift */; };
+		AAA00161 /* SettingsPersistenceSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00175 /* SettingsPersistenceSnapshot.swift */; };
+		AAA00162 /* ClipboardWebsiteIconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00176 /* ClipboardWebsiteIconCache.swift */; };
+		AAA00163 /* ClipboardWebsiteIconFallbackFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00177 /* ClipboardWebsiteIconFallbackFetcher.swift */; };
+		AAA00164 /* HistoryCopiedAtFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00178 /* HistoryCopiedAtFormatter.swift */; };
+		AAA00165 /* HistoryDetailViewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00179 /* HistoryDetailViewState.swift */; };
+		AAA00166 /* HistoryDetailViewStateProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00180 /* HistoryDetailViewStateProjector.swift */; };
+		AAA00167 /* ClipboardKeyboardNavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */; };
+		AAA00168 /* ScrollControllerMetricsObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00182 /* ScrollControllerMetricsObserver.swift */; };
+		AAA00169 /* ScrollControllerSettledScrollScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00183 /* ScrollControllerSettledScrollScheduler.swift */; };
+		AAA00170 /* SettingsFormBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00184 /* SettingsFormBindings.swift */; };
+		AAA00171 /* HistorySelectionRangeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00185 /* HistorySelectionRangeController.swift */; };
+		AAA00172 /* HistoryDeleteSelectionResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00186 /* HistoryDeleteSelectionResolver.swift */; };
+		AAA00173 /* HistoryLinkPreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00187 /* HistoryLinkPreviewState.swift */; };
+		AAA00174 /* HistoryLinkPreviewStateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00188 /* HistoryLinkPreviewStateController.swift */; };
+		AAA00175 /* ClipboardStoreSettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00189 /* ClipboardStoreSettingsCoordinator.swift */; };
+		AAA00176 /* ClipboardStoreRetentionScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00190 /* ClipboardStoreRetentionScheduler.swift */; };
+		AAA00177 /* HistoryVisibleItemsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00191 /* HistoryVisibleItemsController.swift */; };
+		AAA00178 /* ClipboardListSectionBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00192 /* ClipboardListSectionBuilder.swift */; };
+		AAA00179 /* ClipboardListRowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00193 /* ClipboardListRowGeometry.swift */; };
+		AAA0017A /* ClipboardSettledScrollExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00194 /* ClipboardSettledScrollExecutor.swift */; };
+		AAA0017B /* ClipboardListLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00195 /* ClipboardListLifecycleCoordinator.swift */; };
+		AAA0017C /* StatusBarMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00196 /* StatusBarMenuBuilder.swift */; };
+		AAA0017D /* StatusBarClearHistoryConfirmationPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00197 /* StatusBarClearHistoryConfirmationPresenter.swift */; };
+		AAA0017E /* SettingsLoadedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00198 /* SettingsLoadedState.swift */; };
+		AAA0017F /* HistorySelectionQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00199 /* HistorySelectionQuery.swift */; };
+		AAA00180 /* ClipboardListDisplayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00200 /* ClipboardListDisplayState.swift */; };
+		AAA00181 /* ClipboardMeasuredScrollGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00201 /* ClipboardMeasuredScrollGeometry.swift */; };
+		AAA00100 /* ClipboardItemTypeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00102 /* ClipboardItemTypeRegistry.swift */; };
+		AAA00101 /* SettingsValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00103 /* SettingsValues.swift */; };
+		AAA00102 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00104 /* SettingsKeys.swift */; };
+		AAA00103 /* SettingsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00105 /* SettingsDefaults.swift */; };
+		AAA00104 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00106 /* SettingsStore.swift */; };
+		AAA00105 /* SettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00107 /* SettingsMigration.swift */; };
+		AAA00106 /* LaunchAtLoginController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00108 /* LaunchAtLoginController.swift */; };
+		AAA00107 /* ClipboardRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00109 /* ClipboardRepository.swift */; };
+		AAA00108 /* ClipboardHistoryRetentionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00110 /* ClipboardHistoryRetentionService.swift */; };
+		AAA00109 /* ClipboardSearchIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00111 /* ClipboardSearchIndex.swift */; };
+		AAA00110 /* ClipboardAssetAccessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00112 /* ClipboardAssetAccessing.swift */; };
+		AAA00111 /* AppStartupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00113 /* AppStartupService.swift */; };
+		AAA00112 /* HistoryWindowCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00114 /* HistoryWindowCoordinator.swift */; };
+		AAA00113 /* SettingsWindowCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00115 /* SettingsWindowCoordinator.swift */; };
+		AAA00114 /* HistoryInteractionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00116 /* HistoryInteractionState.swift */; };
+		AAA00115 /* HistorySelectionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00117 /* HistorySelectionController.swift */; };
+		AAA00116 /* HistoryQuickPasteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00118 /* HistoryQuickPasteController.swift */; };
+		AAA00117 /* HistoryJumpNavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00119 /* HistoryJumpNavigationController.swift */; };
+		AAA00118 /* HistoryPreviewLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00120 /* HistoryPreviewLoader.swift */; };
+		AAA00119 /* HistoryActionResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00121 /* HistoryActionResolver.swift */; };
+		AAA00120 /* HistoryItemFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00122 /* HistoryItemFilter.swift */; };
+		AAA00121 /* HistoryActionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00123 /* HistoryActionHandler.swift */; };
+		AAA00122 /* HistoryDeleteConfirmationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00124 /* HistoryDeleteConfirmationController.swift */; };
+		AAA00123 /* HistorySearchFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00125 /* HistorySearchFocusController.swift */; };
+		AAA00124 /* ClipboardListViewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00126 /* ClipboardListViewSupport.swift */; };
+		AAA00125 /* ClipboardListContextMenuState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00127 /* ClipboardListContextMenuState.swift */; };
+		AAA00126 /* ClipboardListAssetPrewarmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00128 /* ClipboardListAssetPrewarmer.swift */; };
+		AAA00127 /* ClipboardListOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00129 /* ClipboardListOverlays.swift */; };
+		AAA00128 /* ClipboardListRowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00130 /* ClipboardListRowsSection.swift */; };
+		AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */; };
+		AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00132 /* ClipboardListScrollCoordinator.swift */; };
+		AAA00131 /* ScrollActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00133 /* ScrollActivityTracker.swift */; };
+		AAA00132 /* SmoothWheelScroller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00134 /* SmoothWheelScroller.swift */; };
+		AAA00133 /* ScrollViewConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00135 /* ScrollViewConfigurator.swift */; };
+		AAA00134 /* SelectableMonospacedTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00136 /* SelectableMonospacedTextView.swift */; };
+		AAA00135 /* HistoryKeyboardCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00137 /* HistoryKeyboardCommand.swift */; };
+		AAA00136 /* HistoryWindowKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00138 /* HistoryWindowKeyMonitor.swift */; };
+		AAA00137 /* HistoryPreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00139 /* HistoryPreviewState.swift */; };
+		AAA00138 /* HistoryPreviewStateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00140 /* HistoryPreviewStateController.swift */; };
+		AAA00139 /* HistoryContextMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00141 /* HistoryContextMenuController.swift */; };
+		AAA0013A /* HistoryViewPresentationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00142 /* HistoryViewPresentationState.swift */; };
+		AAA0013B /* HistoryItemMutationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00143 /* HistoryItemMutationController.swift */; };
+		AAA0013C /* HistoryPanelConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00144 /* HistoryPanelConfigurator.swift */; };
+		AAA0013D /* HistoryWindowOpenAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00145 /* HistoryWindowOpenAnimator.swift */; };
+		AAA0013E /* HistoryListScrollRestorationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00146 /* HistoryListScrollRestorationCoordinator.swift */; };
+		AAA0013F /* ClipboardImageAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00147 /* ClipboardImageAssetLoader.swift */; };
+		AAA00140 /* ClipboardSourceApplicationIconLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00148 /* ClipboardSourceApplicationIconLoader.swift */; };
+		AAA00141 /* ClipboardWebsiteIconLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00149 /* ClipboardWebsiteIconLoader.swift */; };
+		AAA00142 /* PastePayloadBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00150 /* PastePayloadBuilder.swift */; };
+		AAA00143 /* PasteboardPayloadWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00151 /* PasteboardPayloadWriter.swift */; };
+		AAA00144 /* PasteSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00152 /* PasteSessionCoordinator.swift */; };
+		AAA00145 /* ClipboardStoragePaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00153 /* ClipboardStoragePaths.swift */; };
+		AAA00146 /* ClipboardHistoryPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00154 /* ClipboardHistoryPersistence.swift */; };
+		AAA00147 /* ClipboardImageAssetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00155 /* ClipboardImageAssetStore.swift */; };
+		AAA00148 /* ClipboardTextAssetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00156 /* ClipboardTextAssetStore.swift */; };
+		AAA00149 /* ClipboardAssetCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00157 /* ClipboardAssetCleanup.swift */; };
+		AAA0014A /* ClipboardAssetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00158 /* ClipboardAssetStore.swift */; };
+		AAA0014B /* HistorySessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00159 /* HistorySessionController.swift */; };
+		AAA0014C /* HistorySelectionViewStateProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00160 /* HistorySelectionViewStateProjector.swift */; };
+		AAA0014D /* HistorySessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00161 /* HistorySessionState.swift */; };
+		AAA0014E /* HistorySelectionViewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00162 /* HistorySelectionViewState.swift */; };
+		AAA0014F /* ClipboardKeyboardNavigationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00163 /* ClipboardKeyboardNavigationResolver.swift */; };
+		AAA00150 /* ClipboardListContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00164 /* ClipboardListContent.swift */; };
+		AAA00151 /* HistoryKeyboardCommandHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00165 /* HistoryKeyboardCommandHandler.swift */; };
+		AAA00152 /* HistoryClipboardListPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00166 /* HistoryClipboardListPane.swift */; };
+		AAA00153 /* HistoryMultiSelectionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00167 /* HistoryMultiSelectionCard.swift */; };
+		AAA00154 /* HistoryMultiSelectionTextPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00168 /* HistoryMultiSelectionTextPreview.swift */; };
 		ABC10001 /* SettingsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20001 /* SettingsManagerTests.swift */; };
 		ABC10002 /* ClipboardHistoryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20002 /* ClipboardHistoryPersistenceTests.swift */; };
-		ABC10003 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20003 /* HistoryViewModelTests.swift */; };
 		ABC10004 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20004 /* TestSupport.swift */; };
+		ABC10006 /* ClipboardStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20006 /* ClipboardStoreTests.swift */; };
+		ABC10007 /* ClipboardAssetStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20007 /* ClipboardAssetStoreTests.swift */; };
+		ABC10008 /* ClipboardCaptureSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20008 /* ClipboardCaptureSupportTests.swift */; };
+		ABC10009 /* ClipboardItemTypeRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20009 /* ClipboardItemTypeRegistryTests.swift */; };
+		ABC1000A /* HistoryViewModelStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000A /* HistoryViewModelStateTests.swift */; };
+		ABC1000B /* AppFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000B /* AppFormattingTests.swift */; };
+		ABC1000C /* PasteSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000C /* PasteSupportTests.swift */; };
+		ABC1000D /* ActiveApplicationMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000D /* ActiveApplicationMonitorTests.swift */; };
+		ABC1000E /* ClipboardColorValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000E /* ClipboardColorValueTests.swift */; };
+		ABC1000F /* ClipboardLinkValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2000F /* ClipboardLinkValueTests.swift */; };
+		ABC10010 /* ClipboardHistoryRetentionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20010 /* ClipboardHistoryRetentionServiceTests.swift */; };
+		ABC10011 /* ClipboardSearchIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20011 /* ClipboardSearchIndexTests.swift */; };
+		ABC10012 /* AppStartupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20012 /* AppStartupServiceTests.swift */; };
+		ABC10013 /* HistoryWindowCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20013 /* HistoryWindowCoordinatorTests.swift */; };
+		ABC10014 /* SettingsWindowCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20014 /* SettingsWindowCoordinatorTests.swift */; };
+		ABC10015 /* HistorySelectionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20015 /* HistorySelectionControllerTests.swift */; };
+		ABC10016 /* HistoryActionResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20016 /* HistoryActionResolverTests.swift */; };
+		ABC10017 /* ClipboardListScrollCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20017 /* ClipboardListScrollCoordinatorTests.swift */; };
+		ABC10018 /* ClipboardListAssetPrewarmerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20018 /* ClipboardListAssetPrewarmerTests.swift */; };
+		ABC10019 /* HistoryKeyboardCommandResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20019 /* HistoryKeyboardCommandResolverTests.swift */; };
+		ABC1001A /* SettingsMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001A /* SettingsMigrationTests.swift */; };
+		ABC1001B /* HistoryQuickPasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001B /* HistoryQuickPasteControllerTests.swift */; };
+		ABC1001C /* HistoryJumpNavigationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001C /* HistoryJumpNavigationControllerTests.swift */; };
+		ABC1001D /* ClipboardItemPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001D /* ClipboardItemPresentationTests.swift */; };
+		ABC1001E /* HistoryContextMenuControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001E /* HistoryContextMenuControllerTests.swift */; };
+		ABC1001F /* HistoryPreviewStateControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2001F /* HistoryPreviewStateControllerTests.swift */; };
+		ABC10020 /* HistoryItemMutationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20020 /* HistoryItemMutationControllerTests.swift */; };
+		ABC10021 /* HistoryListScrollRestorationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */; };
+		ABC10022 /* HistoryPanelConfiguratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20022 /* HistoryPanelConfiguratorTests.swift */; };
+		ABC10023 /* ClipboardSourceApplicationIconLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20023 /* ClipboardSourceApplicationIconLoaderTests.swift */; };
+		ABC10024 /* ClipboardWebsiteIconLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20024 /* ClipboardWebsiteIconLoaderTests.swift */; };
+		ABC10025 /* ClipboardImageAssetLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20025 /* ClipboardImageAssetLoaderTests.swift */; };
+		ABC10026 /* PastePayloadBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20026 /* PastePayloadBuilderTests.swift */; };
+		ABC10027 /* PasteSessionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20027 /* PasteSessionCoordinatorTests.swift */; };
+		ABC10028 /* ClipboardStoragePathsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20028 /* ClipboardStoragePathsTests.swift */; };
+		ABC10029 /* HistorySessionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20029 /* HistorySessionControllerTests.swift */; };
+		ABC1002A /* HistorySelectionViewStateProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002A /* HistorySelectionViewStateProjectorTests.swift */; };
+		ABC1002B /* ClipboardKeyboardNavigationResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002B /* ClipboardKeyboardNavigationResolverTests.swift */; };
+		ABC1002C /* HistoryKeyboardCommandHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002C /* HistoryKeyboardCommandHandlerTests.swift */; };
+		ABC1002D /* HistoryCopiedAtFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002D /* HistoryCopiedAtFormatterTests.swift */; };
+		ABC1002E /* HistoryDetailViewStateProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002E /* HistoryDetailViewStateProjectorTests.swift */; };
+		ABC1002F /* ClipboardKeyboardNavigationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2002F /* ClipboardKeyboardNavigationCoordinatorTests.swift */; };
+		ABC10030 /* SettingsFormBindingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20030 /* SettingsFormBindingsTests.swift */; };
+		ABC10031 /* HistoryDeleteSelectionResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20031 /* HistoryDeleteSelectionResolverTests.swift */; };
+		ABC10032 /* HistorySelectionRangeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20032 /* HistorySelectionRangeControllerTests.swift */; };
+		ABC10033 /* HistoryLinkPreviewStateControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20033 /* HistoryLinkPreviewStateControllerTests.swift */; };
+		ABC10034 /* ClipboardStoreSettingsCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20034 /* ClipboardStoreSettingsCoordinatorTests.swift */; };
+		ABC10035 /* HistoryTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20035 /* HistoryTestSupport.swift */; };
+		ABC10036 /* ClipboardCaptureClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20036 /* ClipboardCaptureClassificationTests.swift */; };
+		ABC10037 /* HistoryViewModelSearchAndActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20037 /* HistoryViewModelSearchAndActionsTests.swift */; };
+		ABC10038 /* HistoryViewModelWindowOpenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20038 /* HistoryViewModelWindowOpenTests.swift */; };
+		ABC10039 /* HistoryViewModelQuickPasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20039 /* HistoryViewModelQuickPasteTests.swift */; };
+		ABC1003A /* HistoryViewModelSelectionIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003A /* HistoryViewModelSelectionIntegrationTests.swift */; };
+		ABC1003B /* ClipboardListStructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003B /* ClipboardListStructureTests.swift */; };
+		ABC1003C /* HistoryVisibleItemsControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003C /* HistoryVisibleItemsControllerTests.swift */; };
+		ABC1003D /* StatusBarMenuBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003D /* StatusBarMenuBuilderTests.swift */; };
+		ABC1003E /* SettingsLoadedStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003E /* SettingsLoadedStateTests.swift */; };
+		ABC1003F /* ClipboardItemSourceApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003F /* ClipboardItemSourceApplicationTests.swift */; };
+		ABC10040 /* HistorySelectionQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20040 /* HistorySelectionQueryTests.swift */; };
+		ABC10041 /* ClipboardListDisplayStateProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */; };
+		ABC10042 /* ClipboardMeasuredScrollGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */; };
 		ABC10005 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABC20005 /* XCTest.framework */; };
 		D87736122F8ECC6B00392A0B /* ClickDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87736112F8ECC6B00392A0B /* ClickDetector.swift */; };
 /* End PBXBuildFile section */
@@ -103,9 +269,69 @@
 		ABC20000 /* BufferTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BufferTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ABC20001 /* SettingsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerTests.swift; sourceTree = "<group>"; };
 		ABC20002 /* ClipboardHistoryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryPersistenceTests.swift; sourceTree = "<group>"; };
-		ABC20003 /* HistoryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelTests.swift; sourceTree = "<group>"; };
 		ABC20004 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		ABC20005 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		ABC20006 /* ClipboardStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoreTests.swift; sourceTree = "<group>"; };
+		ABC20007 /* ClipboardAssetStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAssetStoreTests.swift; sourceTree = "<group>"; };
+		ABC20008 /* ClipboardCaptureSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCaptureSupportTests.swift; sourceTree = "<group>"; };
+		ABC20009 /* ClipboardItemTypeRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemTypeRegistryTests.swift; sourceTree = "<group>"; };
+		ABC2000A /* HistoryViewModelStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelStateTests.swift; sourceTree = "<group>"; };
+		ABC2000B /* AppFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFormattingTests.swift; sourceTree = "<group>"; };
+		ABC2000C /* PasteSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteSupportTests.swift; sourceTree = "<group>"; };
+		ABC2000D /* ActiveApplicationMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveApplicationMonitorTests.swift; sourceTree = "<group>"; };
+		ABC2000E /* ClipboardColorValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorValueTests.swift; sourceTree = "<group>"; };
+		ABC2000F /* ClipboardLinkValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardLinkValueTests.swift; sourceTree = "<group>"; };
+		ABC20010 /* ClipboardHistoryRetentionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryRetentionServiceTests.swift; sourceTree = "<group>"; };
+		ABC20011 /* ClipboardSearchIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSearchIndexTests.swift; sourceTree = "<group>"; };
+		ABC20012 /* AppStartupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStartupServiceTests.swift; sourceTree = "<group>"; };
+		ABC20013 /* HistoryWindowCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20014 /* SettingsWindowCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20015 /* HistorySelectionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionControllerTests.swift; sourceTree = "<group>"; };
+		ABC20016 /* HistoryActionResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryActionResolverTests.swift; sourceTree = "<group>"; };
+		ABC20017 /* ClipboardListScrollCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListScrollCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20018 /* ClipboardListAssetPrewarmerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListAssetPrewarmerTests.swift; sourceTree = "<group>"; };
+		ABC20019 /* HistoryKeyboardCommandResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryKeyboardCommandResolverTests.swift; sourceTree = "<group>"; };
+		ABC2001A /* SettingsMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMigrationTests.swift; sourceTree = "<group>"; };
+		ABC2001B /* HistoryQuickPasteControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryQuickPasteControllerTests.swift; sourceTree = "<group>"; };
+		ABC2001C /* HistoryJumpNavigationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryJumpNavigationControllerTests.swift; sourceTree = "<group>"; };
+		ABC2001D /* ClipboardItemPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemPresentationTests.swift; sourceTree = "<group>"; };
+		ABC2001E /* HistoryContextMenuControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryContextMenuControllerTests.swift; sourceTree = "<group>"; };
+		ABC2001F /* HistoryPreviewStateControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPreviewStateControllerTests.swift; sourceTree = "<group>"; };
+		ABC20020 /* HistoryItemMutationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemMutationControllerTests.swift; sourceTree = "<group>"; };
+		ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryListScrollRestorationCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20022 /* HistoryPanelConfiguratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanelConfiguratorTests.swift; sourceTree = "<group>"; };
+		ABC20023 /* ClipboardSourceApplicationIconLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSourceApplicationIconLoaderTests.swift; sourceTree = "<group>"; };
+		ABC20024 /* ClipboardWebsiteIconLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconLoaderTests.swift; sourceTree = "<group>"; };
+		ABC20025 /* ClipboardImageAssetLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageAssetLoaderTests.swift; sourceTree = "<group>"; };
+		ABC20026 /* PastePayloadBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastePayloadBuilderTests.swift; sourceTree = "<group>"; };
+		ABC20027 /* PasteSessionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteSessionCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20028 /* ClipboardStoragePathsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoragePathsTests.swift; sourceTree = "<group>"; };
+		ABC20029 /* HistorySessionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionControllerTests.swift; sourceTree = "<group>"; };
+		ABC2002A /* HistorySelectionViewStateProjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionViewStateProjectorTests.swift; sourceTree = "<group>"; };
+		ABC2002B /* ClipboardKeyboardNavigationResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardKeyboardNavigationResolverTests.swift; sourceTree = "<group>"; };
+		ABC2002C /* HistoryKeyboardCommandHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryKeyboardCommandHandlerTests.swift; sourceTree = "<group>"; };
+		ABC2002D /* HistoryCopiedAtFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCopiedAtFormatterTests.swift; sourceTree = "<group>"; };
+		ABC2002E /* HistoryDetailViewStateProjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailViewStateProjectorTests.swift; sourceTree = "<group>"; };
+		ABC2002F /* ClipboardKeyboardNavigationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardKeyboardNavigationCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20030 /* SettingsFormBindingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFormBindingsTests.swift; sourceTree = "<group>"; };
+		ABC20031 /* HistoryDeleteSelectionResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDeleteSelectionResolverTests.swift; sourceTree = "<group>"; };
+		ABC20032 /* HistorySelectionRangeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionRangeControllerTests.swift; sourceTree = "<group>"; };
+		ABC20033 /* HistoryLinkPreviewStateControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkPreviewStateControllerTests.swift; sourceTree = "<group>"; };
+		ABC20034 /* ClipboardStoreSettingsCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoreSettingsCoordinatorTests.swift; sourceTree = "<group>"; };
+		ABC20035 /* HistoryTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryTestSupport.swift; sourceTree = "<group>"; };
+		ABC20036 /* ClipboardCaptureClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCaptureClassificationTests.swift; sourceTree = "<group>"; };
+		ABC20037 /* HistoryViewModelSearchAndActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelSearchAndActionsTests.swift; sourceTree = "<group>"; };
+		ABC20038 /* HistoryViewModelWindowOpenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelWindowOpenTests.swift; sourceTree = "<group>"; };
+		ABC20039 /* HistoryViewModelQuickPasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelQuickPasteTests.swift; sourceTree = "<group>"; };
+		ABC2003A /* HistoryViewModelSelectionIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelSelectionIntegrationTests.swift; sourceTree = "<group>"; };
+		ABC2003B /* ClipboardListStructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListStructureTests.swift; sourceTree = "<group>"; };
+		ABC2003C /* HistoryVisibleItemsControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryVisibleItemsControllerTests.swift; sourceTree = "<group>"; };
+		ABC2003D /* StatusBarMenuBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarMenuBuilderTests.swift; sourceTree = "<group>"; };
+		ABC2003E /* SettingsLoadedStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLoadedStateTests.swift; sourceTree = "<group>"; };
+		ABC2003F /* ClipboardItemSourceApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemSourceApplicationTests.swift; sourceTree = "<group>"; };
+		ABC20040 /* HistorySelectionQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionQueryTests.swift; sourceTree = "<group>"; };
+		ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListDisplayStateProjectorTests.swift; sourceTree = "<group>"; };
+		ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollGeometryTests.swift; sourceTree = "<group>"; };
 		BBB00000 /* Buffer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Buffer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBB00001 /* BufferApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferApp.swift; sourceTree = "<group>"; };
 		BBB00002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -126,15 +352,12 @@
 		BBB00019 /* ActiveApplicationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveApplicationMonitor.swift; sourceTree = "<group>"; };
 		BBB00020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BBB00024 /* HistoryWindowInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowInfrastructure.swift; sourceTree = "<group>"; };
-		BBB00025 /* HistoryInputInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryInputInfrastructure.swift; sourceTree = "<group>"; };
 		BBB00026 /* ClipboardScrollInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollInfrastructure.swift; sourceTree = "<group>"; };
 		BBB00027 /* HistoryDetailComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailComponents.swift; sourceTree = "<group>"; };
 		BBB00029 /* ClipboardItemRowSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemRowSupport.swift; sourceTree = "<group>"; };
 		BBB00030 /* ClipboardScrollbarComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollbarComponents.swift; sourceTree = "<group>"; };
-		BBB00031 /* ClipboardScrollBridges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollBridges.swift; sourceTree = "<group>"; };
 		BBB00033 /* SettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSupport.swift; sourceTree = "<group>"; };
 		BBB00034 /* HistoryContentState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryContentState.swift; sourceTree = "<group>"; };
-		BBB00038 /* ClipboardStorageSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStorageSupport.swift; sourceTree = "<group>"; };
 		BBB00039 /* KeyRecorderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecorderBridge.swift; sourceTree = "<group>"; };
 		BBB00041 /* PasteSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteSupport.swift; sourceTree = "<group>"; };
 		BBB00042 /* ClipboardCaptureSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCaptureSupport.swift; sourceTree = "<group>"; };
@@ -183,6 +406,115 @@
 		BBB00090 /* HistoryColorDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryColorDetailContent.swift; sourceTree = "<group>"; };
 		BBB00091 /* HistoryLinkDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkDetailHeader.swift; sourceTree = "<group>"; };
 		BBB00092 /* HistoryLinkDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkDetailContent.swift; sourceTree = "<group>"; };
+		BBB00093 /* ClipboardItemKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemKind.swift; sourceTree = "<group>"; };
+		BBB00094 /* ClipboardItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemContent.swift; sourceTree = "<group>"; };
+		BBB00095 /* TextItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextItemContent.swift; sourceTree = "<group>"; };
+		BBB00096 /* ImageItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageItemContent.swift; sourceTree = "<group>"; };
+		BBB00097 /* ColorItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorItemContent.swift; sourceTree = "<group>"; };
+		BBB00098 /* LinkItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkItemContent.swift; sourceTree = "<group>"; };
+		BBB00099 /* ClipboardColorValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorValue.swift; sourceTree = "<group>"; };
+		BBB00100 /* ClipboardLinkValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardLinkValue.swift; sourceTree = "<group>"; };
+		BBB00101 /* ClipboardItemPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemPresentation.swift; sourceTree = "<group>"; };
+		BBB00169 /* ClipboardColorFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorFormatter.swift; sourceTree = "<group>"; };
+		BBB00170 /* ClipboardColorHSLConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorHSLConverter.swift; sourceTree = "<group>"; };
+		BBB00171 /* ClipboardColorParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorParser.swift; sourceTree = "<group>"; };
+		BBB00172 /* ClipboardItemContentFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemContentFactory.swift; sourceTree = "<group>"; };
+		BBB00173 /* ClipboardItemSourceApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemSourceApplication.swift; sourceTree = "<group>"; };
+		BBB00174 /* ClipboardPinState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPinState.swift; sourceTree = "<group>"; };
+		BBB00175 /* SettingsPersistenceSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPersistenceSnapshot.swift; sourceTree = "<group>"; };
+		BBB00176 /* ClipboardWebsiteIconCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconCache.swift; sourceTree = "<group>"; };
+		BBB00177 /* ClipboardWebsiteIconFallbackFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconFallbackFetcher.swift; sourceTree = "<group>"; };
+		BBB00178 /* HistoryCopiedAtFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCopiedAtFormatter.swift; sourceTree = "<group>"; };
+		BBB00179 /* HistoryDetailViewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailViewState.swift; sourceTree = "<group>"; };
+		BBB00180 /* HistoryDetailViewStateProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailViewStateProjector.swift; sourceTree = "<group>"; };
+		BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardKeyboardNavigationCoordinator.swift; sourceTree = "<group>"; };
+		BBB00182 /* ScrollControllerMetricsObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollControllerMetricsObserver.swift; sourceTree = "<group>"; };
+		BBB00183 /* ScrollControllerSettledScrollScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollControllerSettledScrollScheduler.swift; sourceTree = "<group>"; };
+		BBB00184 /* SettingsFormBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFormBindings.swift; sourceTree = "<group>"; };
+		BBB00185 /* HistorySelectionRangeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionRangeController.swift; sourceTree = "<group>"; };
+		BBB00186 /* HistoryDeleteSelectionResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDeleteSelectionResolver.swift; sourceTree = "<group>"; };
+		BBB00187 /* HistoryLinkPreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkPreviewState.swift; sourceTree = "<group>"; };
+		BBB00188 /* HistoryLinkPreviewStateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryLinkPreviewStateController.swift; sourceTree = "<group>"; };
+		BBB00189 /* ClipboardStoreSettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoreSettingsCoordinator.swift; sourceTree = "<group>"; };
+		BBB00190 /* ClipboardStoreRetentionScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoreRetentionScheduler.swift; sourceTree = "<group>"; };
+		BBB00191 /* HistoryVisibleItemsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryVisibleItemsController.swift; sourceTree = "<group>"; };
+		BBB00192 /* ClipboardListSectionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListSectionBuilder.swift; sourceTree = "<group>"; };
+		BBB00193 /* ClipboardListRowGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListRowGeometry.swift; sourceTree = "<group>"; };
+		BBB00194 /* ClipboardSettledScrollExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSettledScrollExecutor.swift; sourceTree = "<group>"; };
+		BBB00195 /* ClipboardListLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListLifecycleCoordinator.swift; sourceTree = "<group>"; };
+		BBB00196 /* StatusBarMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarMenuBuilder.swift; sourceTree = "<group>"; };
+		BBB00197 /* StatusBarClearHistoryConfirmationPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarClearHistoryConfirmationPresenter.swift; sourceTree = "<group>"; };
+		BBB00198 /* SettingsLoadedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLoadedState.swift; sourceTree = "<group>"; };
+		BBB00199 /* HistorySelectionQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionQuery.swift; sourceTree = "<group>"; };
+		BBB00200 /* ClipboardListDisplayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListDisplayState.swift; sourceTree = "<group>"; };
+		BBB00201 /* ClipboardMeasuredScrollGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollGeometry.swift; sourceTree = "<group>"; };
+		BBB00102 /* ClipboardItemTypeRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemTypeRegistry.swift; sourceTree = "<group>"; };
+		BBB00103 /* SettingsValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsValues.swift; sourceTree = "<group>"; };
+		BBB00104 /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
+		BBB00105 /* SettingsDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDefaults.swift; sourceTree = "<group>"; };
+		BBB00106 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		BBB00107 /* SettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsMigration.swift; sourceTree = "<group>"; };
+		BBB00108 /* LaunchAtLoginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginController.swift; sourceTree = "<group>"; };
+		BBB00109 /* ClipboardRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardRepository.swift; sourceTree = "<group>"; };
+		BBB00110 /* ClipboardHistoryRetentionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryRetentionService.swift; sourceTree = "<group>"; };
+		BBB00111 /* ClipboardSearchIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSearchIndex.swift; sourceTree = "<group>"; };
+		BBB00112 /* ClipboardAssetAccessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAssetAccessing.swift; sourceTree = "<group>"; };
+		BBB00113 /* AppStartupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStartupService.swift; sourceTree = "<group>"; };
+		BBB00114 /* HistoryWindowCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowCoordinator.swift; sourceTree = "<group>"; };
+		BBB00115 /* SettingsWindowCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowCoordinator.swift; sourceTree = "<group>"; };
+		BBB00116 /* HistoryInteractionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryInteractionState.swift; sourceTree = "<group>"; };
+		BBB00117 /* HistorySelectionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionController.swift; sourceTree = "<group>"; };
+		BBB00118 /* HistoryQuickPasteController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryQuickPasteController.swift; sourceTree = "<group>"; };
+		BBB00119 /* HistoryJumpNavigationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryJumpNavigationController.swift; sourceTree = "<group>"; };
+		BBB00120 /* HistoryPreviewLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPreviewLoader.swift; sourceTree = "<group>"; };
+		BBB00121 /* HistoryActionResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryActionResolver.swift; sourceTree = "<group>"; };
+		BBB00122 /* HistoryItemFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemFilter.swift; sourceTree = "<group>"; };
+		BBB00123 /* HistoryActionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryActionHandler.swift; sourceTree = "<group>"; };
+		BBB00124 /* HistoryDeleteConfirmationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDeleteConfirmationController.swift; sourceTree = "<group>"; };
+		BBB00125 /* HistorySearchFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySearchFocusController.swift; sourceTree = "<group>"; };
+		BBB00126 /* ClipboardListViewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListViewSupport.swift; sourceTree = "<group>"; };
+		BBB00127 /* ClipboardListContextMenuState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListContextMenuState.swift; sourceTree = "<group>"; };
+		BBB00128 /* ClipboardListAssetPrewarmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListAssetPrewarmer.swift; sourceTree = "<group>"; };
+		BBB00129 /* ClipboardListOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListOverlays.swift; sourceTree = "<group>"; };
+		BBB00130 /* ClipboardListRowsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListRowsSection.swift; sourceTree = "<group>"; };
+		BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollCoordinator.swift; sourceTree = "<group>"; };
+		BBB00132 /* ClipboardListScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListScrollCoordinator.swift; sourceTree = "<group>"; };
+		BBB00133 /* ScrollActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollActivityTracker.swift; sourceTree = "<group>"; };
+		BBB00134 /* SmoothWheelScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothWheelScroller.swift; sourceTree = "<group>"; };
+		BBB00135 /* ScrollViewConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollViewConfigurator.swift; sourceTree = "<group>"; };
+		BBB00136 /* SelectableMonospacedTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableMonospacedTextView.swift; sourceTree = "<group>"; };
+		BBB00137 /* HistoryKeyboardCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryKeyboardCommand.swift; sourceTree = "<group>"; };
+		BBB00138 /* HistoryWindowKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowKeyMonitor.swift; sourceTree = "<group>"; };
+		BBB00139 /* HistoryPreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPreviewState.swift; sourceTree = "<group>"; };
+		BBB00140 /* HistoryPreviewStateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPreviewStateController.swift; sourceTree = "<group>"; };
+		BBB00141 /* HistoryContextMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryContextMenuController.swift; sourceTree = "<group>"; };
+		BBB00142 /* HistoryViewPresentationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewPresentationState.swift; sourceTree = "<group>"; };
+		BBB00143 /* HistoryItemMutationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemMutationController.swift; sourceTree = "<group>"; };
+		BBB00144 /* HistoryPanelConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanelConfigurator.swift; sourceTree = "<group>"; };
+		BBB00145 /* HistoryWindowOpenAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowOpenAnimator.swift; sourceTree = "<group>"; };
+		BBB00146 /* HistoryListScrollRestorationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryListScrollRestorationCoordinator.swift; sourceTree = "<group>"; };
+		BBB00147 /* ClipboardImageAssetLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageAssetLoader.swift; sourceTree = "<group>"; };
+		BBB00148 /* ClipboardSourceApplicationIconLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSourceApplicationIconLoader.swift; sourceTree = "<group>"; };
+		BBB00149 /* ClipboardWebsiteIconLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconLoader.swift; sourceTree = "<group>"; };
+		BBB00150 /* PastePayloadBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PastePayloadBuilder.swift; sourceTree = "<group>"; };
+		BBB00151 /* PasteboardPayloadWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardPayloadWriter.swift; sourceTree = "<group>"; };
+		BBB00152 /* PasteSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteSessionCoordinator.swift; sourceTree = "<group>"; };
+		BBB00153 /* ClipboardStoragePaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoragePaths.swift; sourceTree = "<group>"; };
+		BBB00154 /* ClipboardHistoryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryPersistence.swift; sourceTree = "<group>"; };
+		BBB00155 /* ClipboardImageAssetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageAssetStore.swift; sourceTree = "<group>"; };
+		BBB00156 /* ClipboardTextAssetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextAssetStore.swift; sourceTree = "<group>"; };
+		BBB00157 /* ClipboardAssetCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAssetCleanup.swift; sourceTree = "<group>"; };
+		BBB00158 /* ClipboardAssetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardAssetStore.swift; sourceTree = "<group>"; };
+		BBB00159 /* HistorySessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionController.swift; sourceTree = "<group>"; };
+		BBB00160 /* HistorySelectionViewStateProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionViewStateProjector.swift; sourceTree = "<group>"; };
+		BBB00161 /* HistorySessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySessionState.swift; sourceTree = "<group>"; };
+		BBB00162 /* HistorySelectionViewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionViewState.swift; sourceTree = "<group>"; };
+		BBB00163 /* ClipboardKeyboardNavigationResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardKeyboardNavigationResolver.swift; sourceTree = "<group>"; };
+		BBB00164 /* ClipboardListContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListContent.swift; sourceTree = "<group>"; };
+		BBB00165 /* HistoryKeyboardCommandHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryKeyboardCommandHandler.swift; sourceTree = "<group>"; };
+		BBB00166 /* HistoryClipboardListPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryClipboardListPane.swift; sourceTree = "<group>"; };
+		BBB00167 /* HistoryMultiSelectionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMultiSelectionCard.swift; sourceTree = "<group>"; };
+		BBB00168 /* HistoryMultiSelectionTextPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMultiSelectionTextPreview.swift; sourceTree = "<group>"; };
 		D87736112F8ECC6B00392A0B /* ClickDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -216,9 +548,69 @@
 		ABC60001 /* BufferTests */ = {
 			isa = PBXGroup;
 			children = (
+				ABC2000D /* ActiveApplicationMonitorTests.swift */,
+				ABC20016 /* HistoryActionResolverTests.swift */,
+				ABC20012 /* AppStartupServiceTests.swift */,
+				ABC2000B /* AppFormattingTests.swift */,
+				ABC20018 /* ClipboardListAssetPrewarmerTests.swift */,
+				ABC20007 /* ClipboardAssetStoreTests.swift */,
+				ABC20008 /* ClipboardCaptureSupportTests.swift */,
+				ABC2000E /* ClipboardColorValueTests.swift */,
+				ABC2002B /* ClipboardKeyboardNavigationResolverTests.swift */,
+				ABC20025 /* ClipboardImageAssetLoaderTests.swift */,
+				ABC20028 /* ClipboardStoragePathsTests.swift */,
+				ABC20010 /* ClipboardHistoryRetentionServiceTests.swift */,
 				ABC20002 /* ClipboardHistoryPersistenceTests.swift */,
-				ABC20003 /* HistoryViewModelTests.swift */,
+				ABC2001D /* ClipboardItemPresentationTests.swift */,
+				ABC20017 /* ClipboardListScrollCoordinatorTests.swift */,
+				ABC20023 /* ClipboardSourceApplicationIconLoaderTests.swift */,
+				ABC20009 /* ClipboardItemTypeRegistryTests.swift */,
+				ABC2000F /* ClipboardLinkValueTests.swift */,
+				ABC20024 /* ClipboardWebsiteIconLoaderTests.swift */,
+				ABC20026 /* PastePayloadBuilderTests.swift */,
+				ABC20027 /* PasteSessionCoordinatorTests.swift */,
+				ABC20011 /* ClipboardSearchIndexTests.swift */,
+				ABC20006 /* ClipboardStoreTests.swift */,
+				ABC2001E /* HistoryContextMenuControllerTests.swift */,
+				ABC20020 /* HistoryItemMutationControllerTests.swift */,
+				ABC2001C /* HistoryJumpNavigationControllerTests.swift */,
+				ABC2002C /* HistoryKeyboardCommandHandlerTests.swift */,
+				ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */,
+				ABC20022 /* HistoryPanelConfiguratorTests.swift */,
+				ABC2001F /* HistoryPreviewStateControllerTests.swift */,
+				ABC2001B /* HistoryQuickPasteControllerTests.swift */,
+				ABC20029 /* HistorySessionControllerTests.swift */,
+				ABC20015 /* HistorySelectionControllerTests.swift */,
+				ABC2002A /* HistorySelectionViewStateProjectorTests.swift */,
+				ABC2002D /* HistoryCopiedAtFormatterTests.swift */,
+				ABC2002E /* HistoryDetailViewStateProjectorTests.swift */,
+				ABC2002F /* ClipboardKeyboardNavigationCoordinatorTests.swift */,
+				ABC20030 /* SettingsFormBindingsTests.swift */,
+				ABC20031 /* HistoryDeleteSelectionResolverTests.swift */,
+				ABC20032 /* HistorySelectionRangeControllerTests.swift */,
+				ABC20033 /* HistoryLinkPreviewStateControllerTests.swift */,
+				ABC20034 /* ClipboardStoreSettingsCoordinatorTests.swift */,
+				ABC20035 /* HistoryTestSupport.swift */,
+				ABC20036 /* ClipboardCaptureClassificationTests.swift */,
+				ABC20037 /* HistoryViewModelSearchAndActionsTests.swift */,
+				ABC20038 /* HistoryViewModelWindowOpenTests.swift */,
+				ABC20039 /* HistoryViewModelQuickPasteTests.swift */,
+				ABC2003A /* HistoryViewModelSelectionIntegrationTests.swift */,
+				ABC2003B /* ClipboardListStructureTests.swift */,
+				ABC2003C /* HistoryVisibleItemsControllerTests.swift */,
+				ABC2003D /* StatusBarMenuBuilderTests.swift */,
+				ABC2003E /* SettingsLoadedStateTests.swift */,
+				ABC2003F /* ClipboardItemSourceApplicationTests.swift */,
+				ABC20040 /* HistorySelectionQueryTests.swift */,
+				ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */,
+				ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */,
+				ABC20019 /* HistoryKeyboardCommandResolverTests.swift */,
+				ABC20013 /* HistoryWindowCoordinatorTests.swift */,
+				ABC2000A /* HistoryViewModelStateTests.swift */,
+				ABC2000C /* PasteSupportTests.swift */,
 				ABC20001 /* SettingsManagerTests.swift */,
+				ABC2001A /* SettingsMigrationTests.swift */,
+				ABC20014 /* SettingsWindowCoordinatorTests.swift */,
 				ABC20004 /* TestSupport.swift */,
 			);
 			path = BufferTests;
@@ -255,6 +647,22 @@
 			isa = PBXGroup;
 			children = (
 				BBB00003 /* ClipboardItem.swift */,
+				BBB00093 /* ClipboardItemKind.swift */,
+				BBB00094 /* ClipboardItemContent.swift */,
+				BBB00095 /* TextItemContent.swift */,
+				BBB00096 /* ImageItemContent.swift */,
+				BBB00097 /* ColorItemContent.swift */,
+				BBB00098 /* LinkItemContent.swift */,
+				BBB00099 /* ClipboardColorValue.swift */,
+				BBB00169 /* ClipboardColorFormatter.swift */,
+				BBB00170 /* ClipboardColorHSLConverter.swift */,
+				BBB00171 /* ClipboardColorParser.swift */,
+				BBB00100 /* ClipboardLinkValue.swift */,
+				BBB00101 /* ClipboardItemPresentation.swift */,
+				BBB00172 /* ClipboardItemContentFactory.swift */,
+				BBB00173 /* ClipboardItemSourceApplication.swift */,
+				BBB00174 /* ClipboardPinState.swift */,
+				BBB00102 /* ClipboardItemTypeRegistry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -262,17 +670,13 @@
 		DDD00003 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				BBB00004 /* ClipboardWatcher.swift */,
-				BBB00005 /* ClipboardStore.swift */,
-				BBB00006 /* HotkeyManager.swift */,
-				BBB00007 /* PasteController.swift */,
-				BBB00051 /* AppContainer.swift */,
-				BBB00015 /* SettingsManager.swift */,
-				BBB00038 /* ClipboardStorageSupport.swift */,
-				BBB00041 /* PasteSupport.swift */,
-				BBB00042 /* ClipboardCaptureSupport.swift */,
-				BBB00017 /* OCRService.swift */,
-				BBB00019 /* ActiveApplicationMonitor.swift */,
+				DDD00021 /* App */,
+				DDD00022 /* Clipboard */,
+				DDD00023 /* Capture */,
+				DDD00024 /* Paste */,
+				DDD00025 /* Settings */,
+				DDD00026 /* System */,
+				DDD00027 /* Windowing */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -316,20 +720,9 @@
 			isa = PBXGroup;
 			children = (
 				BBB00009 /* ClipboardListView.swift */,
-				BBB00047 /* ClipboardListStructure.swift */,
-				BBB00063 /* ClipboardSectionHeader.swift */,
-				BBB00064 /* ClipboardSectionDivider.swift */,
-				BBB00065 /* ClipboardScrollToTopButton.swift */,
-				BBB00010 /* ClipboardItemRow.swift */,
-				BBB00060 /* ClipboardQuickPasteBadge.swift */,
-				BBB00061 /* ClipboardRowSelectionBackground.swift */,
-				BBB00062 /* ClipboardLeadingVisual.swift */,
-				BBB00029 /* ClipboardItemRowSupport.swift */,
-				BBB00026 /* ClipboardScrollInfrastructure.swift */,
-				BBB00030 /* ClipboardScrollbarComponents.swift */,
-				BBB00044 /* ClipboardScrollbarGeometry.swift */,
-				BBB00048 /* ClipboardScrollbarInteractionState.swift */,
-				BBB00045 /* ClipboardScrollbarInteractionView.swift */,
+				DDD00028 /* Components */,
+				DDD00029 /* Assets */,
+				DDD00030 /* Infrastructure */,
 			);
 			path = Clipboard;
 			sourceTree = "<group>";
@@ -338,20 +731,13 @@
 			isa = PBXGroup;
 			children = (
 				BBB00008 /* HistoryWindow.swift */,
-				BBB00066 /* HistorySearchBar.swift */,
-				BBB00067 /* HistoryActionBar.swift */,
-				BBB00068 /* HistoryDetailHeader.swift */,
+				DDD00034 /* ViewModels */,
+				DDD00031 /* Components */,
+				DDD00032 /* Controllers */,
+				DDD00033 /* Infrastructure */,
+				DDD00035 /* State */,
 				DDD00019 /* DetailHeader */,
-				BBB00069 /* HistoryMultiSelectionSummary.swift */,
-				BBB00070 /* HistoryStatBlock.swift */,
-				BBB00071 /* HistoryTypeCountRow.swift */,
-				BBB00027 /* HistoryDetailComponents.swift */,
-				BBB00072 /* HistoryItemDetailContent.swift */,
 				DDD00020 /* DetailContent */,
-				BBB00075 /* HistoryDetailScrollView.swift */,
-				BBB00024 /* HistoryWindowInfrastructure.swift */,
-				BBB00034 /* HistoryContentState.swift */,
-				BBB00053 /* HistoryViewModel.swift */,
 			);
 			path = History;
 			sourceTree = "<group>";
@@ -364,7 +750,6 @@
 				DDD00015 /* Behaviour */,
 				DDD00016 /* Privacy */,
 				DDD00017 /* About */,
-				DDD00018 /* Support */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -373,6 +758,8 @@
 			isa = PBXGroup;
 			children = (
 				BBB00016 /* SettingsView.swift */,
+				BBB00184 /* SettingsFormBindings.swift */,
+				BBB00033 /* SettingsSupport.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -413,12 +800,231 @@
 			path = About;
 			sourceTree = "<group>";
 		};
-		DDD00018 /* Support */ = {
+		DDD00021 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				BBB00033 /* SettingsSupport.swift */,
+				BBB00051 /* AppContainer.swift */,
+				BBB00113 /* AppStartupService.swift */,
 			);
-			path = Support;
+			path = App;
+			sourceTree = "<group>";
+		};
+		DDD00022 /* Clipboard */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00005 /* ClipboardStore.swift */,
+				BBB00112 /* ClipboardAssetAccessing.swift */,
+				BBB00153 /* ClipboardStoragePaths.swift */,
+				BBB00154 /* ClipboardHistoryPersistence.swift */,
+				BBB00155 /* ClipboardImageAssetStore.swift */,
+				BBB00156 /* ClipboardTextAssetStore.swift */,
+				BBB00157 /* ClipboardAssetCleanup.swift */,
+				BBB00158 /* ClipboardAssetStore.swift */,
+				BBB00109 /* ClipboardRepository.swift */,
+				BBB00110 /* ClipboardHistoryRetentionService.swift */,
+				BBB00111 /* ClipboardSearchIndex.swift */,
+				BBB00189 /* ClipboardStoreSettingsCoordinator.swift */,
+				BBB00190 /* ClipboardStoreRetentionScheduler.swift */,
+			);
+			path = Clipboard;
+			sourceTree = "<group>";
+		};
+		DDD00023 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00042 /* ClipboardCaptureSupport.swift */,
+				BBB00004 /* ClipboardWatcher.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+		DDD00024 /* Paste */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00007 /* PasteController.swift */,
+				BBB00150 /* PastePayloadBuilder.swift */,
+				BBB00151 /* PasteboardPayloadWriter.swift */,
+				BBB00152 /* PasteSessionCoordinator.swift */,
+				BBB00041 /* PasteSupport.swift */,
+			);
+			path = Paste;
+			sourceTree = "<group>";
+		};
+		DDD00025 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00015 /* SettingsManager.swift */,
+				BBB00103 /* SettingsValues.swift */,
+				BBB00104 /* SettingsKeys.swift */,
+				BBB00105 /* SettingsDefaults.swift */,
+				BBB00106 /* SettingsStore.swift */,
+				BBB00107 /* SettingsMigration.swift */,
+				BBB00108 /* LaunchAtLoginController.swift */,
+				BBB00198 /* SettingsLoadedState.swift */,
+				BBB00175 /* SettingsPersistenceSnapshot.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		DDD00026 /* System */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00019 /* ActiveApplicationMonitor.swift */,
+				BBB00006 /* HotkeyManager.swift */,
+				BBB00017 /* OCRService.swift */,
+			);
+			path = System;
+			sourceTree = "<group>";
+		};
+		DDD00027 /* Windowing */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00114 /* HistoryWindowCoordinator.swift */,
+				BBB00115 /* SettingsWindowCoordinator.swift */,
+			);
+			path = Windowing;
+			sourceTree = "<group>";
+		};
+		DDD00028 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00010 /* ClipboardItemRow.swift */,
+				BBB00062 /* ClipboardLeadingVisual.swift */,
+				BBB00060 /* ClipboardQuickPasteBadge.swift */,
+				BBB00061 /* ClipboardRowSelectionBackground.swift */,
+				BBB00065 /* ClipboardScrollToTopButton.swift */,
+				BBB00064 /* ClipboardSectionDivider.swift */,
+				BBB00063 /* ClipboardSectionHeader.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		DDD00029 /* Assets */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00147 /* ClipboardImageAssetLoader.swift */,
+				BBB00029 /* ClipboardItemRowSupport.swift */,
+				BBB00148 /* ClipboardSourceApplicationIconLoader.swift */,
+				BBB00176 /* ClipboardWebsiteIconCache.swift */,
+				BBB00177 /* ClipboardWebsiteIconFallbackFetcher.swift */,
+				BBB00149 /* ClipboardWebsiteIconLoader.swift */,
+			);
+			path = Assets;
+			sourceTree = "<group>";
+		};
+		DDD00030 /* Infrastructure */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00128 /* ClipboardListAssetPrewarmer.swift */,
+				BBB00127 /* ClipboardListContextMenuState.swift */,
+				BBB00200 /* ClipboardListDisplayState.swift */,
+				BBB00195 /* ClipboardListLifecycleCoordinator.swift */,
+				BBB00129 /* ClipboardListOverlays.swift */,
+				BBB00130 /* ClipboardListRowsSection.swift */,
+				BBB00192 /* ClipboardListSectionBuilder.swift */,
+				BBB00132 /* ClipboardListScrollCoordinator.swift */,
+				BBB00163 /* ClipboardKeyboardNavigationResolver.swift */,
+				BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */,
+				BBB00164 /* ClipboardListContent.swift */,
+				BBB00193 /* ClipboardListRowGeometry.swift */,
+				BBB00047 /* ClipboardListStructure.swift */,
+				BBB00126 /* ClipboardListViewSupport.swift */,
+				BBB00201 /* ClipboardMeasuredScrollGeometry.swift */,
+				BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */,
+				BBB00194 /* ClipboardSettledScrollExecutor.swift */,
+				BBB00026 /* ClipboardScrollInfrastructure.swift */,
+				BBB00030 /* ClipboardScrollbarComponents.swift */,
+				BBB00044 /* ClipboardScrollbarGeometry.swift */,
+				BBB00048 /* ClipboardScrollbarInteractionState.swift */,
+				BBB00045 /* ClipboardScrollbarInteractionView.swift */,
+				BBB00133 /* ScrollActivityTracker.swift */,
+				BBB00182 /* ScrollControllerMetricsObserver.swift */,
+				BBB00183 /* ScrollControllerSettledScrollScheduler.swift */,
+				BBB00134 /* SmoothWheelScroller.swift */,
+			);
+			path = Infrastructure;
+			sourceTree = "<group>";
+		};
+		DDD00031 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00067 /* HistoryActionBar.swift */,
+				BBB00027 /* HistoryDetailComponents.swift */,
+				BBB00068 /* HistoryDetailHeader.swift */,
+				BBB00075 /* HistoryDetailScrollView.swift */,
+				BBB00166 /* HistoryClipboardListPane.swift */,
+				BBB00072 /* HistoryItemDetailContent.swift */,
+				BBB00167 /* HistoryMultiSelectionCard.swift */,
+				BBB00069 /* HistoryMultiSelectionSummary.swift */,
+				BBB00168 /* HistoryMultiSelectionTextPreview.swift */,
+				BBB00066 /* HistorySearchBar.swift */,
+				BBB00070 /* HistoryStatBlock.swift */,
+				BBB00071 /* HistoryTypeCountRow.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		DDD00032 /* Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00123 /* HistoryActionHandler.swift */,
+				BBB00121 /* HistoryActionResolver.swift */,
+				BBB00141 /* HistoryContextMenuController.swift */,
+				BBB00124 /* HistoryDeleteConfirmationController.swift */,
+				BBB00122 /* HistoryItemFilter.swift */,
+				BBB00143 /* HistoryItemMutationController.swift */,
+				BBB00119 /* HistoryJumpNavigationController.swift */,
+				BBB00165 /* HistoryKeyboardCommandHandler.swift */,
+				BBB00186 /* HistoryDeleteSelectionResolver.swift */,
+				BBB00188 /* HistoryLinkPreviewStateController.swift */,
+				BBB00144 /* HistoryPanelConfigurator.swift */,
+				BBB00120 /* HistoryPreviewLoader.swift */,
+				BBB00140 /* HistoryPreviewStateController.swift */,
+				BBB00118 /* HistoryQuickPasteController.swift */,
+				BBB00159 /* HistorySessionController.swift */,
+				BBB00178 /* HistoryCopiedAtFormatter.swift */,
+				BBB00180 /* HistoryDetailViewStateProjector.swift */,
+				BBB00125 /* HistorySearchFocusController.swift */,
+				BBB00117 /* HistorySelectionController.swift */,
+				BBB00185 /* HistorySelectionRangeController.swift */,
+				BBB00160 /* HistorySelectionViewStateProjector.swift */,
+				BBB00191 /* HistoryVisibleItemsController.swift */,
+			);
+			path = Controllers;
+			sourceTree = "<group>";
+		};
+		DDD00033 /* Infrastructure */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00146 /* HistoryListScrollRestorationCoordinator.swift */,
+				BBB00024 /* HistoryWindowInfrastructure.swift */,
+				BBB00145 /* HistoryWindowOpenAnimator.swift */,
+			);
+			path = Infrastructure;
+			sourceTree = "<group>";
+		};
+		DDD00034 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00053 /* HistoryViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		DDD00035 /* State */ = {
+			isa = PBXGroup;
+			children = (
+				BBB00034 /* HistoryContentState.swift */,
+				BBB00179 /* HistoryDetailViewState.swift */,
+				BBB00116 /* HistoryInteractionState.swift */,
+				BBB00187 /* HistoryLinkPreviewState.swift */,
+				BBB00139 /* HistoryPreviewState.swift */,
+				BBB00161 /* HistorySessionState.swift */,
+				BBB00199 /* HistorySelectionQuery.swift */,
+				BBB00162 /* HistorySelectionViewState.swift */,
+				BBB00142 /* HistoryViewPresentationState.swift */,
+			);
+			path = State;
 			sourceTree = "<group>";
 		};
 		DDD00019 /* DetailHeader */ = {
@@ -447,6 +1053,8 @@
 			isa = PBXGroup;
 			children = (
 				BBB00012 /* StatusBarController.swift */,
+				BBB00197 /* StatusBarClearHistoryConfirmationPresenter.swift */,
+				BBB00196 /* StatusBarMenuBuilder.swift */,
 			);
 			path = StatusBar;
 			sourceTree = "<group>";
@@ -455,8 +1063,10 @@
 			isa = PBXGroup;
 			children = (
 				D87736112F8ECC6B00392A0B /* ClickDetector.swift */,
-				BBB00031 /* ClipboardScrollBridges.swift */,
-				BBB00025 /* HistoryInputInfrastructure.swift */,
+				BBB00135 /* ScrollViewConfigurator.swift */,
+				BBB00136 /* SelectableMonospacedTextView.swift */,
+				BBB00137 /* HistoryKeyboardCommand.swift */,
+				BBB00138 /* HistoryWindowKeyMonitor.swift */,
 				BBB00039 /* KeyRecorderBridge.swift */,
 			);
 			path = AppKitBridges;
@@ -571,9 +1181,69 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ABC1000D /* ActiveApplicationMonitorTests.swift in Sources */,
+				ABC10016 /* HistoryActionResolverTests.swift in Sources */,
+				ABC10012 /* AppStartupServiceTests.swift in Sources */,
+				ABC1000B /* AppFormattingTests.swift in Sources */,
+				ABC10018 /* ClipboardListAssetPrewarmerTests.swift in Sources */,
+				ABC10007 /* ClipboardAssetStoreTests.swift in Sources */,
+				ABC10008 /* ClipboardCaptureSupportTests.swift in Sources */,
+				ABC1000E /* ClipboardColorValueTests.swift in Sources */,
+				ABC1002B /* ClipboardKeyboardNavigationResolverTests.swift in Sources */,
+				ABC10025 /* ClipboardImageAssetLoaderTests.swift in Sources */,
+				ABC10028 /* ClipboardStoragePathsTests.swift in Sources */,
+				ABC10010 /* ClipboardHistoryRetentionServiceTests.swift in Sources */,
 				ABC10002 /* ClipboardHistoryPersistenceTests.swift in Sources */,
-				ABC10003 /* HistoryViewModelTests.swift in Sources */,
+				ABC1001D /* ClipboardItemPresentationTests.swift in Sources */,
+				ABC10017 /* ClipboardListScrollCoordinatorTests.swift in Sources */,
+				ABC10023 /* ClipboardSourceApplicationIconLoaderTests.swift in Sources */,
+				ABC10009 /* ClipboardItemTypeRegistryTests.swift in Sources */,
+				ABC1000F /* ClipboardLinkValueTests.swift in Sources */,
+				ABC10024 /* ClipboardWebsiteIconLoaderTests.swift in Sources */,
+				ABC10026 /* PastePayloadBuilderTests.swift in Sources */,
+				ABC10027 /* PasteSessionCoordinatorTests.swift in Sources */,
+				ABC10011 /* ClipboardSearchIndexTests.swift in Sources */,
+				ABC10006 /* ClipboardStoreTests.swift in Sources */,
+				ABC1001E /* HistoryContextMenuControllerTests.swift in Sources */,
+				ABC10020 /* HistoryItemMutationControllerTests.swift in Sources */,
+				ABC1001C /* HistoryJumpNavigationControllerTests.swift in Sources */,
+				ABC1002C /* HistoryKeyboardCommandHandlerTests.swift in Sources */,
+				ABC10021 /* HistoryListScrollRestorationCoordinatorTests.swift in Sources */,
+				ABC10022 /* HistoryPanelConfiguratorTests.swift in Sources */,
+				ABC1001F /* HistoryPreviewStateControllerTests.swift in Sources */,
+				ABC1001B /* HistoryQuickPasteControllerTests.swift in Sources */,
+				ABC10029 /* HistorySessionControllerTests.swift in Sources */,
+				ABC10015 /* HistorySelectionControllerTests.swift in Sources */,
+				ABC1002A /* HistorySelectionViewStateProjectorTests.swift in Sources */,
+				ABC1002D /* HistoryCopiedAtFormatterTests.swift in Sources */,
+				ABC1002E /* HistoryDetailViewStateProjectorTests.swift in Sources */,
+				ABC1002F /* ClipboardKeyboardNavigationCoordinatorTests.swift in Sources */,
+				ABC10030 /* SettingsFormBindingsTests.swift in Sources */,
+				ABC10031 /* HistoryDeleteSelectionResolverTests.swift in Sources */,
+				ABC10032 /* HistorySelectionRangeControllerTests.swift in Sources */,
+				ABC10033 /* HistoryLinkPreviewStateControllerTests.swift in Sources */,
+				ABC10034 /* ClipboardStoreSettingsCoordinatorTests.swift in Sources */,
+				ABC10035 /* HistoryTestSupport.swift in Sources */,
+				ABC10036 /* ClipboardCaptureClassificationTests.swift in Sources */,
+				ABC10037 /* HistoryViewModelSearchAndActionsTests.swift in Sources */,
+				ABC10038 /* HistoryViewModelWindowOpenTests.swift in Sources */,
+				ABC10039 /* HistoryViewModelQuickPasteTests.swift in Sources */,
+				ABC1003A /* HistoryViewModelSelectionIntegrationTests.swift in Sources */,
+				ABC1003B /* ClipboardListStructureTests.swift in Sources */,
+				ABC1003C /* HistoryVisibleItemsControllerTests.swift in Sources */,
+				ABC1003D /* StatusBarMenuBuilderTests.swift in Sources */,
+				ABC1003E /* SettingsLoadedStateTests.swift in Sources */,
+				ABC1003F /* ClipboardItemSourceApplicationTests.swift in Sources */,
+				ABC10040 /* HistorySelectionQueryTests.swift in Sources */,
+				ABC10041 /* ClipboardListDisplayStateProjectorTests.swift in Sources */,
+				ABC10042 /* ClipboardMeasuredScrollGeometryTests.swift in Sources */,
+				ABC10019 /* HistoryKeyboardCommandResolverTests.swift in Sources */,
+				ABC10013 /* HistoryWindowCoordinatorTests.swift in Sources */,
+				ABC1000A /* HistoryViewModelStateTests.swift in Sources */,
+				ABC1000C /* PasteSupportTests.swift in Sources */,
 				ABC10001 /* SettingsManagerTests.swift in Sources */,
+				ABC1001A /* SettingsMigrationTests.swift in Sources */,
+				ABC10014 /* SettingsWindowCoordinatorTests.swift in Sources */,
 				ABC10004 /* TestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -585,15 +1255,77 @@
 				AAA00001 /* BufferApp.swift in Sources */,
 				AAA00002 /* AppDelegate.swift in Sources */,
 				AAA00003 /* ClipboardItem.swift in Sources */,
+				AAA00091 /* ClipboardItemKind.swift in Sources */,
+				AAA00092 /* ClipboardItemContent.swift in Sources */,
+				AAA00093 /* TextItemContent.swift in Sources */,
+				AAA00094 /* ImageItemContent.swift in Sources */,
+				AAA00095 /* ColorItemContent.swift in Sources */,
+				AAA00096 /* LinkItemContent.swift in Sources */,
+				AAA00097 /* ClipboardColorValue.swift in Sources */,
+				AAA00155 /* ClipboardColorFormatter.swift in Sources */,
+				AAA00156 /* ClipboardColorHSLConverter.swift in Sources */,
+				AAA00157 /* ClipboardColorParser.swift in Sources */,
+				AAA00098 /* ClipboardLinkValue.swift in Sources */,
+				AAA00099 /* ClipboardItemPresentation.swift in Sources */,
+				AAA00158 /* ClipboardItemContentFactory.swift in Sources */,
+				AAA00159 /* ClipboardItemSourceApplication.swift in Sources */,
+				AAA00160 /* ClipboardPinState.swift in Sources */,
+				AAA00100 /* ClipboardItemTypeRegistry.swift in Sources */,
+				AAA00101 /* SettingsValues.swift in Sources */,
+				AAA00102 /* SettingsKeys.swift in Sources */,
+				AAA00103 /* SettingsDefaults.swift in Sources */,
+				AAA00104 /* SettingsStore.swift in Sources */,
+				AAA00105 /* SettingsMigration.swift in Sources */,
+				AAA00106 /* LaunchAtLoginController.swift in Sources */,
+				AAA00161 /* SettingsPersistenceSnapshot.swift in Sources */,
+				AAA00107 /* ClipboardRepository.swift in Sources */,
+				AAA00108 /* ClipboardHistoryRetentionService.swift in Sources */,
+				AAA00109 /* ClipboardSearchIndex.swift in Sources */,
+				AAA00110 /* ClipboardAssetAccessing.swift in Sources */,
+				AAA00111 /* AppStartupService.swift in Sources */,
+				AAA00112 /* HistoryWindowCoordinator.swift in Sources */,
+				AAA00142 /* PastePayloadBuilder.swift in Sources */,
+				AAA00143 /* PasteboardPayloadWriter.swift in Sources */,
+				AAA00144 /* PasteSessionCoordinator.swift in Sources */,
+				AAA00145 /* ClipboardStoragePaths.swift in Sources */,
+				AAA00146 /* ClipboardHistoryPersistence.swift in Sources */,
+				AAA00147 /* ClipboardImageAssetStore.swift in Sources */,
+				AAA00148 /* ClipboardTextAssetStore.swift in Sources */,
+				AAA00149 /* ClipboardAssetCleanup.swift in Sources */,
+				AAA0014A /* ClipboardAssetStore.swift in Sources */,
+				AAA00113 /* SettingsWindowCoordinator.swift in Sources */,
 				AAA00004 /* ClipboardWatcher.swift in Sources */,
 				AAA00005 /* ClipboardStore.swift in Sources */,
 				AAA00006 /* HotkeyManager.swift in Sources */,
 				AAA00007 /* PasteController.swift in Sources */,
 				AAA00008 /* HistoryWindow.swift in Sources */,
 				AAA00009 /* ClipboardListView.swift in Sources */,
+				AAA00124 /* ClipboardListViewSupport.swift in Sources */,
+				AAA00125 /* ClipboardListContextMenuState.swift in Sources */,
+				AAA00126 /* ClipboardListAssetPrewarmer.swift in Sources */,
+				AAA00127 /* ClipboardListOverlays.swift in Sources */,
+				AAA00128 /* ClipboardListRowsSection.swift in Sources */,
+				AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */,
+				AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */,
+				AAA00167 /* ClipboardKeyboardNavigationCoordinator.swift in Sources */,
+				AAA00150 /* ClipboardListContent.swift in Sources */,
+				AAA0017B /* ClipboardListLifecycleCoordinator.swift in Sources */,
+				AAA00178 /* ClipboardListSectionBuilder.swift in Sources */,
 				AAA00010 /* ClipboardItemRow.swift in Sources */,
+				AAA0013F /* ClipboardImageAssetLoader.swift in Sources */,
+				AAA00140 /* ClipboardSourceApplicationIconLoader.swift in Sources */,
+				AAA00162 /* ClipboardWebsiteIconCache.swift in Sources */,
+				AAA00163 /* ClipboardWebsiteIconFallbackFetcher.swift in Sources */,
+				AAA00141 /* ClipboardWebsiteIconLoader.swift in Sources */,
+				AAA00179 /* ClipboardListRowGeometry.swift in Sources */,
+				AAA00168 /* ScrollControllerMetricsObserver.swift in Sources */,
+				AAA00169 /* ScrollControllerSettledScrollScheduler.swift in Sources */,
+				AAA0017A /* ClipboardSettledScrollExecutor.swift in Sources */,
 				AAA00012 /* StatusBarController.swift in Sources */,
+				AAA0017D /* StatusBarClearHistoryConfirmationPresenter.swift in Sources */,
+				AAA0017C /* StatusBarMenuBuilder.swift in Sources */,
 				AAA00013 /* SettingsManager.swift in Sources */,
+				AAA0017E /* SettingsLoadedState.swift in Sources */,
 				AAA00014 /* SettingsView.swift in Sources */,
 				D87736122F8ECC6B00392A0B /* ClickDetector.swift in Sources */,
 				AAA00015 /* OCRService.swift in Sources */,
@@ -605,8 +1337,10 @@
 				AAA00056 /* BufferWindowBackdrop.swift in Sources */,
 				AAA00057 /* BufferViewSupport.swift in Sources */,
 				AAA00022 /* HistoryWindowInfrastructure.swift in Sources */,
-				AAA00023 /* HistoryInputInfrastructure.swift in Sources */,
 				AAA00024 /* ClipboardScrollInfrastructure.swift in Sources */,
+				AAA00131 /* ScrollActivityTracker.swift in Sources */,
+				AAA00132 /* SmoothWheelScroller.swift in Sources */,
+				AAA00180 /* ClipboardListDisplayState.swift in Sources */,
 				AAA00025 /* HistoryDetailComponents.swift in Sources */,
 				AAA00058 /* ClipboardQuickPasteBadge.swift in Sources */,
 				AAA00059 /* ClipboardRowSelectionBackground.swift in Sources */,
@@ -616,15 +1350,49 @@
 				AAA00063 /* ClipboardScrollToTopButton.swift in Sources */,
 				AAA00027 /* ClipboardItemRowSupport.swift in Sources */,
 				AAA00028 /* ClipboardScrollbarComponents.swift in Sources */,
-				AAA00029 /* ClipboardScrollBridges.swift in Sources */,
+				AAA00133 /* ScrollViewConfigurator.swift in Sources */,
+				AAA00134 /* SelectableMonospacedTextView.swift in Sources */,
+				AAA00135 /* HistoryKeyboardCommand.swift in Sources */,
+				AAA00136 /* HistoryWindowKeyMonitor.swift in Sources */,
 				AAA00064 /* HistorySearchBar.swift in Sources */,
 				AAA00065 /* HistoryActionBar.swift in Sources */,
+				AAA00152 /* HistoryClipboardListPane.swift in Sources */,
 				AAA00066 /* HistoryDetailHeader.swift in Sources */,
+				AAA00153 /* HistoryMultiSelectionCard.swift in Sources */,
 				AAA00067 /* HistoryMultiSelectionSummary.swift in Sources */,
+				AAA00154 /* HistoryMultiSelectionTextPreview.swift in Sources */,
 				AAA00068 /* HistoryStatBlock.swift in Sources */,
 				AAA00069 /* HistoryTypeCountRow.swift in Sources */,
 				AAA00070 /* HistoryItemDetailContent.swift in Sources */,
 				AAA00073 /* HistoryDetailScrollView.swift in Sources */,
+				AAA00114 /* HistoryInteractionState.swift in Sources */,
+				AAA00115 /* HistorySelectionController.swift in Sources */,
+				AAA00116 /* HistoryQuickPasteController.swift in Sources */,
+				AAA00117 /* HistoryJumpNavigationController.swift in Sources */,
+				AAA00118 /* HistoryPreviewLoader.swift in Sources */,
+				AAA00137 /* HistoryPreviewState.swift in Sources */,
+				AAA00138 /* HistoryPreviewStateController.swift in Sources */,
+				AAA00119 /* HistoryActionResolver.swift in Sources */,
+				AAA00139 /* HistoryContextMenuController.swift in Sources */,
+				AAA00172 /* HistoryDeleteSelectionResolver.swift in Sources */,
+				AAA00174 /* HistoryLinkPreviewStateController.swift in Sources */,
+				AAA0013C /* HistoryPanelConfigurator.swift in Sources */,
+				AAA00120 /* HistoryItemFilter.swift in Sources */,
+				AAA00151 /* HistoryKeyboardCommandHandler.swift in Sources */,
+				AAA0014B /* HistorySessionController.swift in Sources */,
+				AAA00164 /* HistoryCopiedAtFormatter.swift in Sources */,
+				AAA00166 /* HistoryDetailViewStateProjector.swift in Sources */,
+				AAA0017F /* HistorySelectionQuery.swift in Sources */,
+				AAA00171 /* HistorySelectionRangeController.swift in Sources */,
+				AAA0014C /* HistorySelectionViewStateProjector.swift in Sources */,
+				AAA00177 /* HistoryVisibleItemsController.swift in Sources */,
+				AAA0013A /* HistoryViewPresentationState.swift in Sources */,
+				AAA0013B /* HistoryItemMutationController.swift in Sources */,
+				AAA0013D /* HistoryWindowOpenAnimator.swift in Sources */,
+				AAA0013E /* HistoryListScrollRestorationCoordinator.swift in Sources */,
+				AAA00121 /* HistoryActionHandler.swift in Sources */,
+				AAA00122 /* HistoryDeleteConfirmationController.swift in Sources */,
+				AAA00123 /* HistorySearchFocusController.swift in Sources */,
 				AAA00083 /* HistoryTextDetailHeader.swift in Sources */,
 				AAA00084 /* HistoryImageDetailHeader.swift in Sources */,
 				AAA00085 /* HistoryColorDetailHeader.swift in Sources */,
@@ -642,19 +1410,27 @@
 				AAA00076 /* SettingsAboutView.swift in Sources */,
 				AAA00082 /* SettingsAboutSections.swift in Sources */,
 				AAA00031 /* SettingsSupport.swift in Sources */,
+				AAA00170 /* SettingsFormBindings.swift in Sources */,
 				AAA00032 /* HistoryContentState.swift in Sources */,
-				AAA00036 /* ClipboardStorageSupport.swift in Sources */,
+				AAA00165 /* HistoryDetailViewState.swift in Sources */,
+				AAA00173 /* HistoryLinkPreviewState.swift in Sources */,
+				AAA0014D /* HistorySessionState.swift in Sources */,
+				AAA0014E /* HistorySelectionViewState.swift in Sources */,
 				AAA00037 /* KeyRecorderBridge.swift in Sources */,
 				AAA00039 /* PasteSupport.swift in Sources */,
 				AAA00040 /* ClipboardCaptureSupport.swift in Sources */,
 				AAA00041 /* AppFormatting.swift in Sources */,
 				AAA00042 /* ClipboardScrollbarGeometry.swift in Sources */,
 				AAA00043 /* ClipboardScrollbarInteractionView.swift in Sources */,
+				AAA0014F /* ClipboardKeyboardNavigationResolver.swift in Sources */,
 				AAA00044 /* Comparable+Clamped.swift in Sources */,
 				AAA00045 /* ClipboardListStructure.swift in Sources */,
 				AAA00046 /* ClipboardScrollbarInteractionState.swift in Sources */,
+				AAA00181 /* ClipboardMeasuredScrollGeometry.swift in Sources */,
 				AAA00049 /* AppContainer.swift in Sources */,
 				AAA00050 /* BufferLogger.swift in Sources */,
+				AAA00175 /* ClipboardStoreSettingsCoordinator.swift in Sources */,
+				AAA00176 /* ClipboardStoreRetentionScheduler.swift in Sources */,
 				AAA00051 /* HistoryViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

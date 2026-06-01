@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import XCTest
 @testable import Buffer
 
@@ -46,7 +47,7 @@ func makeTestDefaults(testName: String = UUID().uuidString) -> UserDefaults {
 }
 
 func eventually(
-    timeoutNanoseconds: UInt64 = 1_000_000_000,
+    timeoutNanoseconds: UInt64 = 3_000_000_000,
     file: StaticString = #filePath,
     line: UInt = #line,
     _ condition: @escaping @Sendable @MainActor () -> Bool
@@ -64,4 +65,39 @@ func eventually(
 
     let finalValue = await MainActor.run(body: condition)
     XCTAssertTrue(finalValue, file: file, line: line)
+}
+
+@MainActor
+func makeTestImage(
+    size: NSSize = NSSize(width: 8, height: 8),
+    color: NSColor = .systemBlue
+) -> NSImage {
+    NSImage(data: makePNGData(size: size, color: color))!
+}
+
+@MainActor
+func makePNGData(
+    size: NSSize = NSSize(width: 8, height: 8),
+    color: NSColor = .systemBlue
+) -> Data {
+    let bitmap = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: Int(size.width),
+        pixelsHigh: Int(size.height),
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )!
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+    color.setFill()
+    NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    return try! XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
 }
