@@ -4,8 +4,12 @@ import AppKit
 protocol PasteControlling: AnyObject {
     func copyToClipboard(_ item: ClipboardItem)
     func copyMultipleToClipboard(_ items: [ClipboardItem])
-    func paste(_ item: ClipboardItem, previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void)
-    func pasteMultiple(_ items: [ClipboardItem], previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void)
+    func paste(
+        _ item: ClipboardItem, previousApp: NSRunningApplication?,
+        ignoreNextCapturedChange: @escaping @MainActor () -> Void)
+    func pasteMultiple(
+        _ items: [ClipboardItem], previousApp: NSRunningApplication?,
+        ignoreNextCapturedChange: @escaping @MainActor () -> Void)
     func saveImageToDisk(_ image: NSImage)
 }
 
@@ -40,10 +44,13 @@ final class PasteController: PasteControlling {
 
     func copyMultipleToClipboard(_ items: [ClipboardItem]) {
         guard let payload = payloadBuilder.copyPayload(for: items) else { return }
-        PasteboardPayloadWriter().write(payload)
+        payloadWriter.write(payload)
     }
 
-    func paste(_ item: ClipboardItem, previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void) {
+    func paste(
+        _ item: ClipboardItem, previousApp: NSRunningApplication?,
+        ignoreNextCapturedChange: @escaping @MainActor () -> Void
+    ) {
         sessionCoordinator.paste(
             payload: payloadBuilder.pastePayload(for: item),
             activatePreviousApp: activation(previousApp),
@@ -51,7 +58,10 @@ final class PasteController: PasteControlling {
         )
     }
 
-    func pasteMultiple(_ items: [ClipboardItem], previousApp: NSRunningApplication?, ignoreNextCapturedChange: @escaping @MainActor () -> Void) {
+    func pasteMultiple(
+        _ items: [ClipboardItem], previousApp: NSRunningApplication?,
+        ignoreNextCapturedChange: @escaping @MainActor () -> Void
+    ) {
         sessionCoordinator.pasteMultiple(
             batch: payloadBuilder.batchPayload(for: items),
             activatePreviousApp: activation(previousApp),

@@ -2,12 +2,23 @@ import AppKit
 import Foundation
 
 @MainActor
+protocol ClipboardReadingPasteboard: AnyObject {
+    var changeCount: Int { get }
+    func propertyList(forType type: NSPasteboard.PasteboardType) -> Any?
+    func string(forType type: NSPasteboard.PasteboardType) -> String?
+    func data(forType type: NSPasteboard.PasteboardType) -> Data?
+}
+
+extension NSPasteboard: ClipboardReadingPasteboard {}
+
+@MainActor
 final class ClipboardWatcher: ObservableObject {
     @Published private(set) var isPaused = false
 
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
+    private let pasteboard: ClipboardReadingPasteboard
     private var watchTask: Task<Void, Never>?
     private var pendingAsyncCaptureTask: Task<Void, Never>?
     private var lastChangeCount: Int
@@ -19,12 +30,14 @@ final class ClipboardWatcher: ObservableObject {
     init(
         store: ClipboardStore,
         settingsManager: SettingsManager,
-        activeApplicationProvider: ActiveApplicationProviding
+        activeApplicationProvider: ActiveApplicationProviding,
+        pasteboard: ClipboardReadingPasteboard = NSPasteboard.general
     ) {
         self.store = store
         self.settingsManager = settingsManager
         self.activeApplicationProvider = activeApplicationProvider
-        self.lastChangeCount = NSPasteboard.general.changeCount
+        self.pasteboard = pasteboard
+        self.lastChangeCount = pasteboard.changeCount
     }
 
     func startWatching() {
@@ -53,17 +66,16 @@ final class ClipboardWatcher: ObservableObject {
 
     func resume() {
         isPaused = false
-        lastChangeCount = NSPasteboard.general.changeCount
+        lastChangeCount = pasteboard.changeCount
     }
 
     func ignoreNextCapturedChange() {
         ignoreNextChange = true
     }
 
-    private func checkClipboard() {
+    func checkClipboard() {
         guard !isPaused else { return }
 
-        let pasteboard = NSPasteboard.general
         let currentChangeCount = pasteboard.changeCount
 
         guard currentChangeCount != lastChangeCount else { return }
@@ -79,10 +91,12 @@ final class ClipboardWatcher: ObservableObject {
         let sourceApp = ClipboardCaptureSupport.currentSourceApplicationInfo(using: activeApplicationProvider)
         guard !settingsManager.shouldExcludeCapture(from: sourceApp) else { return }
 
-        if let filePaths = pasteboard.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType")) as? [String],
-           filePaths.count == 1,
-           let filePath = filePaths.first,
-           ClipboardCaptureSupport.isImageFile(filePath) {
+        if let filePaths = pasteboard.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType"))
+            as? [String],
+            filePaths.count == 1,
+            let filePath = filePaths.first,
+            ClipboardCaptureSupport.isImageFile(filePath)
+        {
             let priorHash = lastContentHash
             pendingAsyncCaptureTask = Task { [store] in
                 let processedImage = await Task.detached(priority: .userInitiated) {

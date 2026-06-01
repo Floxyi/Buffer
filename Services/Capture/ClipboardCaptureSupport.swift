@@ -11,15 +11,17 @@ enum ClipboardCaptureSupport {
         provider.currentApplicationInfo
     }
 
-    static func imageData(from pasteboard: NSPasteboard) -> Data? {
+    @MainActor
+    static func imageData(from pasteboard: ClipboardReadingPasteboard) -> Data? {
         let imageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
 
         for type in imageTypes {
             if let data = pasteboard.data(forType: type) {
                 if let image = NSImage(data: data),
-                   let tiffData = image.tiffRepresentation,
-                   let bitmap = NSBitmapImageRep(data: tiffData),
-                   let pngData = bitmap.representation(using: .png, properties: [:]) {
+                    let tiffData = image.tiffRepresentation,
+                    let bitmap = NSBitmapImageRep(data: tiffData),
+                    let pngData = bitmap.representation(using: .png, properties: [:])
+                {
                     return pngData
                 }
                 return data
@@ -49,8 +51,9 @@ enum ClipboardCaptureSupport {
         }
 
         if enableWebsitePreviews,
-           let candidateURL = ClipboardLinkValue.parseImplicitWebsiteCandidate(text),
-           await websiteReachability(candidateURL) {
+            let candidateURL = ClipboardLinkValue.parseImplicitWebsiteCandidate(text),
+            await websiteReachability(candidateURL)
+        {
             return .link(candidateURL, originalText: text, sourceApp: sourceApp)
         }
 
@@ -100,9 +103,10 @@ enum ClipboardCaptureSupport {
             let fileData = try Data(contentsOf: fileURL)
 
             guard let image = NSImage(data: fileData),
-                  let tiffData = image.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiffData),
-                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                let tiffData = image.tiffRepresentation,
+                let bitmap = NSBitmapImageRep(data: tiffData),
+                let pngData = bitmap.representation(using: .png, properties: [:])
+            else {
                 BufferLogger.clipboard.error("Failed to convert image file: \(filePath, privacy: .public)")
                 return
             }
@@ -119,7 +123,9 @@ enum ClipboardCaptureSupport {
                 }
             }
         } catch {
-            BufferLogger.clipboard.error("Error processing image file \(filePath, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.clipboard.error(
+                "Error processing image file \(filePath, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
     }
 
@@ -132,9 +138,10 @@ enum ClipboardCaptureSupport {
             let fileData = try Data(contentsOf: fileURL)
 
             guard let image = NSImage(data: fileData),
-                  let tiffData = image.tiffRepresentation,
-                  let bitmap = NSBitmapImageRep(data: tiffData),
-                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                let tiffData = image.tiffRepresentation,
+                let bitmap = NSBitmapImageRep(data: tiffData),
+                let pngData = bitmap.representation(using: .png, properties: [:])
+            else {
                 BufferLogger.clipboard.error("Failed to convert image file: \(filePath, privacy: .public)")
                 return nil
             }
@@ -146,7 +153,9 @@ enum ClipboardCaptureSupport {
 
             return (pngData, hash)
         } catch {
-            BufferLogger.clipboard.error("Error processing image file \(filePath, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.clipboard.error(
+                "Error processing image file \(filePath, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
             return nil
         }
     }
