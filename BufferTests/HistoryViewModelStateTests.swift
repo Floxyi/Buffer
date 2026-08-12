@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -130,5 +131,64 @@ final class HistoryViewModelStateTests: XCTestCase {
         await eventually {
             store.items.first?.ocrText == "recognized"
         }
+    }
+
+    func testSupersededOCRRequestCannotOverwriteNewerResult() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+        let firstItem = ClipboardItem.image(filename: try XCTUnwrap(store.saveImage(makePNGData())))
+        let secondItem = ClipboardItem.image(filename: try XCTUnwrap(store.saveImage(makePNGData())))
+        store.add(firstItem)
+        store.add(secondItem)
+        await eventually { store.items.count == 2 }
+
+        let ocrService = ControlledOCRService()
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: ocrService
+        )
+        let firstTask = Task {
+            await viewModel.extractImageText(for: firstItem)
+        }
+        await eventually { ocrService.pendingRequestCount == 1 }
+
+        let secondTask = Task {
+            await viewModel.extractImageText(for: secondItem)
+        }
+        await eventually { ocrService.pendingRequestCount == 2 }
+        ocrService.resumeRequest(at: 1, returning: "newer")
+        await secondTask.value
+        ocrService.resumeRequest(at: 0, returning: "stale")
+        await firstTask.value
+
+        await eventually {
+            store.items.first(where: { $0.id == secondItem.id })?.ocrText == "newer"
+        }
+        XCTAssertNil(store.items.first(where: { $0.id == firstItem.id })?.ocrText)
+    }
+}
+
+@MainActor
+private final class ControlledOCRService: OCRServicing {
+    private var continuations: [CheckedContinuation<String?, Never>?] = []
+
+    var pendingRequestCount: Int {
+        continuations.count
+    }
+
+    func recognizeText(from image: NSImage) async -> String? {
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func resumeRequest(at index: Int, returning result: String?) {
+        continuations[index]?.resume(returning: result)
+        continuations[index] = nil
     }
 }

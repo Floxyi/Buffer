@@ -6,8 +6,8 @@ struct HistoryPreviewLoader {
     let store: ClipboardStore
     let ocrService: OCRServicing
 
-    func loadPreviewImage(for item: ClipboardItem) -> NSImage? {
-        store.image(for: item)
+    func loadPreviewImage(for item: ClipboardItem) async -> NSImage? {
+        await ClipboardImageAssetLoader.loadPreviewImage(for: item, store: store)
     }
 
     func loadInitialChunk(for item: ClipboardItem) -> ChunkedTextState {
@@ -45,7 +45,12 @@ struct HistoryPreviewLoader {
         for item: ClipboardItem,
         previewImage: NSImage?
     ) async -> String? {
-        let image = previewImage ?? loadPreviewImage(for: item)
+        let image: NSImage?
+        if let previewImage {
+            image = previewImage
+        } else {
+            image = await loadPreviewImage(for: item)
+        }
         guard let image else { return nil }
         return await ocrService.recognizeText(from: image)
     }

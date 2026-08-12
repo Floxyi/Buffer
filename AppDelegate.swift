@@ -91,8 +91,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openHistoryWindowOnStartup() {
         Task { @MainActor [weak self] in
+            guard let self else { return }
             await Task.yield()
-            self?.historyWindowCoordinator.present(.standard(for: .startup))
+            self.historyWindowCoordinator.present(.standard(for: .startup))
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                async let persistedWebsiteIcons: Void = ClipboardWebsiteIconCache.hydratePersistedIcons()
+                async let applicationIcons: Void = ClipboardSourceApplicationIconLoader.prewarmLocalSourceIcons(
+                    for: self.clipboardStore.items,
+                    settings: self.settingsManager,
+                    limit: 80
+                )
+                _ = await (persistedWebsiteIcons, applicationIcons)
+
+                await ClipboardSourceApplicationIconLoader.prewarmSourceIcons(
+                    for: self.clipboardStore.items,
+                    settings: self.settingsManager,
+                    limit: 80
+                )
+            }
         }
     }
 

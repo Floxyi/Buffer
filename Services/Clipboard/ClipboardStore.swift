@@ -12,6 +12,7 @@ protocol ClipboardStoreReading: AnyObject {
     func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)?
     func itemSize(for item: ClipboardItem) -> Int?
     func searchableText(for item: ClipboardItem) -> String
+    func matchesSearchQuery(_ normalizedQuery: String, for item: ClipboardItem) -> Bool
 }
 
 @MainActor
@@ -37,8 +38,10 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
             do {
                 paths = try ClipboardStoragePaths()
             } catch {
-                BufferLogger.persistence.fault("Failed to build storage paths: \(String(describing: error), privacy: .public)")
-                let fallbackDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("BufferFallback", isDirectory: true)
+                BufferLogger.persistence.fault(
+                    "Failed to build storage paths: \(String(describing: error), privacy: .public)")
+                let fallbackDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(
+                    "BufferFallback", isDirectory: true)
                 paths = ClipboardStoragePaths(
                     storageDirectory: fallbackDirectory,
                     historyFileURL: fallbackDirectory.appendingPathComponent("history.json"),
@@ -67,7 +70,7 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
             assetStore: assetStore
         )
         self.retentionService = retentionService
-        items = initialItems
+        applySnapshot(initialItems)
 
         bindSettings()
         startBackgroundRetentionCleanup()
@@ -138,12 +141,44 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
         assetAccess.imageDimensions(for: item)
     }
 
+    nonisolated func imageAsync(for item: ClipboardItem) async -> NSImage? {
+        assetAccess.image(for: item)
+    }
+
+    nonisolated func thumbnailAsync(for item: ClipboardItem, maxPixelSize: CGFloat) async -> NSImage? {
+        assetAccess.thumbnail(for: item, maxPixelSize: maxPixelSize)
+    }
+
+    nonisolated func imageDimensionsAsync(for item: ClipboardItem) async -> String? {
+        assetAccess.imageDimensions(for: item)
+    }
+
     func saveImage(_ data: Data) -> String? {
         assetAccess.saveImage(data)
     }
 
     func saveText(_ text: String) -> String? {
         assetAccess.saveText(text)
+    }
+
+    nonisolated func saveImageAsync(_ data: Data) async -> String? {
+        BufferPerformanceDiagnostics.measure(.clipboardCapture) {
+            assetAccess.saveImage(data)
+        }
+    }
+
+    nonisolated func saveTextAsync(_ text: String) async -> String? {
+        BufferPerformanceDiagnostics.measure(.clipboardCapture) {
+            assetAccess.saveText(text)
+        }
+    }
+
+    nonisolated func discardCapturedImage(named filename: String) async {
+        assetAccess.deleteImage(named: filename)
+    }
+
+    nonisolated func discardCapturedText(named filename: String) async {
+        assetAccess.deleteText(named: filename)
     }
 
     func fullText(for item: ClipboardItem) -> String? {
@@ -159,9 +194,21 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
     }
 
     func searchableText(for item: ClipboardItem) -> String {
-        searchIndex.value(for: item.id) {
-            ClipboardItemTypeRegistry.searchableText(for: item, store: self)
+        if searchIndex.hasEntry(for: item.id) {
+            return searchIndex.searchableText(for: item.id)
         }
+
+        let text = ClipboardItemTypeRegistry.searchableText(for: item, store: self)
+        searchIndex.store(text, for: item)
+        return text
+    }
+
+    func matchesSearchQuery(_ normalizedQuery: String, for item: ClipboardItem) -> Bool {
+        if searchIndex.hasEntry(for: item.id) {
+            return searchIndex.matches(normalizedQuery, for: item.id)
+        }
+
+        return ClipboardSearchIndex.normalize(searchableText(for: item)).contains(normalizedQuery)
     }
 
     private func bindSettings() {
@@ -179,18 +226,29 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
     }
 
     private func applySnapshot(_ nextItems: [ClipboardItem]) {
-        items = nextItems
-        searchIndex.prune(validIDs: Set(nextItems.map(\.id)))
+        let orderedItems = Self.orderedItems(from: nextItems)
+        items = orderedItems
+        searchIndex.rebuild(using: orderedItems) { [self] item in
+            ClipboardItemTypeRegistry.searchableText(for: item, store: self)
+        }
+    }
+
+    private nonisolated static func orderedItems(from items: [ClipboardItem]) -> [ClipboardItem] {
+        let pinnedItems = items.filter(\.isPinned)
+        let unpinnedItems = items.filter { !$0.isPinned }
+        return pinnedItems + unpinnedItems
     }
 
     private func applyRetentionPolicyIfNeeded(
         to currentItems: [ClipboardItem],
         repository: ClipboardRepository
     ) async -> [ClipboardItem] {
-        guard let cutoff = retentionService.cutoff(
-            for: settingsManager.historyRetentionPeriod,
-            now: Date()
-        ) else {
+        guard
+            let cutoff = retentionService.cutoff(
+                for: settingsManager.historyRetentionPeriod,
+                now: Date()
+            )
+        else {
             return currentItems
         }
 

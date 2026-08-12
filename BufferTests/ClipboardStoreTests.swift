@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -26,7 +27,7 @@ final class ClipboardStoreTests: XCTestCase {
         store.add(second)
 
         await eventually {
-            store.items.map(\.textContent) == ["second", "pinned"]
+            store.items.map(\.textContent) == ["pinned", "second"]
         }
     }
 
@@ -100,6 +101,8 @@ final class ClipboardStoreTests: XCTestCase {
         await eventually {
             store.items.first?.ocrText == "detected text"
         }
+
+        XCTAssertEqual(store.searchableText(for: item), "detected text")
     }
 
     func testClearRemovesItemsAndAssociatedFiles() async throws {

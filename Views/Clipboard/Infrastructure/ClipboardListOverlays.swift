@@ -1,12 +1,19 @@
 import SwiftUI
 
 struct ClipboardScrollToTopOverlay: View {
-    @ObservedObject var scrollController: ScrollController
+    let scrollController: ScrollController
+    @ObservedObject private var state: ScrollPresentationState
     let onSelectTop: () -> Void
 
+    init(scrollController: ScrollController, onSelectTop: @escaping () -> Void) {
+        self.scrollController = scrollController
+        self._state = ObservedObject(wrappedValue: scrollController.presentationState)
+        self.onSelectTop = onSelectTop
+    }
+
     var body: some View {
-        let viewportHeight = scrollController.viewportHeight
-        let scrollOffset = scrollController.scrollOffset
+        let viewportHeight = state.viewportHeight
+        let scrollOffset = state.scrollOffset
 
         if scrollOffset > max(80, viewportHeight * 0.35) {
             ClipboardScrollToTopButton {
@@ -18,11 +25,17 @@ struct ClipboardScrollToTopOverlay: View {
 }
 
 struct ClipboardScrollbarOverlay: View {
-    @ObservedObject var scrollController: ScrollController
+    let scrollController: ScrollController
+    @ObservedObject private var state: ScrollPresentationState
+
+    init(scrollController: ScrollController) {
+        self.scrollController = scrollController
+        self._state = ObservedObject(wrappedValue: scrollController.presentationState)
+    }
 
     var body: some View {
-        let viewportHeight = scrollController.viewportHeight
-        let contentHeight = scrollController.contentHeight
+        let viewportHeight = state.viewportHeight
+        let contentHeight = state.contentHeight
 
         let trackHeight = max(
             0,
@@ -35,7 +48,7 @@ struct ClipboardScrollbarOverlay: View {
                 viewportHeight: viewportHeight,
                 contentHeight: contentHeight,
                 scrollbarWidth: ClipboardListStructure.LayoutMetrics.scrollbarWidth,
-                scrollOffset: scrollController.scrollOffset
+                scrollOffset: state.scrollOffset
             ) { progress in
                 scrollController.scroll(to: progress)
             }

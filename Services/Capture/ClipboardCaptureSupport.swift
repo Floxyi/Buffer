@@ -17,27 +17,21 @@ enum ClipboardCaptureSupport {
 
         for type in imageTypes {
             if let data = pasteboard.data(forType: type) {
-                if let image = NSImage(data: data),
-                    let tiffData = image.tiffRepresentation,
-                    let bitmap = NSBitmapImageRep(data: tiffData),
-                    let pngData = bitmap.representation(using: .png, properties: [:])
-                {
-                    return pngData
-                }
-                return data
+                return normalizedImageData(from: data) ?? data
             }
         }
 
         return nil
     }
 
-    @MainActor
     static func classifyTextItem(
         _ text: String,
         sourceApp: SourceApplicationInfo?,
         enableWebsitePreviews: Bool,
-        websiteReachability: @escaping (URL) async -> Bool = ClipboardLinkValue.hasActiveWebServer,
-        saveText: (String) -> String?
+        websiteReachability: @escaping @Sendable (URL) async -> Bool = { url in
+            await ClipboardLinkValue.hasActiveWebServer(at: url)
+        },
+        saveText: @escaping @Sendable (String) async -> String?
     ) async -> ClipboardItem {
         if let colorValue = ClipboardColorValue.parse(text) {
             return .color(colorValue, originalText: text, sourceApp: sourceApp)
@@ -57,15 +51,14 @@ enum ClipboardCaptureSupport {
             return .link(candidateURL, originalText: text, sourceApp: sourceApp)
         }
 
-        return plainTextItem(text, sourceApp: sourceApp, saveText: saveText)
+        return await plainTextItem(text, sourceApp: sourceApp, saveText: saveText)
     }
 
-    @MainActor
     private static func plainTextItem(
         _ text: String,
         sourceApp: SourceApplicationInfo?,
-        saveText: (String) -> String?
-    ) -> ClipboardItem {
+        saveText: @escaping @Sendable (String) async -> String?
+    ) async -> ClipboardItem {
         let textSize = text.utf8.count
 
         if textSize <= inlineTextLimit {
@@ -73,7 +66,7 @@ enum ClipboardCaptureSupport {
         }
 
         let preview = String(text.prefix(previewLength))
-        if let filename = saveText(text) {
+        if let filename = await saveText(text) {
             return .largeText(preview: preview, filename: filename, sourceApp: sourceApp)
         }
 
@@ -158,5 +151,17 @@ enum ClipboardCaptureSupport {
             )
             return nil
         }
+    }
+
+    static func normalizedImageData(from data: Data) -> Data? {
+        guard let image = NSImage(data: data),
+            let tiffData = image.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: tiffData),
+            let pngData = bitmap.representation(using: .png, properties: [:])
+        else {
+            return nil
+        }
+
+        return pngData
     }
 }

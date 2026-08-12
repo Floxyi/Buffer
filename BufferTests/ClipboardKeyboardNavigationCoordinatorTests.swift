@@ -1,22 +1,25 @@
 import XCTest
 @testable import Buffer
 
+@MainActor
 final class ClipboardKeyboardNavigationCoordinatorTests: XCTestCase {
-    func testShouldPreferImmediateScrollWhenRequestsAreCloseTogether() {
-        XCTAssertTrue(
-            ClipboardKeyboardNavigationCoordinator.shouldPreferImmediateScroll(
-                currentTimestamp: 10.05,
-                previousTimestamp: 10.0
-            )
+    func testCommitCompletesSynchronouslyWhenNoScrollIsRequired() {
+        let coordinator = ClipboardKeyboardNavigationCoordinator()
+        let item = ClipboardItem.text("item")
+        let request = HistoryKeyboardNavigationRequest(
+            itemID: item.id,
+            targetIndex: 0,
+            generation: 1
         )
-    }
+        var completedRequest: HistoryKeyboardNavigationRequest?
 
-    func testShouldNotPreferImmediateScrollWhenRequestsAreFarApart() {
-        XCTAssertFalse(
-            ClipboardKeyboardNavigationCoordinator.shouldPreferImmediateScroll(
-                currentTimestamp: 10.25,
-                previousTimestamp: 10.0
-            )
+        coordinator.scheduleCommit(
+            for: request,
+            scrollController: ScrollController(),
+            resolveMetrics: { _ in nil },
+            onComplete: { completedRequest = $0 }
         )
+
+        XCTAssertEqual(completedRequest, request)
     }
 }

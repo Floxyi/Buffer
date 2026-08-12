@@ -15,13 +15,10 @@ struct ClipboardKeyboardNavigationResolver {
 
     func resolveMetrics(
         for itemID: UUID,
-        displayRows: [ClipboardListStructure.DisplayRow],
+        layoutIndex: ClipboardListLayoutIndex,
         scrollMetrics: SmoothWheelScroller.Metrics
     ) -> ClipboardKeyboardNavigationMetrics? {
-        guard let estimatedFrame = ClipboardListStructure.estimatedFrame(
-            forItemID: itemID,
-            in: displayRows
-        ) else {
+        guard let estimatedFrame = layoutIndex.frame(for: itemID) else {
             return nil
         }
 
@@ -50,6 +47,30 @@ struct ClipboardKeyboardNavigationResolver {
                 rawTargetOffset: rawTargetOffset,
                 maxOffset: maxOffset
             )
+        )
+    }
+
+    /// Compatibility entry point for non-interactive callers and older focused tests.
+    /// Production navigation passes the already-built layout index.
+    func resolveMetrics(
+        for itemID: UUID,
+        displayRows: [ClipboardListStructure.DisplayRow],
+        scrollMetrics: SmoothWheelScroller.Metrics
+    ) -> ClipboardKeyboardNavigationMetrics? {
+        let itemIDs = displayRows.compactMap { row -> UUID? in
+            guard case .item(let item) = row.kind else { return nil }
+            return item.id
+        }
+        let itemIndexByID = Dictionary(
+            uniqueKeysWithValues: itemIDs.enumerated().map { ($1, $0) }
+        )
+        return resolveMetrics(
+            for: itemID,
+            layoutIndex: ClipboardListLayoutIndex(
+                rows: displayRows,
+                itemIndexByID: itemIndexByID
+            ),
+            scrollMetrics: scrollMetrics
         )
     }
 

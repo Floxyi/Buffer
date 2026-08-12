@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 /// Single row displaying a clipboard item - optimized for smooth scrolling.
 struct ClipboardItemRow: View {
@@ -10,48 +10,53 @@ struct ClipboardItemRow: View {
     let store: ClipboardStore
     let settings: SettingsManager
     let primaryLabelText: String
-    let scrollActivityTracker: ScrollActivityTracker
     let isMultiSelected: Bool
     let joinsSelectionAbove: Bool
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
     let isHovered: Bool
-    let sourceIconRefreshToken: Int
-
     @State private var thumbnail: NSImage?
     @State private var sourceAppIcon: NSImage?
     @State private var imageDimensionsText: String?
-
-    @ObservedObject private var observedScrollActivityTracker: ScrollActivityTracker
 
     init(
         item: ClipboardItem,
         store: ClipboardStore,
         settings: SettingsManager,
         primaryLabelText: String,
-        scrollActivityTracker: ScrollActivityTracker,
         isMultiSelected: Bool,
         joinsSelectionAbove: Bool,
         joinsSelectionBelow: Bool,
         selectionJoinOverlap: CGFloat,
         quickPasteNumber: Int?,
-        isHovered: Bool,
-        sourceIconRefreshToken: Int
+        isHovered: Bool
     ) {
         self.item = item
         self.store = store
         self.settings = settings
         self.primaryLabelText = primaryLabelText
-        self.scrollActivityTracker = scrollActivityTracker
         self.isMultiSelected = isMultiSelected
         self.joinsSelectionAbove = joinsSelectionAbove
         self.joinsSelectionBelow = joinsSelectionBelow
         self.selectionJoinOverlap = selectionJoinOverlap
         self.quickPasteNumber = quickPasteNumber
         self.isHovered = isHovered
-        self.sourceIconRefreshToken = sourceIconRefreshToken
-        self._observedScrollActivityTracker = ObservedObject(wrappedValue: scrollActivityTracker)
+        self._thumbnail = State(
+            initialValue: ClipboardItemRowAssetLoader.cachedThumbnail(
+                for: item,
+                leadingVisualSize: leadingVisualSize
+            )
+        )
+        self._sourceAppIcon = State(
+            initialValue: ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
+                for: item,
+                settings: settings
+            )
+        )
+        self._imageDimensionsText = State(
+            initialValue: ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
+        )
     }
 
     private var backgroundColor: Color {
@@ -86,8 +91,20 @@ struct ClipboardItemRow: View {
         return primaryLabelText
     }
 
+    private var displayedThumbnail: NSImage? {
+        thumbnail
+            ?? ClipboardItemRowAssetLoader.cachedThumbnail(
+                for: item,
+                leadingVisualSize: leadingVisualSize
+            )
+    }
+
+    private var displayedSourceAppIcon: NSImage? {
+        sourceAppIcon
+    }
+
     private var assetLoadToken: String {
-        "\(item.id.uuidString)-\(observedScrollActivityTracker.isScrolling)-\(settings.enableWebsitePreviews)-\(sourceIconRefreshToken)"
+        "\(item.id.uuidString)-\(settings.enableWebsitePreviews)"
     }
 
     var body: some View {
@@ -108,8 +125,8 @@ struct ClipboardItemRow: View {
 
             ClipboardLeadingVisual(
                 item: item,
-                sourceAppIcon: sourceAppIcon,
-                thumbnail: thumbnail,
+                sourceAppIcon: displayedSourceAppIcon,
+                thumbnail: displayedThumbnail,
                 secondaryForegroundColor: secondaryForegroundColor,
                 leadingVisualSize: leadingVisualSize,
                 appIconScale: appIconScale
@@ -131,21 +148,40 @@ struct ClipboardItemRow: View {
             transaction.animation = nil
         }
         .task(id: assetLoadToken) {
-            guard !observedScrollActivityTracker.isScrolling else { return }
+            if thumbnail == nil, ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
+                thumbnail = ClipboardItemRowAssetLoader.cachedThumbnail(
+                    for: item,
+                    leadingVisualSize: leadingVisualSize
+                )
+            }
+
+            if imageDimensionsText == nil, ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
+                imageDimensionsText = ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
+            }
+
+            if sourceAppIcon == nil {
+                sourceAppIcon = ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
+                    for: item,
+                    settings: settings
+                )
+            }
+
             await Task.yield()
 
             guard !Task.isCancelled else { return }
-            guard !observedScrollActivityTracker.isScrolling else { return }
 
             await loadAssetsIfNeeded()
         }
         .onChange(of: item.id) { _ in
-            thumbnail = nil
-            sourceAppIcon = nil
-            imageDimensionsText = nil
-        }
-        .onChange(of: sourceIconRefreshToken) { _ in
-            sourceAppIcon = nil
+            thumbnail = ClipboardItemRowAssetLoader.cachedThumbnail(
+                for: item,
+                leadingVisualSize: leadingVisualSize
+            )
+            sourceAppIcon = ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
+                for: item,
+                settings: settings
+            )
+            imageDimensionsText = ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
         }
     }
 
@@ -162,8 +198,6 @@ struct ClipboardItemRow: View {
     }
 
     private func loadAssetsIfNeeded() async {
-        guard !observedScrollActivityTracker.isScrolling else { return }
-
         if ClipboardItemTypeRegistry.supportsImageAssets(for: item), thumbnail == nil {
             let loadedThumbnail = await ClipboardItemRowAssetLoader.loadThumbnail(
                 for: item,
@@ -172,7 +206,6 @@ struct ClipboardItemRow: View {
             )
 
             guard !Task.isCancelled else { return }
-            guard !observedScrollActivityTracker.isScrolling else { return }
 
             thumbnail = loadedThumbnail
 
@@ -182,28 +215,32 @@ struct ClipboardItemRow: View {
             )
 
             guard !Task.isCancelled else { return }
-            guard !observedScrollActivityTracker.isScrolling else { return }
 
             imageDimensionsText = loadedDimensionsText
         }
 
-        guard !observedScrollActivityTracker.isScrolling else { return }
-
-        if item.kind == .link, !settings.enableWebsitePreviews {
-            sourceAppIcon = nil
-            return
-        }
-
         if sourceAppIcon == nil {
-            let loadedSourceAppIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(
+            let fallbackIcon = await ClipboardSourceApplicationIconLoader.loadLocalSourceApplicationIcon(
                 for: item,
                 settings: settings
             )
-
             guard !Task.isCancelled else { return }
-            guard !observedScrollActivityTracker.isScrolling else { return }
+            sourceAppIcon = fallbackIcon
+        }
 
-            sourceAppIcon = loadedSourceAppIcon
+        if item.kind == .link, settings.enableWebsitePreviews {
+            let websiteIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(
+                for: item,
+                settings: settings
+            )
+            guard !Task.isCancelled else { return }
+            if let websiteIcon {
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    sourceAppIcon = websiteIcon
+                }
+            }
         }
     }
 }

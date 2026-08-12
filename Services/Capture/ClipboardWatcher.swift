@@ -19,6 +19,7 @@ final class ClipboardWatcher: ObservableObject {
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
     private let pasteboard: ClipboardReadingPasteboard
+    private let captureWorker = ClipboardCaptureWorker()
     private var watchTask: Task<Void, Never>?
     private var pendingAsyncCaptureTask: Task<Void, Never>?
     private var lastChangeCount: Int
@@ -98,23 +99,21 @@ final class ClipboardWatcher: ObservableObject {
             ClipboardCaptureSupport.isImageFile(filePath)
         {
             let priorHash = lastContentHash
-            pendingAsyncCaptureTask = Task { [store] in
-                let processedImage = await Task.detached(priority: .userInitiated) {
-                    ClipboardCaptureSupport.processedImageFile(filePath, skippingHash: priorHash)
-                }.value
+            pendingAsyncCaptureTask = Task { [weak self, store, sourceApp] in
+                guard let self else { return }
+                let result = await captureWorker.processImageFile(
+                    at: filePath,
+                    sourceApp: sourceApp,
+                    skippingHash: priorHash,
+                    store: store
+                )
 
-                guard !Task.isCancelled else {
-                    return
+                guard !Task.isCancelled else { return }
+
+                if case .item(let item, let contentHash) = result {
+                    self.lastContentHash = contentHash
+                    store.add(item)
                 }
-
-                guard let processedImage else {
-                    return
-                }
-
-                guard let filename = store.saveImage(processedImage.pngData) else { return }
-                let item = ClipboardItem.image(filename: filename, sourceApp: sourceApp)
-                lastContentHash = processedImage.hash
-                store.add(item)
             }
             return
         }
@@ -125,21 +124,21 @@ final class ClipboardWatcher: ObservableObject {
             let hash = hashSource.hashValue
 
             guard hash != lastContentHash else { return }
-            lastContentHash = hash
-
-            pendingAsyncCaptureTask = Task { [store, settingsManager] in
-                let item = await ClipboardCaptureSupport.classifyTextItem(
+            pendingAsyncCaptureTask = Task { [weak self, store, settingsManager, sourceApp] in
+                guard let self else { return }
+                let result = await captureWorker.processText(
                     text,
                     sourceApp: sourceApp,
                     enableWebsitePreviews: settingsManager.enableWebsitePreviews,
-                    saveText: { store.saveText($0) }
+                    store: store
                 )
 
-                guard !Task.isCancelled else {
-                    return
-                }
+                guard !Task.isCancelled else { return }
 
-                store.add(item)
+                if case .item(let item, let contentHash) = result {
+                    self.lastContentHash = contentHash
+                    store.add(item)
+                }
             }
             return
         }
@@ -148,9 +147,20 @@ final class ClipboardWatcher: ObservableObject {
             let hash = imageData.hashValue
             guard hash != lastContentHash else { return }
 
-            lastContentHash = hash
-            if let filename = store.saveImage(imageData) {
-                store.add(.image(filename: filename, sourceApp: sourceApp))
+            pendingAsyncCaptureTask = Task { [weak self, store, sourceApp] in
+                guard let self else { return }
+                let result = await captureWorker.processPasteboardImage(
+                    imageData,
+                    sourceApp: sourceApp,
+                    store: store
+                )
+
+                guard !Task.isCancelled else { return }
+
+                if case .item(let item, let contentHash) = result {
+                    self.lastContentHash = contentHash
+                    store.add(item)
+                }
             }
         }
     }

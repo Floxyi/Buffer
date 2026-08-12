@@ -1,6 +1,41 @@
 import AppKit
 import Foundation
 
+final class ClipboardIconImageValue: @unchecked Sendable {
+    let image: NSImage?
+
+    init(_ image: NSImage?) {
+        self.image = image
+    }
+}
+
+enum ClipboardIconImageCodec {
+    nonisolated static func decode(_ data: Data) async -> ClipboardIconImageValue {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: ClipboardIconImageValue(NSImage(data: data)))
+            }
+        }
+    }
+
+    nonisolated static func pngData(from value: ClipboardIconImageValue) async -> Data? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                guard let image = value.image,
+                    let tiffData = image.tiffRepresentation,
+                    let representation = NSBitmapImageRep(data: tiffData)
+                else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(
+                    returning: representation.representation(using: .png, properties: [:])
+                )
+            }
+        }
+    }
+}
+
 @MainActor
 enum ClipboardWebsiteIconCache {
     private static let cache: NSCache<NSString, NSImage> = {
@@ -10,6 +45,8 @@ enum ClipboardWebsiteIconCache {
     }()
 
     private static var missingKeys = Set<String>()
+    private static var diskStore = ClipboardIconDiskStore.defaultWebsiteStore()
+    private static var hasHydratedPersistedIcons = false
 
     static func cachedIcon(for url: URL) -> NSImage? {
         guard let key = cacheKey(for: url) else {
@@ -40,13 +77,58 @@ enum ClipboardWebsiteIconCache {
             return
         }
 
-        cache.setObject(normalizedIcon(from: image), forKey: key as NSString)
+        let normalizedImage = normalizedIcon(from: image)
+        cache.setObject(normalizedImage, forKey: key as NSString)
         missingKeys.remove(key)
+
+        let currentDiskStore = diskStore
+        Task {
+            guard let data = await ClipboardIconImageCodec.pngData(
+                from: ClipboardIconImageValue(normalizedImage)
+            ) else { return }
+            await currentDiskStore.store(data, forKey: key)
+        }
+    }
+
+    static func hydratePersistedIcons(limit: Int = 240) async {
+        guard !hasHydratedPersistedIcons else {
+            return
+        }
+
+        let entries = await diskStore.loadAll(limit: limit)
+        for entry in entries {
+            guard let image = await ClipboardIconImageCodec.decode(entry.data).image else {
+                continue
+            }
+
+            cache.setObject(normalizedIcon(from: image), forKey: entry.key as NSString)
+        }
+        hasHydratedPersistedIcons = true
+    }
+
+    static func loadPersistedIcon(for url: URL) async -> NSImage? {
+        guard let key = cacheKey(for: url),
+            let data = await diskStore.loadData(forKey: key),
+            let image = await ClipboardIconImageCodec.decode(data).image
+        else {
+            return nil
+        }
+
+        let normalizedImage = normalizedIcon(from: image)
+        cache.setObject(normalizedImage, forKey: key as NSString)
+        missingKeys.remove(key)
+        return normalizedImage
     }
 
     static func clear() {
         cache.removeAllObjects()
         missingKeys.removeAll()
+    }
+
+    static func configureDiskStoreForTesting(directory: URL) {
+        diskStore = ClipboardIconDiskStore(directory: directory)
+        hasHydratedPersistedIcons = false
+        clear()
     }
 
     private static func cacheKey(for url: URL) -> String? {
@@ -91,5 +173,112 @@ enum ClipboardWebsiteIconCache {
 
         let scale = maxDimension / currentMaxDimension
         return NSSize(width: width * scale, height: height * scale)
+    }
+
+}
+
+struct ClipboardIconDiskEntry: Sendable {
+    let key: String
+    let data: Data
+}
+
+actor ClipboardIconDiskStore {
+    private let directory: URL
+
+    init(directory: URL) {
+        self.directory = directory
+    }
+
+    static func defaultWebsiteStore() -> ClipboardIconDiskStore {
+        let cachesDirectory =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return ClipboardIconDiskStore(
+            directory:
+                cachesDirectory
+                .appendingPathComponent("Buffer", isDirectory: true)
+                .appendingPathComponent("WebsiteIcons", isDirectory: true)
+        )
+    }
+
+    func store(_ data: Data, forKey key: String) {
+        do {
+            try createDirectoryIfNeeded()
+            try data.write(to: fileURL(forKey: key), options: .atomic)
+        } catch {
+            BufferLogger.persistence.error(
+                "Failed to persist website icon for \(key, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    func loadData(forKey key: String) -> Data? {
+        try? Data(contentsOf: fileURL(forKey: key))
+    }
+
+    func loadAll(limit: Int) -> [ClipboardIconDiskEntry] {
+        guard limit > 0,
+            let fileURLs = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+
+        return
+            fileURLs
+            .filter { $0.pathExtension == "png" }
+            .sorted { lhs, rhs in
+                let lhsDate = try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                let rhsDate = try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                return (lhsDate ?? .distantPast) > (rhsDate ?? .distantPast)
+            }
+            .prefix(limit)
+            .compactMap { fileURL in
+                guard let key = Self.cacheKey(from: fileURL),
+                    let data = try? Data(contentsOf: fileURL)
+                else {
+                    return nil
+                }
+
+                return ClipboardIconDiskEntry(key: key, data: data)
+            }
+    }
+
+    private func createDirectoryIfNeeded() throws {
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+    }
+
+    private func fileURL(forKey key: String) -> URL {
+        directory.appendingPathComponent(Self.fileName(forKey: key))
+    }
+
+    nonisolated static func fileName(forKey key: String) -> String {
+        let encodedKey = Data(key.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return "\(encodedKey).png"
+    }
+
+    nonisolated static func cacheKey(from fileURL: URL) -> String? {
+        var encodedKey = fileURL.deletingPathExtension().lastPathComponent
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        let paddingCount = (4 - encodedKey.count % 4) % 4
+        encodedKey.append(String(repeating: "=", count: paddingCount))
+
+        guard let data = Data(base64Encoded: encodedKey) else {
+            return nil
+        }
+
+        return String(data: data, encoding: .utf8)
     }
 }

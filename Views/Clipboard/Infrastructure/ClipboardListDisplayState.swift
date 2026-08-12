@@ -2,6 +2,7 @@ import Foundation
 
 struct ClipboardListDisplayState {
     let displayRows: [ClipboardListStructure.DisplayRow]
+    let layoutIndex: ClipboardListLayoutIndex
     let contentTrailingPadding: CGFloat
 }
 
@@ -11,14 +12,15 @@ struct ClipboardListDisplayStateProjector {
         cache: ClipboardListStructure.DisplayCache,
         viewportHeight: CGFloat
     ) -> ClipboardListDisplayState {
-        let displayRows: [ClipboardListStructure.DisplayRow]
+        let displayCache: ClipboardListStructure.DisplayCache
         if cache.matches(items: items) {
-            displayRows = cache.displayRows
+            displayCache = cache
         } else {
-            displayRows = ClipboardListStructure.displayRows(from: items)
+            displayCache = ClipboardListStructure.makeDisplayCache(from: items)
         }
 
-        let contentHeight = ClipboardListStructure.estimatedContentHeight(for: displayRows)
+        let displayRows = displayCache.displayRows
+        let contentHeight = displayCache.layoutIndex.contentHeight
         let hasVisibleScrollbar = viewportHeight > 1 && max(0, contentHeight - viewportHeight) > 1
         let contentTrailingPadding: CGFloat
         if hasVisibleScrollbar {
@@ -31,6 +33,7 @@ struct ClipboardListDisplayStateProjector {
 
         return ClipboardListDisplayState(
             displayRows: displayRows,
+            layoutIndex: displayCache.layoutIndex,
             contentTrailingPadding: contentTrailingPadding
         )
     }

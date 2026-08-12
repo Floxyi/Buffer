@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class ClipboardWebsiteIconCacheTests: XCTestCase {
     func testStoreNormalizesHostCaseAndClearsMissingMarker() throws {
-        ClipboardWebsiteIconCache.clear()
+        configureIsolatedDiskStore()
         let lowercasedURL = try XCTUnwrap(URL(string: "https://openai.com/path"))
         let uppercasedURL = try XCTUnwrap(URL(string: "https://OPENAI.com/other"))
 
@@ -20,7 +20,7 @@ final class ClipboardWebsiteIconCacheTests: XCTestCase {
     }
 
     func testStoreScalesOversizedIconsToPreferredMaximum() throws {
-        ClipboardWebsiteIconCache.clear()
+        configureIsolatedDiskStore()
         let url = try XCTUnwrap(URL(string: "https://example.com"))
         let image = makeTestImage(size: NSSize(width: 256, height: 128))
 
@@ -32,7 +32,7 @@ final class ClipboardWebsiteIconCacheTests: XCTestCase {
     }
 
     func testClearRemovesCachedIconsAndMissingMarkers() throws {
-        ClipboardWebsiteIconCache.clear()
+        configureIsolatedDiskStore()
         let url = try XCTUnwrap(URL(string: "https://example.com"))
         ClipboardWebsiteIconCache.store(makeTestImage(), for: url)
         ClipboardWebsiteIconCache.markMissing(for: url)
@@ -41,5 +41,30 @@ final class ClipboardWebsiteIconCacheTests: XCTestCase {
 
         XCTAssertNil(ClipboardWebsiteIconCache.cachedIcon(for: url))
         XCTAssertFalse(ClipboardWebsiteIconCache.hasMarkedMissingIcon(for: url))
+    }
+
+    func testDiskStoreRoundTripsCacheKeysAndData() async throws {
+        let directory = isolatedDiskDirectory()
+        let diskStore = ClipboardIconDiskStore(directory: directory)
+        let key = "website:openai.com"
+        let data = Data([0x01, 0x02, 0x03])
+
+        await diskStore.store(data, forKey: key)
+
+        let loadedData = await diskStore.loadData(forKey: key)
+        let entries = await diskStore.loadAll(limit: 10)
+        XCTAssertEqual(loadedData, data)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.key, key)
+        XCTAssertEqual(entries.first?.data, data)
+    }
+
+    private func configureIsolatedDiskStore() {
+        ClipboardWebsiteIconCache.configureDiskStoreForTesting(directory: isolatedDiskDirectory())
+    }
+
+    private func isolatedDiskDirectory() -> URL {
+        TestStorageFactory.makePaths().storageDirectory
+            .appendingPathComponent("website-icons", isDirectory: true)
     }
 }

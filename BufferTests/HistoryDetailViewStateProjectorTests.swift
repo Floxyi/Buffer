@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -68,7 +69,10 @@ private final class FakeClipboardStoreReading: ClipboardStoreReading {
     func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? { nil }
     func imageDimensions(for item: ClipboardItem) -> String? { nil }
     func fullText(for item: ClipboardItem) -> String? { nil }
-    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? { nil }
+    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+        nil
+    }
     func itemSize(for item: ClipboardItem) -> Int? { itemSizes[item.id] }
     func searchableText(for item: ClipboardItem) -> String { "" }
+    func matchesSearchQuery(_ normalizedQuery: String, for item: ClipboardItem) -> Bool { false }
 }

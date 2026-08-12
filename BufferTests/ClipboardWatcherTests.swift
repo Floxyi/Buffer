@@ -114,6 +114,31 @@ final class ClipboardWatcherTests: XCTestCase {
         }
     }
 
+    func testCanceledCaptureDiscardsImageSavedAfterCancellation() async {
+        let worker = ClipboardCaptureWorker()
+        let assetStore = SuspendedCaptureAssetStore()
+        let imageData = makePNGData()
+        let task = Task {
+            await worker.processPasteboardImage(
+                imageData,
+                sourceApp: nil,
+                store: assetStore
+            )
+        }
+
+        await assetStore.waitUntilImageSaveStarts()
+        task.cancel()
+        await assetStore.finishImageSave(named: "orphan.png")
+
+        let result = await task.value
+        guard case .none = result else {
+            XCTFail("A canceled capture must not produce a history item")
+            return
+        }
+        let discardedFilenames = await assetStore.discardedImageFilenames()
+        XCTAssertEqual(discardedFilenames, ["orphan.png"])
+    }
+
     private func makeWatcherContext(
         sourceApp: SourceApplicationInfo = SourceApplicationInfo(
             name: "Preview",
@@ -144,6 +169,42 @@ final class ClipboardWatcherTests: XCTestCase {
             settings: settings,
             pasteboard: pasteboard
         )
+    }
+}
+
+private actor SuspendedCaptureAssetStore: ClipboardCaptureAssetPersisting {
+    private var imageSaveContinuation: CheckedContinuation<String?, Never>?
+    private var discardedImages: [String] = []
+
+    func saveImageAsync(_ data: Data) async -> String? {
+        await withCheckedContinuation { continuation in
+            imageSaveContinuation = continuation
+        }
+    }
+
+    func saveTextAsync(_ text: String) async -> String? {
+        nil
+    }
+
+    func discardCapturedImage(named filename: String) async {
+        discardedImages.append(filename)
+    }
+
+    func discardCapturedText(named filename: String) async {}
+
+    func waitUntilImageSaveStarts() async {
+        while imageSaveContinuation == nil {
+            await Task.yield()
+        }
+    }
+
+    func finishImageSave(named filename: String) {
+        imageSaveContinuation?.resume(returning: filename)
+        imageSaveContinuation = nil
+    }
+
+    func discardedImageFilenames() -> [String] {
+        discardedImages
     }
 }
 

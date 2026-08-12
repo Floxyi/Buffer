@@ -14,7 +14,7 @@ struct HistoryPreviewStateController {
         var state = reset()
 
         if ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
-            state.previewImage = previewLoader.loadPreviewImage(for: item)
+            state.previewImage = ClipboardImageAssetLoader.cachedPreviewImage(for: item)
         } else if ClipboardItemTypeRegistry.supportsTextChunks(for: item), item.isFileBacked {
             state.chunkedText = previewLoader.loadInitialChunk(for: item)
         } else {

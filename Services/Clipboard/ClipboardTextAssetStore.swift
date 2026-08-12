@@ -3,10 +3,12 @@ import Foundation
 final class ClipboardTextAssetStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let directory: URL
+    private let fullTextCache = NSCache<NSString, NSString>()
 
     init(fileManager: FileManager = .default, directory: URL) {
         self.fileManager = fileManager
         self.directory = directory
+        fullTextCache.countLimit = 256
     }
 
     func saveText(_ text: String) -> String? {
@@ -15,6 +17,7 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
 
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
+            fullTextCache.setObject(text as NSString, forKey: filename as NSString)
             return filename
         } catch {
             BufferLogger.persistence.error("Failed to save text file: \(String(describing: error), privacy: .public)")
@@ -28,10 +31,16 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
         }
 
         guard let filename = item.textFilename else { return item.textContent }
+        let cacheKey = filename as NSString
+        if let cachedText = fullTextCache.object(forKey: cacheKey) {
+            return cachedText as String
+        }
         let url = directory.appendingPathComponent(filename)
 
         do {
-            return try String(contentsOf: url, encoding: .utf8)
+            let text = try String(contentsOf: url, encoding: .utf8)
+            fullTextCache.setObject(text as NSString, forKey: cacheKey)
+            return text
         } catch {
             BufferLogger.persistence.error("Failed to load text file: \(String(describing: error), privacy: .public)")
             return item.textContent
@@ -46,23 +55,21 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
         }
 
         if let filename = item.textFilename {
+            if let cachedText = fullTextCache.object(forKey: filename as NSString) as String? {
+                let prefix = String(cachedText.prefix(charCount))
+                return (prefix, cachedText.utf8.count, cachedText.count <= charCount)
+            }
+
             let url = directory.appendingPathComponent(filename)
 
             do {
-                let attributes = try fileManager.attributesOfItem(atPath: url.path)
-                let totalBytes = attributes[.size] as? Int ?? 0
-                let maximumBytesToRead = min(charCount * 4, totalBytes)
-
-                let fileHandle = try FileHandle(forReadingFrom: url)
-                defer { try? fileHandle.close() }
-
-                let data = try fileHandle.read(upToCount: maximumBytesToRead) ?? Data()
-                let fullChunkString = String(decoding: data, as: UTF8.self)
-                let exactChunkString = String(fullChunkString.prefix(charCount))
-                let reachedEOF = fullChunkString.count < charCount
-                return (exactChunkString, totalBytes, reachedEOF)
+                let text = try String(contentsOf: url, encoding: .utf8)
+                fullTextCache.setObject(text as NSString, forKey: filename as NSString)
+                let prefix = String(text.prefix(charCount))
+                return (prefix, text.utf8.count, text.count <= charCount)
             } catch {
-                BufferLogger.persistence.error("Failed to read text chunk: \(String(describing: error), privacy: .public)")
+                BufferLogger.persistence.error(
+                    "Failed to read text chunk: \(String(describing: error), privacy: .public)")
                 return nil
             }
         }
@@ -81,6 +88,11 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
 
     func deleteTextFile(for item: ClipboardItem) {
         guard let filename = item.textFilename else { return }
+        deleteText(named: filename)
+    }
+
+    func deleteText(named filename: String) {
+        fullTextCache.removeObject(forKey: filename as NSString)
         removeItemIfPresent(at: directory.appendingPathComponent(filename), label: "text")
     }
 
@@ -89,7 +101,9 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
             let attributes = try fileManager.attributesOfItem(atPath: url.path)
             return attributes[.size] as? Int
         } catch {
-            BufferLogger.persistence.error("Failed to read file size at \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.persistence.error(
+                "Failed to read file size at \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
             return nil
         }
     }
@@ -100,7 +114,9 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
         do {
             try fileManager.removeItem(at: url)
         } catch {
-            BufferLogger.persistence.error("Failed to remove \(label, privacy: .public) file \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.persistence.error(
+                "Failed to remove \(label, privacy: .public) file \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
     }
 }

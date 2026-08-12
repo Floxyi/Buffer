@@ -71,6 +71,16 @@ enum ClipboardItemRowAssetLoader {
         )
     }
 
+    static func cachedThumbnail(
+        for item: ClipboardItem,
+        leadingVisualSize: CGFloat
+    ) -> NSImage? {
+        ClipboardImageAssetLoader.cachedThumbnail(
+            for: item,
+            leadingVisualSize: leadingVisualSize
+        )
+    }
+
     static func loadImageDimensionsText(
         for item: ClipboardItem,
         store: ClipboardStore
@@ -78,11 +88,35 @@ enum ClipboardItemRowAssetLoader {
         await ClipboardImageAssetLoader.loadImageDimensionsText(for: item, store: store)
     }
 
+    static func cachedImageDimensionsText(for item: ClipboardItem) -> String? {
+        ClipboardImageAssetLoader.cachedImageDimensionsText(for: item)
+    }
+
     static func loadSourceApplicationIcon(
         for item: ClipboardItem,
         settings: SettingsManager
     ) async -> NSImage? {
         await ClipboardSourceApplicationIconLoader.loadSourceApplicationIcon(
+            for: item,
+            settings: settings
+        )
+    }
+
+    static func cachedSourceApplicationIcon(
+        for item: ClipboardItem,
+        settings: SettingsManager
+    ) -> NSImage? {
+        ClipboardSourceApplicationIconLoader.cachedSourceApplicationIcon(
+            for: item,
+            settings: settings
+        )
+    }
+
+    static func cachedDisplaySourceApplicationIcon(
+        for item: ClipboardItem,
+        settings: SettingsManager
+    ) -> NSImage? {
+        ClipboardSourceApplicationIconLoader.cachedDisplayIcon(
             for: item,
             settings: settings
         )
@@ -96,6 +130,20 @@ enum ClipboardItemRowAssetLoader {
         await ClipboardSourceApplicationIconLoader.prewarmSourceIcons(
             for: items,
             settings: settings,
+            limit: limit
+        )
+    }
+
+    static func prewarmImageAssets(
+        for items: [ClipboardItem],
+        store: ClipboardStore,
+        leadingVisualSize: CGFloat,
+        limit: Int = 48
+    ) async {
+        await ClipboardImageAssetLoader.prewarmVisibleImages(
+            for: items,
+            store: store,
+            leadingVisualSize: leadingVisualSize,
             limit: limit
         )
     }

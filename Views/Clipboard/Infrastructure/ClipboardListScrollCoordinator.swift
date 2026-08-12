@@ -10,6 +10,7 @@ struct ClipboardListJumpScrollTaskKey: Equatable {
 struct ClipboardListScrollContext {
     let items: [ClipboardItem]
     let displayRows: [ClipboardListStructure.DisplayRow]
+    let layoutIndex: ClipboardListLayoutIndex
     let itemExists: (UUID) -> Bool
     let scrollMetrics: () -> SmoothWheelScroller.Metrics
     let onJumpScrollStarted: (HistoryJumpToHistoryRequest) -> Void
@@ -70,7 +71,8 @@ final class ClipboardListScrollCoordinator: ObservableObject {
 
     func syncJumpScrollRequest(_ newRequest: HistoryJumpToHistoryRequest?) {
         if activeJumpScrollRequest != nil,
-           activeJumpScrollRequest != newRequest {
+            activeJumpScrollRequest != newRequest
+        {
             activeJumpScrollRequest = nil
         }
     }
@@ -133,13 +135,13 @@ final class ClipboardListScrollCoordinator: ObservableObject {
     func handleKeyboardNavigationRequestChange(
         _ newRequest: HistoryKeyboardNavigationRequest?,
         items: [ClipboardItem],
+        store: ClipboardStore,
         settings: SettingsManager,
         assetPrewarmer: ClipboardListAssetPrewarmer,
         scrollController: ScrollController,
         context: ClipboardListScrollContext
     ) {
         guard let newRequest else {
-            assetPrewarmer.cancelAll()
             keyboardNavigationCoordinator.cancelCommit()
             return
         }
@@ -147,6 +149,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         assetPrewarmer.prewarmAssetsForKeyboardNavigation(
             request: newRequest,
             items: items,
+            store: store,
             settings: settings
         )
         scheduleKeyboardNavigationCommit(
@@ -179,6 +182,9 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         context: ClipboardListScrollContext,
         rebuildListCache: @escaping () -> Void
     ) async {
+        let token = BufferPerformanceDiagnostics.begin(.jumpScroll)
+        defer { BufferPerformanceDiagnostics.end(token) }
+
         for attempt in 0..<12 {
             guard currentJumpScrollRequest() == request else {
                 return
@@ -195,7 +201,11 @@ final class ClipboardListScrollCoordinator: ObservableObject {
             }
 
             rebuildListCache()
-            scrollController.syncMetricsImmediately()
+            if attempt == 0 {
+                scrollController.syncMetricsImmediately()
+            } else {
+                scrollController.syncMetrics()
+            }
 
             let targetExists = context.itemExists(request.itemID)
             let fullHistoryReady = isShowingFullHistory()
@@ -363,6 +373,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
             },
             itemExists: context.itemExists,
             displayRows: { context.displayRows },
+            layoutIndex: { context.layoutIndex },
             log: context.log
         )
     }
@@ -421,7 +432,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
     ) -> (currentOffset: CGFloat, targetOffset: CGFloat)? {
         keyboardNavigationResolver.resolveMetrics(
             for: itemID,
-            displayRows: context.displayRows,
+            layoutIndex: context.layoutIndex,
             scrollMetrics: context.scrollMetrics()
         ).map { metrics in
             (currentOffset: metrics.currentOffset, targetOffset: metrics.targetOffset)
@@ -430,7 +441,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
 
     private func scheduleOpenScrollToTop(scrollController: ScrollController) {
         scrollController.scrollToTopImmediately()
-        scrollController.syncMetricsImmediately()
+        scrollController.syncMetrics()
         isAwaitingInitialOpenScroll = false
         scheduleSettledScroll(.top, measuredScrollCoordinator: nil, scrollController: scrollController)
     }

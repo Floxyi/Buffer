@@ -7,31 +7,15 @@ struct HistoryItemFilter {
         query: String,
         store: ClipboardStore
     ) -> [ClipboardItem] {
-        let baseItems: [ClipboardItem]
-
-        if query.isEmpty {
-            baseItems = items
-        } else {
-            baseItems = items.filter { item in
-                store.searchableText(for: item).localizedCaseInsensitiveContains(query)
-            }
+        let normalizedQuery = ClipboardSearchIndex.normalize(query)
+        guard !normalizedQuery.isEmpty else {
+            return items
         }
 
-        return baseItems.sorted { lhs, rhs in
-            if lhs.isPinned != rhs.isPinned {
-                return lhs.isPinned && !rhs.isPinned
+        return BufferPerformanceDiagnostics.measure(.historyFilter) {
+            items.filter { item in
+                store.matchesSearchQuery(normalizedQuery, for: item)
             }
-
-            if lhs.isPinned, rhs.isPinned {
-                let lhsPinnedAt = lhs.pinnedAt ?? lhs.timestamp
-                let rhsPinnedAt = rhs.pinnedAt ?? rhs.timestamp
-
-                if lhsPinnedAt != rhsPinnedAt {
-                    return lhsPinnedAt < rhsPinnedAt
-                }
-            }
-
-            return lhs.timestamp > rhs.timestamp
         }
     }
 }

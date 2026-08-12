@@ -42,6 +42,14 @@ final class ClipboardAssetStore: @unchecked Sendable, ClipboardAssetAccessing {
         textStore.saveText(text)
     }
 
+    func deleteImage(named filename: String) {
+        imageStore.deleteImage(named: filename)
+    }
+
+    func deleteText(named filename: String) {
+        textStore.deleteText(named: filename)
+    }
+
     func fullText(for item: ClipboardItem) -> String? {
         textStore.fullText(for: item)
     }

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ClipboardListContent: View {
-    @ObservedObject var scrollController: ScrollController
+    let scrollController: ScrollController
     @ObservedObject var scrollCoordinator: ClipboardListScrollCoordinator
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
@@ -15,7 +15,6 @@ struct ClipboardListContent: View {
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
     let hoveredItemID: UUID?
-    let sourceIconRefreshToken: Int
     let isAwaitingInitialOpenScroll: Bool
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID) -> Void
@@ -31,7 +30,6 @@ struct ClipboardListContent: View {
     let onScrollToTopRequested: (ScrollViewProxy) -> Void
     let onMeasuredTargetFrameChanged: (CGRect?) -> Void
     let onMenuTrackingEnded: () -> Void
-    let onApplicationBecameActive: () -> Void
     let onAppear: (ScrollViewProxy) -> Void
 
     var body: some View {
@@ -46,7 +44,6 @@ struct ClipboardListContent: View {
                         quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
                         selectedIDs: selectedIDs,
                         hoveredItemID: hoveredItemID,
-                        sourceIconRefreshToken: sourceIconRefreshToken,
                         onCommitSelection: onCommitSelection,
                         onSelectSingle: onSelectSingle,
                         onToggleSelection: onToggleSelection,
@@ -99,12 +96,6 @@ struct ClipboardListContent: View {
             .onPreferenceChange(ClipboardScrollTargetFramePreferenceKey.self, perform: onMeasuredTargetFrameChanged)
             .onReceive(NotificationCenter.default.publisher(for: NSMenu.didEndTrackingNotification)) { _ in
                 onMenuTrackingEnded()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                onApplicationBecameActive()
-            }
-            .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)) { _ in
-                onApplicationBecameActive()
             }
             .onAppear {
                 onAppear(scrollProxy)

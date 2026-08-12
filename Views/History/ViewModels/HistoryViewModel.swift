@@ -52,6 +52,10 @@ final class HistoryViewModel: ObservableObject {
     private var quickPasteState = HistoryQuickPasteState()
     private var navigationState = HistoryNavigationState()
     private var cancellables: Set<AnyCancellable> = []
+    private var previewImageTask: Task<Void, Never>?
+    private var activeOCRItemID: UUID?
+    private var activeOCRGeneration: UInt = 0
+    private var activeOCRTask: Task<String?, Never>?
 
     init(store: ClipboardStore, settingsManager: SettingsManager, ocrService: OCRServicing) {
         self.store = store
@@ -594,16 +598,28 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func loadPreviewIfNeeded() async {
+        previewImageTask?.cancel()
         updatePreviewState(previewStateController.reset())
 
         guard let item = selectedItem else { return }
 
-        updatePreviewState(
-            previewStateController.loadPreview(
-                for: item,
-                store: store,
-                previewLoader: previewLoader
-            ))
+        let initialState = previewStateController.loadPreview(
+            for: item,
+            store: store,
+            previewLoader: previewLoader
+        )
+        updatePreviewState(initialState)
+
+        guard item.kind == .image else { return }
+
+        previewImageTask = Task { [weak self] in
+            guard let self else { return }
+            let image = await previewLoader.loadPreviewImage(for: item)
+            guard !Task.isCancelled, self.selectedItem?.id == item.id else { return }
+            var nextState = self.previewState
+            nextState.previewImage = image
+            self.updatePreviewState(nextState)
+        }
     }
 
     func extractSelectedImageText() async {
@@ -612,20 +628,38 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func extractImageText(for item: ClipboardItem) async {
+        guard activeOCRItemID != item.id else { return }
+
+        cancelActiveOCRExtraction()
+        activeOCRItemID = item.id
+        activeOCRGeneration &+= 1
+        let generation = activeOCRGeneration
         updatePreviewState(previewStateController.beginExtracting(state: previewState))
 
-        let result = await previewLoader.extractImageText(
-            for: item,
-            previewImage: selectedItem?.id == item.id ? detailViewState.previewImage : nil
-        )
+        let task = Task { [previewLoader] in
+            await previewLoader.extractImageText(
+                for: item,
+                previewImage: selectedItem?.id == item.id ? detailViewState.previewImage : nil
+            )
+        }
+        activeOCRTask = task
+        let result = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
 
-        guard let result else {
-            updatePreviewState(previewStateController.finishExtracting(state: previewState))
+        guard activeOCRGeneration == generation, activeOCRItemID == item.id else {
             return
         }
 
-        store.setOCRText(result.isEmpty ? "No text found in this image." : result, for: item)
+        if !task.isCancelled, let result {
+            store.setOCRText(result.isEmpty ? "No text found in this image." : result, for: item)
+        }
+
         updatePreviewState(previewStateController.finishExtracting(state: previewState))
+        activeOCRItemID = nil
+        activeOCRTask = nil
     }
 
     func loadNextChunk() async {
@@ -648,6 +682,22 @@ final class HistoryViewModel: ObservableObject {
             preferredTopSelectionID: preferredTopSelectionID()
         )
         applySelectionState()
+
+        if let activeOCRItemID, activeOCRItemID != selectedID {
+            cancelActiveOCRExtraction()
+        }
+    }
+
+    private func cancelActiveOCRExtraction() {
+        guard activeOCRItemID != nil || activeOCRTask != nil else {
+            return
+        }
+
+        activeOCRGeneration &+= 1
+        activeOCRTask?.cancel()
+        activeOCRTask = nil
+        activeOCRItemID = nil
+        updatePreviewState(previewStateController.finishExtracting(state: previewState))
     }
 
     private func preferredTopSelectionID() -> UUID? {

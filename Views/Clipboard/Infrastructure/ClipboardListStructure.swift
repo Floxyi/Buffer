@@ -33,13 +33,15 @@ enum ClipboardListStructure {
         let displayRows: [DisplayRow]
         let itemIndexByID: [UUID: Int]
         let primaryLabelTextByID: [UUID: String]
+        let layoutIndex: ClipboardListLayoutIndex
 
         static let empty = DisplayCache(
             sectionGroupingSignature: .current(),
             itemIDs: [],
             displayRows: [],
             itemIndexByID: [:],
-            primaryLabelTextByID: [:]
+            primaryLabelTextByID: [:],
+            layoutIndex: .empty
         )
 
         func matches(
@@ -122,19 +124,23 @@ enum ClipboardListStructure {
             primaryLabelTextByID[item.id] = primaryLabelText(for: item)
         }
 
+        let displayRows = displayRows(from: items, referenceDate: referenceDate, calendar: calendar)
+        let itemIndexByID = Dictionary(
+            uniqueKeysWithValues: items.enumerated().map { index, item in
+                (item.id, index)
+            }
+        )
+
         return DisplayCache(
             sectionGroupingSignature: SectionGroupingSignature(
                 referenceDate: referenceDate,
                 calendar: calendar
             ),
             itemIDs: items.map(\.id),
-            displayRows: displayRows(from: items, referenceDate: referenceDate, calendar: calendar),
-            itemIndexByID: Dictionary(
-                uniqueKeysWithValues: items.enumerated().map { index, item in
-                    (item.id, index)
-                }
-            ),
-            primaryLabelTextByID: primaryLabelTextByID
+            displayRows: displayRows,
+            itemIndexByID: itemIndexByID,
+            primaryLabelTextByID: primaryLabelTextByID,
+            layoutIndex: ClipboardListLayoutIndex(rows: displayRows, itemIndexByID: itemIndexByID)
         )
     }
 

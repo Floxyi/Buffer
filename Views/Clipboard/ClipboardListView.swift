@@ -9,7 +9,6 @@ struct ClipboardListView: View {
     @StateObject private var contextMenuState = ClipboardListContextMenuState()
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmer = ClipboardListAssetPrewarmer()
-    @State private var sourceIconRefreshToken = 0
     private let lifecycleCoordinator = ClipboardListLifecycleCoordinator()
     private let displayStateProjector = ClipboardListDisplayStateProjector()
 
@@ -83,7 +82,6 @@ struct ClipboardListView: View {
             quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
             selectedIDs: selectedIDs,
             hoveredItemID: hoveredItemID,
-            sourceIconRefreshToken: sourceIconRefreshToken,
             isAwaitingInitialOpenScroll: scrollCoordinator.isAwaitingInitialOpenScroll,
             onCommitSelection: onCommitSelection,
             onSelectSingle: onSelectSingle,
@@ -99,13 +97,16 @@ struct ClipboardListView: View {
             onScrollToTopRequested: handleScrollToTopRequest(using:),
             onMeasuredTargetFrameChanged: handleMeasuredTargetFrameChanged(_:),
             onMenuTrackingEnded: handleMenuTrackingEnded,
-            onApplicationBecameActive: refreshVisibleSourceApplicationIcons,
             onAppear: handleAppear(using:)
         )
         .onDisappear(perform: handleDisappear)
         .onChange(of: itemIDs) { _ in
             rebuildListCache()
-            assetPrewarmer.prewarmVisibleAssets(in: items, settings: settings)
+            configureMetricsCallback()
+            updateVisibleAssetPrewarm()
+        }
+        .onChange(of: scrollController.viewportHeight) { _ in
+            updateVisibleAssetPrewarm()
         }
         .onChange(of: openScrollRequestToken) { _ in
             applyOpenScrollRequestIfPossible()
@@ -138,6 +139,7 @@ struct ClipboardListView: View {
             scrollCoordinator.handleKeyboardNavigationRequestChange(
                 newRequest,
                 items: items,
+                store: store,
                 settings: settings,
                 assetPrewarmer: assetPrewarmer,
                 scrollController: scrollController,
@@ -156,6 +158,7 @@ struct ClipboardListView: View {
         ClipboardListScrollContext(
             items: items,
             displayRows: displayState.displayRows,
+            layoutIndex: displayState.layoutIndex,
             itemExists: itemExists(_:),
             scrollMetrics: { scrollController.currentMetrics() },
             onJumpScrollStarted: onJumpScrollStarted,
@@ -174,6 +177,20 @@ struct ClipboardListView: View {
             scrollView: scrollView,
             interactionMode: .system
         )
+        configureMetricsCallback()
+    }
+
+    private func configureMetricsCallback() {
+        scrollController.onMetricsChanged = { [assetPrewarmer] metrics in
+            assetPrewarmer.prewarmVisibleAssets(
+                in: items,
+                layoutIndex: displayState.layoutIndex,
+                scrollOffset: metrics.scrollOffset,
+                viewportHeight: metrics.viewportHeight,
+                store: store,
+                settings: settings
+            )
+        }
     }
 
     private func handleScrollToTopRequest(using scrollProxy: ScrollViewProxy) {
@@ -208,7 +225,7 @@ struct ClipboardListView: View {
             items: items,
             settings: settings,
             prewarmVisibleAssets: { items, settings in
-                assetPrewarmer.prewarmVisibleAssets(in: items, settings: settings)
+                assetPrewarmer.prewarmVisibleAssets(in: items, store: store, settings: settings)
             },
             currentScrollOffsetSnapshot: {
                 scrollController.currentScrollOffsetSnapshot()
@@ -221,9 +238,11 @@ struct ClipboardListView: View {
             restoreScrollOffset: restoreScrollOffset(_:),
             applyOpenScrollRequestIfPossible: applyOpenScrollRequestIfPossible
         )
+        updateVisibleAssetPrewarm()
     }
 
     private func handleDisappear() {
+        scrollController.onMetricsChanged = nil
         lifecycleCoordinator.handleDisappear(
             cancelVisibleAssetPrewarm: {
                 assetPrewarmer.cancelAll()
@@ -257,6 +276,17 @@ struct ClipboardListView: View {
         )
     }
 
+    private func updateVisibleAssetPrewarm() {
+        assetPrewarmer.prewarmVisibleAssets(
+            in: items,
+            layoutIndex: displayState.layoutIndex,
+            scrollOffset: scrollController.scrollOffset,
+            viewportHeight: scrollController.viewportHeight,
+            store: store,
+            settings: settings
+        )
+    }
+
     private func runJumpScrollTaskIfNeeded() async {
         guard let jumpScrollRequest, let pendingScrollProxy else {
             return
@@ -272,11 +302,6 @@ struct ClipboardListView: View {
             context: scrollContext,
             rebuildListCache: rebuildListCache
         )
-    }
-
-    private func refreshVisibleSourceApplicationIcons() {
-        ClipboardItemRowAssetLoader.clearSourceApplicationIconCache()
-        sourceIconRefreshToken &+= 1
     }
 
     private func rebuildListCache() {

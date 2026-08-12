@@ -8,7 +8,6 @@ struct ClipboardListRowsSection: View {
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
     let hoveredItemID: UUID?
-    let sourceIconRefreshToken: Int
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID) -> Void
     let onToggleSelection: (UUID) -> Void
@@ -18,7 +17,7 @@ struct ClipboardListRowsSection: View {
     let onHoveredItemIDChanged: (UUID?) -> Void
     let onSelectedIndexChanged: (Int) -> Void
 
-    @ObservedObject var scrollController: ScrollController
+    let scrollController: ScrollController
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
 
@@ -58,14 +57,12 @@ struct ClipboardListRowsSection: View {
             store: store,
             settings: settings,
             primaryLabelText: primaryLabelText(item),
-            scrollActivityTracker: scrollController.activityTracker,
             isMultiSelected: selectedIDs.contains(item.id),
             joinsSelectionAbove: previousItemID.map { selectedIDs.contains($0) } ?? false,
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
-            isHovered: highlightedItemID == item.id,
-            sourceIconRefreshToken: sourceIconRefreshToken
+            isHovered: highlightedItemID == item.id
         )
         .id(clipboardListScrollID(for: item.id))
         .background {

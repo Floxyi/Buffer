@@ -34,7 +34,7 @@ enum ClipboardItemTypeRegistry {
         case .text(let payload):
             return payload.fileName?.hashValue ?? payload.inlineText?.hashValue ?? 0
         case .image(let payload):
-            return payload.filename.hashValue
+            return payload.filename.hashValue ^ (payload.ocrText?.hashValue ?? 0)
         case .color(let payload):
             return payload.originalText.hashValue
         case .link(let payload):

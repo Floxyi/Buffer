@@ -1,6 +1,13 @@
 import AppKit
 
 @MainActor
+final class ScrollPresentationState: ObservableObject {
+    @Published fileprivate(set) var viewportHeight: CGFloat = 0
+    @Published fileprivate(set) var contentHeight: CGFloat = 0
+    @Published fileprivate(set) var scrollOffset: CGFloat = 0
+}
+
+@MainActor
 final class ScrollController: ObservableObject {
     enum InteractionMode {
         case system
@@ -16,9 +23,11 @@ final class ScrollController: ObservableObject {
 
     @Published private(set) var viewportHeight: CGFloat = 0
     @Published private(set) var contentHeight: CGFloat = 0
-    @Published private(set) var scrollOffset: CGFloat = 0
+    private(set) var scrollOffset: CGFloat = 0
 
     let activityTracker = ScrollActivityTracker()
+    let presentationState = ScrollPresentationState()
+    var onMetricsChanged: ((SmoothWheelScroller.Metrics) -> Void)?
 
     weak var scrollView: NSScrollView?
 
@@ -315,17 +324,28 @@ final class ScrollController: ObservableObject {
         contentHeight nextContentHeight: CGFloat,
         scrollOffset nextScrollOffset: CGFloat
     ) {
+        var didChange = false
         if abs(viewportHeight - nextViewportHeight) > 0.5 {
             viewportHeight = nextViewportHeight
+            presentationState.viewportHeight = nextViewportHeight
+            didChange = true
         }
 
         if abs(contentHeight - nextContentHeight) > 0.5 {
             contentHeight = nextContentHeight
+            presentationState.contentHeight = nextContentHeight
+            didChange = true
         }
 
         if abs(scrollOffset - nextScrollOffset) > 0.5 {
             scrollOffset = nextScrollOffset
+            presentationState.scrollOffset = nextScrollOffset
             activityTracker.markScrolling()
+            didChange = true
+        }
+
+        if didChange {
+            onMetricsChanged?(metricsSnapshot())
         }
     }
 

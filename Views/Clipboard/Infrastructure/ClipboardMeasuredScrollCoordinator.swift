@@ -16,6 +16,7 @@ struct ClipboardMeasuredScrollContext {
     let currentRequestID: () -> UInt
     let itemExists: (UUID) -> Bool
     let displayRows: () -> [ClipboardListStructure.DisplayRow]
+    let layoutIndex: () -> ClipboardListLayoutIndex
     let log: (String) -> Void
 }
 
@@ -72,7 +73,11 @@ final class ClipboardMeasuredScrollCoordinator: ObservableObject {
                     continue
                 }
 
-                scrollController.syncMetricsImmediately()
+                if attempt == 0 {
+                    scrollController.syncMetricsImmediately()
+                } else {
+                    scrollController.syncMetrics()
+                }
 
                 if request.alignment == .centered, attempt < 3 {
                     scrollToEstimatedPosition(
@@ -174,10 +179,7 @@ final class ClipboardMeasuredScrollCoordinator: ObservableObject {
         context: ClipboardMeasuredScrollContext
     ) {
         guard
-            let estimatedMidY = ClipboardListStructure.estimatedMidY(
-                forItemID: itemID,
-                in: context.displayRows()
-            )
+            let estimatedMidY = context.layoutIndex().midY(for: itemID)
         else {
             return
         }
@@ -194,7 +196,7 @@ final class ClipboardMeasuredScrollCoordinator: ObservableObject {
         )
 
         scrollController.scrollTo(offset: targetOffset)
-        scrollController.syncMetricsImmediately()
+        scrollController.syncMetrics()
     }
 
     @discardableResult
@@ -208,7 +210,7 @@ final class ClipboardMeasuredScrollCoordinator: ObservableObject {
             return false
         }
 
-        scrollController.syncMetricsImmediately()
+        scrollController.syncMetrics()
 
         let viewportHeight = max(1, scrollController.viewportHeight)
         let target = ClipboardMeasuredScrollGeometry.exactTarget(
@@ -228,7 +230,7 @@ final class ClipboardMeasuredScrollCoordinator: ObservableObject {
             }
 
             scrollController.scrollTo(offset: clampedTargetOffset)
-            scrollController.syncMetricsImmediately()
+            scrollController.syncMetrics()
 
             return abs(scrollController.scrollOffset - clampedTargetOffset) <= 2
         }

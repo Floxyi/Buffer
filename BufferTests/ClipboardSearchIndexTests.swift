@@ -1,37 +1,83 @@
 import XCTest
+
 @testable import Buffer
 
 final class ClipboardSearchIndexTests: XCTestCase {
-    func testValueCachesLoadedTextUntilPruned() {
+    func testRebuildRetainsCachedValueForUnchangedContentHash() {
         var index = ClipboardSearchIndex()
-        let itemID = UUID()
+        let item = ClipboardItem.text("hello")
         var loadCount = 0
 
-        let first = index.value(for: itemID) {
+        index.rebuild(using: [item]) { currentItem in
             loadCount += 1
-            return "hello"
+            return currentItem.textContent ?? ""
         }
-        let second = index.value(for: itemID) {
+        index.rebuild(using: [item]) { currentItem in
             loadCount += 1
-            return "changed"
+            return (currentItem.textContent ?? "") + " changed"
         }
 
-        XCTAssertEqual(first, "hello")
-        XCTAssertEqual(second, "hello")
+        XCTAssertEqual(index.searchableText(for: item.id), "hello")
         XCTAssertEqual(loadCount, 1)
     }
 
-    func testPruneRemovesValuesForMissingIDs() {
+    func testRebuildRefreshesEntryWhenContentHashChanges() {
         var index = ClipboardSearchIndex()
-        let retainedID = UUID()
-        let removedID = UUID()
+        let item = ClipboardItem(type: .image, imageFilename: "sample.png", ocrText: nil)
+        let updatedItem = item.updatingOCRText("detected text")
 
-        _ = index.value(for: retainedID) { "keep" }
-        _ = index.value(for: removedID) { "drop" }
+        index.rebuild(using: [item]) { _ in "" }
+        index.rebuild(using: [updatedItem]) { currentItem in
+            currentItem.ocrText ?? ""
+        }
 
-        index.prune(validIDs: [retainedID])
+        XCTAssertEqual(index.searchableText(for: item.id), "detected text")
+    }
 
-        XCTAssertEqual(index.value(for: retainedID) { "new keep" }, "keep")
-        XCTAssertEqual(index.value(for: removedID) { "reloaded" }, "reloaded")
+    func testMatchesUsesNormalizedCaseInsensitiveText() {
+        var index = ClipboardSearchIndex()
+        let item = ClipboardItem.text("CafE")
+        index.rebuild(using: [item]) { $0.textContent ?? "" }
+
+        XCTAssertTrue(index.matches(ClipboardSearchIndex.normalize("cafe"), for: item.id))
+    }
+
+    func testFilteringCachedEntriesStaysWithinInteractiveBudget() {
+        assertCachedFilterDuration(itemCount: 1_000, isLessThan: 0.05)
+        assertCachedFilterDuration(itemCount: 5_000, isLessThan: 0.05)
+    }
+
+    func testPerformanceDiagnosticsRetainOnlyRecentSamples() {
+        BufferPerformanceDiagnostics.reset()
+
+        for _ in 0..<(BufferPerformanceDiagnostics.sampleLimit + 50) {
+            let token = BufferPerformanceDiagnostics.begin(.historyFilter)
+            BufferPerformanceDiagnostics.end(token)
+        }
+
+        XCTAssertEqual(
+            BufferPerformanceDiagnostics.samples(for: .historyFilter).count,
+            BufferPerformanceDiagnostics.sampleLimit
+        )
+    }
+
+    private func assertCachedFilterDuration(itemCount: Int, isLessThan limit: TimeInterval) {
+        var index = ClipboardSearchIndex()
+        let items = (0..<itemCount).map { number in
+            ClipboardItem.text("entry \(number) common searchable content")
+        }
+        index.rebuild(using: items) { $0.textContent ?? "" }
+        let query = ClipboardSearchIndex.normalize("entry 499")
+
+        let start = CFAbsoluteTimeGetCurrent()
+        let matches = items.filter { index.matches(query, for: $0.id) }
+        let duration = CFAbsoluteTimeGetCurrent() - start
+
+        XCTAssertFalse(matches.isEmpty)
+        XCTAssertLessThan(
+            duration,
+            limit,
+            "Filtering \(itemCount) cached entries took \(duration)s"
+        )
     }
 }

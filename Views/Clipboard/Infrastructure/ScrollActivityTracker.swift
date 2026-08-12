@@ -1,28 +1,33 @@
 import Foundation
 
 @MainActor
-final class ScrollActivityTracker: ObservableObject {
-    @Published private(set) var isScrolling = false
+final class ScrollActivityTracker {
+    private(set) var isScrolling = false
 
-    private var generation: UInt = 0
-    private let idleDelayNanoseconds: UInt64 = 120_000_000
+    private var idleTimer: Timer?
+    private let idleDelay: TimeInterval = 0.12
+
+    deinit {
+        MainActor.assumeIsolated {
+            idleTimer?.invalidate()
+        }
+    }
 
     func markScrolling() {
-        generation &+= 1
-        let currentGeneration = generation
-
         if !isScrolling {
             isScrolling = true
         }
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
+        if let idleTimer {
+            idleTimer.fireDate = Date(timeIntervalSinceNow: idleDelay)
+            return
+        }
 
-            try? await Task.sleep(nanoseconds: self.idleDelayNanoseconds)
-
-            guard currentGeneration == self.generation else { return }
-
-            self.isScrolling = false
+        idleTimer = Timer.scheduledTimer(withTimeInterval: idleDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.isScrolling = false
+                self?.idleTimer = nil
+            }
         }
     }
 }
