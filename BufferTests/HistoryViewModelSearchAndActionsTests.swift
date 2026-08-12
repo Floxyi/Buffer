@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -125,6 +126,64 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(viewModel.searchText, "needle")
     }
 
+    func testPrimaryPasteCapturesFilteredSelectionBeforeClearingSearch() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        await populateStore(
+            store,
+            with: [
+                ClipboardItem.text("matching oldest"),
+                ClipboardItem.text("matching middle"),
+                ClipboardItem.text("matching newest"),
+            ]
+        )
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "matching"
+        let selectedItem = viewModel.filteredItems[1]
+        viewModel.selectSingle(selectedItem.id)
+        var pastedItem: ClipboardItem?
+        let actionHandler = makeActionHandler(
+            viewModel: viewModel,
+            store: store,
+            onPaste: { pastedItem = $0 }
+        )
+
+        actionHandler.performPrimaryPasteAction()
+
+        XCTAssertEqual(pastedItem?.id, selectedItem.id)
+        XCTAssertEqual(viewModel.searchText, "")
+    }
+
+    func testPrimaryPasteCapturesFilteredMultiSelectionInActionOrder() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        await populateStore(
+            store,
+            with: [
+                ClipboardItem.text("matching oldest"),
+                ClipboardItem.text("matching middle"),
+                ClipboardItem.text("matching newest"),
+            ]
+        )
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "matching"
+        let firstSelectedItem = viewModel.filteredItems[1]
+        let secondSelectedItem = viewModel.filteredItems[2]
+        viewModel.selectSingle(firstSelectedItem.id)
+        viewModel.toggleSelection(secondSelectedItem.id)
+        var pastedItems: [ClipboardItem] = []
+        let actionHandler = makeActionHandler(
+            viewModel: viewModel,
+            store: store,
+            onPasteMultiple: { pastedItems = $0 }
+        )
+
+        actionHandler.performPrimaryPasteAction()
+
+        XCTAssertEqual(pastedItems.map(\.id), [firstSelectedItem.id, secondSelectedItem.id])
+        XCTAssertEqual(viewModel.searchText, "")
+    }
+
     func testDeleteSelectedItemPrefersNextVisibleItem() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
@@ -173,4 +232,22 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
 
         XCTAssertEqual(viewModel.searchText, "needle")
     }
+}
+
+@MainActor
+private func makeActionHandler(
+    viewModel: HistoryViewModel,
+    store: ClipboardStore,
+    onPaste: @escaping (ClipboardItem) -> Void = { _ in },
+    onPasteMultiple: @escaping ([ClipboardItem]) -> Void = { _ in }
+) -> HistoryActionHandler {
+    HistoryActionHandler(
+        viewModel: viewModel,
+        store: store,
+        onCopyToClipboard: { _ in },
+        onCopyMultipleToClipboard: { _ in },
+        onPaste: onPaste,
+        onPasteMultiple: onPasteMultiple,
+        onDismiss: {}
+    )
 }

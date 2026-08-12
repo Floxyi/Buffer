@@ -12,14 +12,10 @@ struct HistoryActionHandler {
     let onDismiss: () -> Void
 
     func performPrimaryPasteAction() {
-        viewModel.clearSearchAfterCommittedAction()
-
-        let items = viewModel.selectedItemsInActionOrder
-        if items.count > 1 {
-            onPasteMultiple(items)
-        } else if let item = items.first ?? viewModel.selectedItem {
-            onPaste(item)
-        }
+        performCommittedSelectionAction(
+            onSingle: onPaste,
+            onMultiple: onPasteMultiple
+        )
     }
 
     func performCopyOnlyAction() {
@@ -27,16 +23,12 @@ struct HistoryActionHandler {
     }
 
     func copySelection(dismissAfterCopy: Bool) {
-        let items = viewModel.selectedItemsInActionOrder
-        guard !items.isEmpty else { return }
-
-        viewModel.clearSearchAfterCommittedAction()
-
-        if items.count == 1, let item = items.first {
-            onCopyToClipboard(item)
-        } else {
-            onCopyMultipleToClipboard(items)
-        }
+        guard
+            performCommittedSelectionAction(
+                onSingle: onCopyToClipboard,
+                onMultiple: onCopyMultipleToClipboard
+            )
+        else { return }
 
         if dismissAfterCopy {
             onDismiss()
@@ -49,10 +41,7 @@ struct HistoryActionHandler {
     }
 
     func performDetailAction(_ action: HistoryItemAction) {
-        let selectedItems = viewModel.selectedItemsInActionOrder.isEmpty
-            ? viewModel.selectedItem.map { [$0] } ?? []
-            : viewModel.selectedItemsInActionOrder
-        performAction(action, items: selectedItems)
+        performAction(action, items: currentSelectionSnapshot())
     }
 
     func performContextMenuAction(_ clickedItemID: UUID, _ action: HistoryItemAction) {
@@ -77,7 +66,9 @@ struct HistoryActionHandler {
         openPanel.beginSheetModal(for: window) { response in
             guard response == .OK, let folderURL = openPanel.url else { return }
 
-            let imageItems = self.viewModel.selectedItems.filter { ClipboardItemTypeRegistry.supportsImageAssets(for: $0) }
+            let imageItems = self.viewModel.selectedItems.filter {
+                ClipboardItemTypeRegistry.supportsImageAssets(for: $0)
+            }
 
             for (index, item) in imageItems.enumerated() {
                 guard let image = self.store.image(for: item) else { continue }
@@ -86,15 +77,18 @@ struct HistoryActionHandler {
                 let fileURL = folderURL.appendingPathComponent("image-\(paddedNumber).png")
 
                 guard let tiffData = image.tiffRepresentation,
-                      let bitmapImage = NSBitmapImageRep(data: tiffData),
-                      let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+                    let bitmapImage = NSBitmapImageRep(data: tiffData),
+                    let pngData = bitmapImage.representation(using: .png, properties: [:])
+                else {
                     continue
                 }
 
                 do {
                     try pngData.write(to: fileURL, options: .atomic)
                 } catch {
-                    BufferLogger.ui.error("Failed to save image to \(fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+                    BufferLogger.ui.error(
+                        "Failed to save image to \(fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)"
+                    )
                 }
             }
         }
@@ -114,12 +108,11 @@ struct HistoryActionHandler {
 
         switch action {
         case .copy:
-            viewModel.clearSearchAfterCommittedAction()
-            if items.count == 1, let item = items.first {
-                onCopyToClipboard(item)
-            } else {
-                onCopyMultipleToClipboard(items)
-            }
+            performCommittedAction(
+                with: items,
+                onSingle: onCopyToClipboard,
+                onMultiple: onCopyMultipleToClipboard
+            )
 
         case .openLink:
             guard let url = items.first?.linkPayload?.url else { return }
@@ -131,7 +124,8 @@ struct HistoryActionHandler {
 
         case .saveImage:
             guard let item = items.first else { return }
-            let image = viewModel.selectedItem?.id == item.id
+            let image =
+                viewModel.selectedItem?.id == item.id
                 ? (viewModel.previewImage ?? store.image(for: item))
                 : store.image(for: item)
             guard let image else { return }
@@ -157,5 +151,45 @@ struct HistoryActionHandler {
                 viewModel.deleteContextMenuTarget(clickedID)
             }
         }
+    }
+
+    @discardableResult
+    private func performCommittedSelectionAction(
+        onSingle: (ClipboardItem) -> Void,
+        onMultiple: ([ClipboardItem]) -> Void
+    ) -> Bool {
+        performCommittedAction(
+            with: currentSelectionSnapshot(),
+            onSingle: onSingle,
+            onMultiple: onMultiple
+        )
+    }
+
+    @discardableResult
+    private func performCommittedAction(
+        with items: [ClipboardItem],
+        onSingle: (ClipboardItem) -> Void,
+        onMultiple: ([ClipboardItem]) -> Void
+    ) -> Bool {
+        guard !items.isEmpty else { return false }
+
+        // Clearing search rebuilds the visible list and may change selection. Keep the
+        // immutable action targets captured above authoritative for this commit.
+        viewModel.clearSearchAfterCommittedAction()
+
+        if items.count == 1 {
+            onSingle(items[0])
+        } else {
+            onMultiple(items)
+        }
+        return true
+    }
+
+    private func currentSelectionSnapshot() -> [ClipboardItem] {
+        let selectedItems = viewModel.selectedItemsInActionOrder
+        if !selectedItems.isEmpty {
+            return selectedItems
+        }
+        return viewModel.selectedItem.map { [$0] } ?? []
     }
 }
