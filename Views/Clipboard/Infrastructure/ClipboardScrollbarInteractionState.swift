@@ -35,16 +35,11 @@ struct ScrollbarThumbInteractionState {
         contentHeight: CGFloat,
         scrollbarWidth: CGFloat,
         scrollOffset: CGFloat
-    ) -> Bool {
-        let previousViewportHeight = self.viewportHeight
-        let previousContentHeight = self.contentHeight
-        let previousScrollOffset = self.scrollOffset
-        let hadValidMetrics = previousViewportHeight > 0 && previousContentHeight > 0
-
+    ) {
         self.scrollbarWidth = max(2, scrollbarWidth)
 
         guard !isDraggingThumb else {
-            return false
+            return
         }
 
         self.viewportHeight = viewportHeight
@@ -53,13 +48,6 @@ struct ScrollbarThumbInteractionState {
         self.dragProgress = nil
         self.dragViewportHeight = nil
         self.dragContentHeight = nil
-
-        let didScroll = abs(previousScrollOffset - scrollOffset) > 0.5
-        let didResize =
-            abs(previousViewportHeight - viewportHeight) > 0.5 ||
-            abs(previousContentHeight - contentHeight) > 0.5
-
-        return hadValidMetrics && (didScroll || didResize)
     }
 
     mutating func beginHover() {

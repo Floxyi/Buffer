@@ -7,7 +7,6 @@ final class ScrollbarThumbInteractionView: NSView {
     private let thumbLayer = CALayer()
 
     private let hoverAnimationDuration: CFTimeInterval = 0.14
-    private let movementAnimationDuration: CFTimeInterval = 0.075
 
     private var trackingArea: NSTrackingArea?
 
@@ -56,17 +55,17 @@ final class ScrollbarThumbInteractionView: NSView {
         onScroll: @escaping (CGFloat) -> Void
     ) {
         self.onScroll = onScroll
-        let shouldAnimateMovement = state.updateMetrics(
+        state.updateMetrics(
             viewportHeight: viewportHeight,
             contentHeight: contentHeight,
             scrollbarWidth: scrollbarWidth,
             scrollOffset: scrollOffset
         )
 
-        updateThumbLayer(
-            animated: shouldAnimateMovement,
-            duration: movementAnimationDuration
-        )
+        // The thumb represents the viewport and must never lag behind it. Repeated
+        // implicit position animations accumulate latency during long scrolls and
+        // race to catch up when direction reverses.
+        updateThumbLayer(animated: false)
     }
 
     override func updateTrackingAreas() {
