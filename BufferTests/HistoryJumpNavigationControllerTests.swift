@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 final class HistoryJumpNavigationControllerTests: XCTestCase {
@@ -49,24 +50,21 @@ final class HistoryJumpNavigationControllerTests: XCTestCase {
         XCTAssertEqual(completed.jumpToHistoryFailureCount, 0)
     }
 
-    func testRequestKeyboardNavigationClearsRequestWhenTargetIsOutOfBounds() {
+    func testKeyboardScrollRequestsReceiveIncreasingGenerations() {
         let controller = HistoryJumpNavigationController()
-        let items = [ClipboardItem.text("only")]
-        let initial = HistoryNavigationState(
-            jumpToHistoryState: .idle,
-            jumpToHistoryGenerationCounter: 0,
-            jumpToHistoryFailureCount: 0,
-            keyboardNavigationRequest: HistoryKeyboardNavigationRequest(itemID: items[0].id, targetIndex: 0, generation: 1),
-            keyboardNavigationGenerationCounter: 1
+        let item = ClipboardItem.text("only")
+        let first = controller.makeKeyboardScrollRequest(
+            itemID: item.id,
+            targetIndex: 0,
+            state: HistoryNavigationState()
+        )
+        let second = controller.makeKeyboardScrollRequest(
+            itemID: item.id,
+            targetIndex: 0,
+            state: first
         )
 
-        let state = controller.requestKeyboardNavigation(
-            by: 1,
-            selectedIndex: 0,
-            filteredItems: items,
-            state: initial
-        )
-
-        XCTAssertNil(state.keyboardNavigationRequest)
+        XCTAssertEqual(first.keyboardScrollRequest?.generation, 1)
+        XCTAssertEqual(second.keyboardScrollRequest?.generation, 2)
     }
 }

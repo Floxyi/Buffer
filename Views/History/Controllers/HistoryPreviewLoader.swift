@@ -10,11 +10,11 @@ struct HistoryPreviewLoader {
         await ClipboardImageAssetLoader.loadPreviewImage(for: item, store: store)
     }
 
-    func loadInitialChunk(for item: ClipboardItem) -> ChunkedTextState {
+    func loadInitialChunk(for item: ClipboardItem) async -> ChunkedTextState {
         var state = ChunkedTextState()
         state.isLoadingMore = true
 
-        if let result = store.textChunk(for: item, charCount: ChunkedTextState.initialChars) {
+        if let result = await store.textChunkAsync(for: item, charCount: ChunkedTextState.initialChars) {
             state.visibleText = result.text
             state.totalBytes = result.totalBytes
             state.loadedCharCount = result.text.count
@@ -25,12 +25,12 @@ struct HistoryPreviewLoader {
         return state
     }
 
-    func loadNextChunk(for item: ClipboardItem, currentState: ChunkedTextState) -> ChunkedTextState {
+    func loadNextChunk(for item: ClipboardItem, currentState: ChunkedTextState) async -> ChunkedTextState {
         var nextState = currentState
         nextState.isLoadingMore = true
 
         let nextCharCount = nextState.loadedCharCount + ChunkedTextState.chunkSize
-        if let result = store.textChunk(for: item, charCount: nextCharCount) {
+        if let result = await store.textChunkAsync(for: item, charCount: nextCharCount) {
             nextState.visibleText = result.text
             nextState.totalBytes = result.totalBytes
             nextState.loadedCharCount = result.text.count

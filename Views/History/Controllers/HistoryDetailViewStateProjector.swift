@@ -8,7 +8,7 @@ struct HistoryDetailViewStateProjector {
         selectedItemsInActionOrder: [ClipboardItem],
         searchText: String,
         previewState: HistoryPreviewState,
-        store: ClipboardStoreReading,
+        selectedItemsTotalSizeBytes: Int?,
         actionResolver: HistoryActionResolver,
         copiedAtFormatter: HistoryCopiedAtFormatter
     ) -> HistoryDetailViewState {
@@ -18,7 +18,8 @@ struct HistoryDetailViewStateProjector {
             selectedItemsInActionOrder: selectedItemsInActionOrder
         )
         let canSaveSelectedImage = selectionCount <= 1 && ClipboardItemTypeRegistry.canSaveImage(for: selectedItem)
-        let canExtractSelectedImageText = selectionCount <= 1
+        let canExtractSelectedImageText =
+            selectionCount <= 1
             && ClipboardItemTypeRegistry.canExtractImageText(for: selectedItem)
             && selectedItem?.ocrText == nil
             && !previewState.isExtractingText
@@ -33,9 +34,8 @@ struct HistoryDetailViewStateProjector {
             isExtractingText: previewState.isExtractingText,
             selectedItemSourceName: selectedItem?.sourceAppDisplayName,
             selectedItemCopiedAtText: selectedItem.map { copiedAtFormatter.string(for: $0.timestamp) },
-            selectedItemsTotalSizeText: AppFormatting.formattedByteCount(
-                selectedItemsInVisualOrder.reduce(0) { $0 + (store.itemSize(for: $1) ?? 0) }
-            ),
+            selectedItemsTotalSizeText: selectedItemsTotalSizeBytes.map(AppFormatting.formattedByteCount)
+                ?? AppFormatting.formattedByteCount(0),
             textSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .text }.count,
             imageSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .image }.count,
             colorSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .color }.count,

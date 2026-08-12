@@ -49,8 +49,7 @@ struct HistoryClipboardListPane: View {
                     openScrollRequest: viewModel.openListScrollRequest,
                     openScrollRequestToken: viewModel.openListScrollRequestToken,
                     isShowingFullHistory: viewModel.isShowingFullHistory,
-                    keyboardNavigationRequest: viewModel.keyboardNavigationRequest,
-                    onCompleteKeyboardNavigation: viewModel.completeKeyboardNavigation,
+                    keyboardScrollRequest: viewModel.keyboardScrollRequest,
                     jumpScrollRequest: viewModel.activeJumpToHistoryRequest,
                     onJumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
                     onJumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
@@ -64,4 +63,3 @@ struct HistoryClipboardListPane: View {
         }
     }
 }
-

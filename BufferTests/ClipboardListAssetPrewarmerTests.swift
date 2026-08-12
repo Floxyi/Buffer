@@ -31,7 +31,7 @@ final class ClipboardListAssetPrewarmerTests: XCTestCase {
 
     func testKeyboardNavigationPrewarmItemsReturnsNearbyRange() {
         let items = (0..<30).map { ClipboardItem.text("item-\($0)") }
-        let request = HistoryKeyboardNavigationRequest(
+        let request = HistoryKeyboardScrollRequest(
             itemID: items[14].id,
             targetIndex: 14,
             generation: 1
@@ -77,7 +77,7 @@ final class ClipboardListAssetPrewarmerTests: XCTestCase {
 
     func testPrioritizedKeyboardPrewarmLoadsTargetThenDownwardLookahead() {
         let items = (0..<200).map { ClipboardItem.text("item-\($0)") }
-        let request = HistoryKeyboardNavigationRequest(
+        let request = HistoryKeyboardScrollRequest(
             itemID: items[50].id,
             targetIndex: 50,
             generation: 1
@@ -97,7 +97,7 @@ final class ClipboardListAssetPrewarmerTests: XCTestCase {
 
     func testPrioritizedKeyboardPrewarmLoadsTargetThenUpwardLookahead() {
         let items = (0..<200).map { ClipboardItem.text("item-\($0)") }
-        let request = HistoryKeyboardNavigationRequest(
+        let request = HistoryKeyboardScrollRequest(
             itemID: items[150].id,
             targetIndex: 150,
             generation: 1

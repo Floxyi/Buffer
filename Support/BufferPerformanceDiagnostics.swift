@@ -7,6 +7,8 @@ enum BufferPerformanceEvent: String {
     case thumbnailLoad = "thumbnail_load"
     case previewLoad = "preview_load"
     case jumpScroll = "jump_scroll"
+    case keyboardSelection = "keyboard_selection"
+    case keyboardScroll = "keyboard_scroll"
     case ocr = "ocr"
 
     var signpostName: StaticString {
@@ -16,6 +18,8 @@ enum BufferPerformanceEvent: String {
         case .thumbnailLoad: "Thumbnail Load"
         case .previewLoad: "Preview Load"
         case .jumpScroll: "Jump Scroll"
+        case .keyboardSelection: "Keyboard Selection"
+        case .keyboardScroll: "Keyboard Scroll"
         case .ocr: "OCR"
         }
     }
@@ -68,6 +72,23 @@ enum BufferPerformanceDiagnostics {
         return operation()
     }
 
+    static func recordElapsed(
+        since start: ContinuousClock.Instant,
+        for event: BufferPerformanceEvent
+    ) {
+        let duration = start.duration(to: .now)
+        os_signpost(
+            .event,
+            log: signpostLog,
+            name: event.signpostName,
+            "%{public}f seconds",
+            duration.timeInterval
+        )
+        #if DEBUG
+            record(duration, for: event)
+        #endif
+    }
+
     #if DEBUG
         static func samples(for event: BufferPerformanceEvent) -> [TimeInterval] {
             lock.lock()
@@ -98,4 +119,12 @@ enum BufferPerformanceDiagnostics {
         static func samples(for event: BufferPerformanceEvent) -> [TimeInterval] { [] }
         static func reset() {}
     #endif
+}
+
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
+        let components = self.components
+        return TimeInterval(components.seconds)
+            + (TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000)
+    }
 }

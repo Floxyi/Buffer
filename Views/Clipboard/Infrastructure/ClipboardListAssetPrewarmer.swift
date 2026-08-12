@@ -83,7 +83,7 @@ final class ClipboardListAssetPrewarmer {
     }
 
     func prewarmAssetsForKeyboardNavigation(
-        request: HistoryKeyboardNavigationRequest,
+        request: HistoryKeyboardScrollRequest,
         items: [ClipboardItem],
         store: ClipboardStore,
         settings: SettingsManager
@@ -186,7 +186,7 @@ final class ClipboardListAssetPrewarmer {
             viewportHeight: viewportHeight
         )
         guard let firstVisibleEntry = visibleEntries.indices.first,
-              let lastVisibleEntry = visibleEntries.indices.last
+            let lastVisibleEntry = visibleEntries.indices.last
         else {
             return VisiblePrewarmPlan(
                 items: Array(items.prefix(32)),
@@ -208,7 +208,8 @@ final class ClipboardListAssetPrewarmer {
         )
         let visible = Array(firstVisibleEntry...lastVisibleEntry)
         let lower = firstVisibleEntry > lowerBound ? Array(lowerBound..<firstVisibleEntry) : []
-        let upper = upperBound > lastVisibleEntry + 1
+        let upper =
+            upperBound > lastVisibleEntry + 1
             ? Array((lastVisibleEntry + 1)..<upperBound)
             : []
         let indices: [Int]
@@ -312,7 +313,7 @@ final class ClipboardListAssetPrewarmer {
     }
 
     nonisolated static func keyboardNavigationPrewarmItems(
-        for request: HistoryKeyboardNavigationRequest,
+        for request: HistoryKeyboardScrollRequest,
         in items: [ClipboardItem]
     ) -> [ClipboardItem] {
         let startIndex = max(0, request.targetIndex - 8)
@@ -321,7 +322,7 @@ final class ClipboardListAssetPrewarmer {
     }
 
     nonisolated static func prioritizedKeyboardNavigationPrewarmItems(
-        for request: HistoryKeyboardNavigationRequest,
+        for request: HistoryKeyboardScrollRequest,
         in items: [ClipboardItem],
         direction: ScrollDirection
     ) -> [ClipboardItem] {

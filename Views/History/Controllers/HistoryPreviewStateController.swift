@@ -6,19 +6,22 @@ struct HistoryPreviewStateController {
         HistoryPreviewState()
     }
 
-    func loadPreview(
+    func immediatePreview(
         for item: ClipboardItem,
-        store: ClipboardStore,
-        previewLoader: HistoryPreviewLoader
+        cachedPreviewImage: NSImage?
     ) -> HistoryPreviewState {
         var state = reset()
 
         if ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
-            state.previewImage = ClipboardImageAssetLoader.cachedPreviewImage(for: item)
+            state.previewImage = cachedPreviewImage
         } else if ClipboardItemTypeRegistry.supportsTextChunks(for: item), item.isFileBacked {
-            state.chunkedText = previewLoader.loadInitialChunk(for: item)
+            return state
         } else {
-            state.chunkedText.visibleText = ClipboardItemTypeRegistry.pastedText(for: item, store: store) ?? ""
+            state.chunkedText.visibleText =
+                item.textContent
+                ?? item.colorPayload?.originalText
+                ?? item.linkPayload?.originalText
+                ?? ""
             state.chunkedText.reachedEOF = true
         }
 
@@ -41,13 +44,13 @@ struct HistoryPreviewStateController {
         for item: ClipboardItem,
         currentState: HistoryPreviewState,
         previewLoader: HistoryPreviewLoader
-    ) -> HistoryPreviewState {
+    ) async -> HistoryPreviewState {
         guard !currentState.chunkedText.isLoadingMore && currentState.chunkedText.hasMore else {
             return currentState
         }
 
         var nextState = currentState
-        nextState.chunkedText = previewLoader.loadNextChunk(
+        nextState.chunkedText = await previewLoader.loadNextChunk(
             for: item,
             currentState: currentState.chunkedText
         )

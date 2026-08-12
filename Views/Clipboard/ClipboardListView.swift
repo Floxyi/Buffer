@@ -37,8 +37,7 @@ struct ClipboardListView: View {
     var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
     var openScrollRequestToken: Int = 0
     var isShowingFullHistory = false
-    var keyboardNavigationRequest: HistoryViewModel.KeyboardNavigationRequest? = nil
-    var onCompleteKeyboardNavigation: (HistoryViewModel.KeyboardNavigationRequest) -> Void = { _ in }
+    var keyboardScrollRequest: HistoryViewModel.KeyboardScrollRequest? = nil
 
     /// Dedicated jump-to-history request. This must stay separate from open/keyboard scrolling.
     var jumpScrollRequest: HistoryViewModel.JumpToHistoryRequest? = nil
@@ -135,8 +134,8 @@ struct ClipboardListView: View {
                 context: scrollContext
             )
         }
-        .onChange(of: keyboardNavigationRequest) { newRequest in
-            scrollCoordinator.handleKeyboardNavigationRequestChange(
+        .onChange(of: keyboardScrollRequest) { newRequest in
+            scrollCoordinator.handleKeyboardScrollRequestChange(
                 newRequest,
                 items: items,
                 store: store,
@@ -163,7 +162,6 @@ struct ClipboardListView: View {
             scrollMetrics: { scrollController.currentMetrics() },
             onJumpScrollStarted: onJumpScrollStarted,
             onJumpScrollCompleted: onJumpScrollCompleted,
-            onCompleteKeyboardNavigation: onCompleteKeyboardNavigation,
             log: { message in
                 logScrollDiagnostics(message)
             }

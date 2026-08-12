@@ -6,7 +6,7 @@ import SwiftUI
 final class HistoryViewModel: ObservableObject {
     typealias OpenListScrollRequest = HistoryOpenListScrollRequest
     typealias JumpToHistoryRequest = HistoryJumpToHistoryRequest
-    typealias KeyboardNavigationRequest = HistoryKeyboardNavigationRequest
+    typealias KeyboardScrollRequest = HistoryKeyboardScrollRequest
     typealias JumpToHistoryState = HistoryJumpToHistoryState
 
     @Published var searchText = "" {
@@ -52,7 +52,9 @@ final class HistoryViewModel: ObservableObject {
     private var quickPasteState = HistoryQuickPasteState()
     private var navigationState = HistoryNavigationState()
     private var cancellables: Set<AnyCancellable> = []
-    private var previewImageTask: Task<Void, Never>?
+    private var detailLoadTask: Task<Void, Never>?
+    private var detailLoadGeneration: UInt = 0
+    private var detailTotalSizeBytes: Int?
     private var activeOCRItemID: UUID?
     private var activeOCRGeneration: UInt = 0
     private var activeOCRTask: Task<String?, Never>?
@@ -136,8 +138,8 @@ final class HistoryViewModel: ObservableObject {
         presentationState.jumpToHistoryState
     }
 
-    var keyboardNavigationRequest: KeyboardNavigationRequest? {
-        presentationState.keyboardNavigationRequest
+    var keyboardScrollRequest: KeyboardScrollRequest? {
+        presentationState.keyboardScrollRequest
     }
 
     var scrollTrigger: Bool {
@@ -281,8 +283,8 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func selectSingle(_ id: UUID) {
-        navigationState = jumpNavigationController.clearKeyboardNavigation(state: navigationState)
-        updatePresentationState { $0.keyboardNavigationRequest = nil }
+        navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
+        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.applySingleSelection(id, in: filteredItems, state: selectionState)
         applySelectionState()
     }
@@ -299,8 +301,8 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func toggleSelection(_ id: UUID) {
-        navigationState = jumpNavigationController.clearKeyboardNavigation(state: navigationState)
-        updatePresentationState { $0.keyboardNavigationRequest = nil }
+        navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
+        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.toggleSelection(id, in: filteredItems, state: selectionState)
         applySelectionState()
     }
@@ -315,11 +317,11 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func navigateUp() {
-        requestKeyboardNavigation(by: -1)
+        navigate(by: -1)
     }
 
     func navigateDown() {
-        requestKeyboardNavigation(by: 1)
+        navigate(by: 1)
     }
 
     func jumpToFirstItem() {
@@ -556,30 +558,6 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
-    func completeKeyboardNavigation(_ request: KeyboardNavigationRequest) {
-        guard presentationState.keyboardNavigationRequest == request else {
-            return
-        }
-
-        navigationState = jumpNavigationController.clearKeyboardNavigation(state: navigationState)
-        updatePresentationState { $0.keyboardNavigationRequest = nil }
-
-        guard filteredItems[safe: request.targetIndex]?.id == request.itemID else {
-            syncSelection(preferredID: request.itemID)
-            return
-        }
-
-        withAnimation(.easeInOut(duration: 0.14)) {
-            selectionState = selectionController.applySingleSelection(
-                request.itemID,
-                index: request.targetIndex,
-                in: filteredItems,
-                state: selectionState
-            )
-            applySelectionState()
-        }
-    }
-
     func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
         updatePresentationState { $0.hoveredItemID = isHovered ? itemID : nil }
     }
@@ -598,28 +576,7 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func loadPreviewIfNeeded() async {
-        previewImageTask?.cancel()
-        updatePreviewState(previewStateController.reset())
-
-        guard let item = selectedItem else { return }
-
-        let initialState = previewStateController.loadPreview(
-            for: item,
-            store: store,
-            previewLoader: previewLoader
-        )
-        updatePreviewState(initialState)
-
-        guard item.kind == .image else { return }
-
-        previewImageTask = Task { [weak self] in
-            guard let self else { return }
-            let image = await previewLoader.loadPreviewImage(for: item)
-            guard !Task.isCancelled, self.selectedItem?.id == item.id else { return }
-            var nextState = self.previewState
-            nextState.previewImage = image
-            self.updatePreviewState(nextState)
-        }
+        await detailLoadTask?.value
     }
 
     func extractSelectedImageText() async {
@@ -664,17 +621,19 @@ final class HistoryViewModel: ObservableObject {
 
     func loadNextChunk() async {
         guard let item = selectedItem else { return }
-        updatePreviewState(
-            previewStateController.loadNextChunk(
-                for: item,
-                currentState: previewState,
-                previewLoader: previewLoader
-            ))
+        let generation = detailLoadGeneration
+        let nextState = await previewStateController.loadNextChunk(
+            for: item,
+            currentState: previewState,
+            previewLoader: previewLoader
+        )
+        guard generation == detailLoadGeneration, selectedID == item.id else { return }
+        updatePreviewState(nextState)
     }
 
     private func syncSelection(preferredID: UUID? = nil) {
-        navigationState = jumpNavigationController.clearKeyboardNavigation(state: navigationState)
-        updatePresentationState { $0.keyboardNavigationRequest = nil }
+        navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
+        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.syncSelection(
             state: selectionState,
             in: filteredItems,
@@ -716,18 +675,37 @@ final class HistoryViewModel: ObservableObject {
         syncSelection(preferredID: preferredID)
     }
 
-    private func requestKeyboardNavigation(by delta: Int) {
-        if let pendingRequest = navigationState.keyboardNavigationRequest {
-            completeKeyboardNavigation(pendingRequest)
-        }
+    private func navigate(by delta: Int) {
+        let targetIndex = selectedIndex + delta
+        guard filteredItems.indices.contains(targetIndex) else { return }
 
-        navigationState = jumpNavigationController.requestKeyboardNavigation(
-            by: delta,
-            selectedIndex: selectedIndex,
-            filteredItems: filteredItems,
+        let item = filteredItems[targetIndex]
+        let selectionToken = BufferPerformanceDiagnostics.begin(.keyboardSelection)
+        selectionState = selectionController.applySingleSelection(
+            item.id,
+            index: targetIndex,
+            in: filteredItems,
+            state: selectionState
+        )
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectionViewState = selectionViewStateProjector.project(selectionState)
+        }
+        BufferPerformanceDiagnostics.end(selectionToken)
+
+        navigationState = jumpNavigationController.makeKeyboardScrollRequest(
+            itemID: item.id,
+            targetIndex: targetIndex,
             state: navigationState
         )
-        updatePresentationState { $0.keyboardNavigationRequest = navigationState.keyboardNavigationRequest }
+        updatePresentationState { $0.keyboardScrollRequest = navigationState.keyboardScrollRequest }
+        beginDetailLoad(
+            selectedItem: item,
+            selectedItemsInVisualOrder: [item],
+            selectedItemsInActionOrder: [item]
+        )
     }
 
     private func logJumpToHistory(_ message: @autoclosure () -> String) {
@@ -739,7 +717,11 @@ final class HistoryViewModel: ObservableObject {
 
     private func applySelectionState() {
         selectionViewState = selectionViewStateProjector.project(selectionState)
-        refreshDetailViewState()
+        beginDetailLoad(
+            selectedItem: selectedItem,
+            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+            selectedItemsInActionOrder: selectedItemsInActionOrder
+        )
     }
 
     private func applyQuickPasteState() {
@@ -757,13 +739,128 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func refreshDetailViewState() {
+        publishDetailViewState(
+            selectedItem: selectedItem,
+            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+            selectedItemsInActionOrder: selectedItemsInActionOrder
+        )
+    }
+
+    private func beginDetailLoad(
+        selectedItem: ClipboardItem?,
+        selectedItemsInVisualOrder: [ClipboardItem],
+        selectedItemsInActionOrder: [ClipboardItem]
+    ) {
+        detailLoadGeneration &+= 1
+        let generation = detailLoadGeneration
+        detailLoadTask?.cancel()
+        detailLoadTask = nil
+
+        guard let selectedItem else {
+            detailTotalSizeBytes = nil
+            previewState = previewStateController.reset()
+            publishDetailViewState(
+                selectedItem: nil,
+                selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+                selectedItemsInActionOrder: selectedItemsInActionOrder
+            )
+            return
+        }
+
+        detailTotalSizeBytes = immediateTotalSizeBytes(for: selectedItemsInVisualOrder)
+        let cachedPreviewImage =
+            ClipboardItemTypeRegistry.supportsImageAssets(for: selectedItem)
+            ? ClipboardImageAssetLoader.cachedPreviewImage(for: selectedItem)
+            : nil
+        previewState = previewStateController.immediatePreview(
+            for: selectedItem,
+            cachedPreviewImage: cachedPreviewImage
+        )
+        publishDetailViewState(
+            selectedItem: selectedItem,
+            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+            selectedItemsInActionOrder: selectedItemsInActionOrder
+        )
+
+        let previewLoader = previewLoader
+        detailLoadTask = Task { [weak self, store] in
+            guard let self,
+                !Task.isCancelled,
+                self.detailLoadGeneration == generation
+            else {
+                return
+            }
+
+            var loadedPreviewState = self.previewState
+
+            var totalSize = 0
+
+            for item in selectedItemsInVisualOrder {
+                guard !Task.isCancelled else { return }
+                totalSize += await store.itemSizeAsync(for: item) ?? 0
+            }
+
+            if selectedItem.isFileBacked {
+                loadedPreviewState.chunkedText = await previewLoader.loadInitialChunk(for: selectedItem)
+            } else if selectedItem.kind == .image, loadedPreviewState.previewImage == nil {
+                loadedPreviewState.previewImage = await previewLoader.loadPreviewImage(for: selectedItem)
+            }
+
+            guard !Task.isCancelled,
+                self.detailLoadGeneration == generation,
+                self.selectedID == selectedItem.id
+            else {
+                return
+            }
+
+            self.previewState = loadedPreviewState
+            self.detailTotalSizeBytes = totalSize
+            self.publishDetailViewState(
+                selectedItem: selectedItem,
+                selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+                selectedItemsInActionOrder: selectedItemsInActionOrder
+            )
+            self.detailLoadTask = nil
+        }
+    }
+
+    private func immediateTotalSizeBytes(for items: [ClipboardItem]) -> Int? {
+        var totalSize = 0
+        for item in items {
+            let itemSize: Int?
+            if let originalSizeBytes = item.originalSizeBytes {
+                itemSize = originalSizeBytes
+            } else {
+                switch item.content {
+                case .text(let payload) where payload.fileName == nil:
+                    itemSize = payload.inlineText?.utf8.count
+                case .color(let payload):
+                    itemSize = payload.originalText.utf8.count
+                case .link(let payload):
+                    itemSize = payload.originalText.utf8.count
+                case .text, .image:
+                    itemSize = nil
+                }
+            }
+
+            guard let itemSize else { return nil }
+            totalSize += itemSize
+        }
+        return totalSize
+    }
+
+    private func publishDetailViewState(
+        selectedItem: ClipboardItem?,
+        selectedItemsInVisualOrder: [ClipboardItem],
+        selectedItemsInActionOrder: [ClipboardItem]
+    ) {
         detailViewState = detailViewStateProjector.project(
             selectedItem: selectedItem,
             selectedItemsInVisualOrder: selectedItemsInVisualOrder,
             selectedItemsInActionOrder: selectedItemsInActionOrder,
             searchText: searchText,
             previewState: previewState,
-            store: store,
+            selectedItemsTotalSizeBytes: detailTotalSizeBytes,
             actionResolver: actionResolver,
             copiedAtFormatter: copiedAtFormatter
         )

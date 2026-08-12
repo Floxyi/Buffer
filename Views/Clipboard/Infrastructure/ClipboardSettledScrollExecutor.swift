@@ -14,11 +14,9 @@ final class ClipboardSettledScrollExecutor {
     func execute(
         _ command: Command,
         measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator?,
-        keyboardNavigationCoordinator: ClipboardKeyboardNavigationCoordinator,
         scrollController: ScrollController
     ) {
         measuredScrollCoordinator?.cancel()
-        keyboardNavigationCoordinator.cancelScroll()
 
         switch command {
         case .top:

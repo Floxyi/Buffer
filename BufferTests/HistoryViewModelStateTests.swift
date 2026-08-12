@@ -107,6 +107,36 @@ final class HistoryViewModelStateTests: XCTestCase {
         XCTAssertTrue(viewModel.chunkedText.hasMore)
     }
 
+    func testSupersededFileBackedDetailCannotPublishForOldSelection() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+        let firstFilename = try XCTUnwrap(store.saveText(String(repeating: "first-", count: 2_000)))
+        let secondFilename = try XCTUnwrap(store.saveText(String(repeating: "second-", count: 2_000)))
+        let firstItem = ClipboardItem.largeText(preview: "first", filename: firstFilename)
+        let secondItem = ClipboardItem.largeText(preview: "second", filename: secondFilename)
+        store.add(firstItem)
+        store.add(secondItem)
+        await eventually { store.items.count == 2 }
+
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: "")
+        )
+
+        viewModel.selectSingle(firstItem.id)
+        viewModel.selectSingle(secondItem.id)
+        await viewModel.loadPreviewIfNeeded()
+
+        XCTAssertEqual(viewModel.selectedID, secondItem.id)
+        XCTAssertTrue(viewModel.chunkedText.visibleText.hasPrefix("second-"))
+        XCTAssertFalse(viewModel.chunkedText.visibleText.hasPrefix("first-"))
+    }
+
     func testExtractImageTextStoresRecognizedText() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(

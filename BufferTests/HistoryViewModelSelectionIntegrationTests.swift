@@ -1,8 +1,78 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
 final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
+    func testArrowDownPublishesSingleSelectionBeforeReturning() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        let target = viewModel.filteredItems[1]
+
+        viewModel.navigateDown()
+
+        XCTAssertEqual(viewModel.selectedIndex, 1)
+        XCTAssertEqual(viewModel.selectedID, target.id)
+        XCTAssertEqual(viewModel.selectedIDs, [target.id])
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.itemID, target.id)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, 1)
+    }
+
+    func testTenRapidArrowDownEventsCommitTenSelectionsWithoutCallbacks() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let items = (0..<12).map { index in
+            ClipboardItem(
+                type: .text,
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                textContent: "item-\(index)"
+            )
+        }
+        await populateStore(store, with: items)
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        for _ in 0..<10 {
+            viewModel.navigateDown()
+        }
+
+        XCTAssertEqual(viewModel.selectedIndex, 10)
+        XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems[10].id)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.generation, 10)
+    }
+
+    func testAlternatingArrowNavigationUsesLatestCommittedIndex() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+
+        viewModel.navigateDown()
+        viewModel.navigateDown()
+        viewModel.navigateUp()
+        viewModel.navigateDown()
+
+        XCTAssertEqual(viewModel.selectedIndex, 2)
+        XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems[2].id)
+    }
+
+    func testBoundaryArrowIsNoOpAndDoesNotCreateScrollRequest() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        let initialID = viewModel.selectedID
+
+        viewModel.navigateUp()
+
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+        XCTAssertEqual(viewModel.selectedID, initialID)
+        XCTAssertNil(viewModel.keyboardScrollRequest)
+    }
+
+    func testFilteredItemsChangeInvalidatesKeyboardScrollRequest() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        viewModel.navigateDown()
+        XCTAssertNotNil(viewModel.keyboardScrollRequest)
+
+        viewModel.searchText = "newest"
+
+        XCTAssertNil(viewModel.keyboardScrollRequest)
+        XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.first?.id)
+    }
+
     func testJumpToFirstItemSelectsNewestVisibleItem() async {
         let viewModel = await makeSelectionHistoryViewModel()
         let oldest = viewModel.filteredItems.last!

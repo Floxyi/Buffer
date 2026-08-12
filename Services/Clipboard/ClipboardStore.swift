@@ -189,7 +189,18 @@ final class ClipboardStore: ObservableObject, ClipboardStoreReading {
         assetAccess.textChunk(for: item, charCount: charCount)
     }
 
+    nonisolated func textChunkAsync(
+        for item: ClipboardItem,
+        charCount: Int
+    ) async -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+        assetAccess.textChunk(for: item, charCount: charCount)
+    }
+
     func itemSize(for item: ClipboardItem) -> Int? {
+        assetAccess.itemSize(for: item)
+    }
+
+    nonisolated func itemSizeAsync(for item: ClipboardItem) async -> Int? {
         assetAccess.itemSize(for: item)
     }
 

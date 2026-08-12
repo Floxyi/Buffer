@@ -15,7 +15,6 @@ struct ClipboardListScrollContext {
     let scrollMetrics: () -> SmoothWheelScroller.Metrics
     let onJumpScrollStarted: (HistoryJumpToHistoryRequest) -> Void
     let onJumpScrollCompleted: (HistoryJumpToHistoryRequest, Bool) -> Void
-    let onCompleteKeyboardNavigation: (HistoryKeyboardNavigationRequest) -> Void
     let log: (String) -> Void
 }
 
@@ -66,7 +65,6 @@ final class ClipboardListScrollCoordinator: ObservableObject {
 
     func cancelAll(measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator) {
         measuredScrollCoordinator.cancel()
-        keyboardNavigationCoordinator.cancelAll()
     }
 
     func syncJumpScrollRequest(_ newRequest: HistoryJumpToHistoryRequest?) {
@@ -132,8 +130,8 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         }
     }
 
-    func handleKeyboardNavigationRequestChange(
-        _ newRequest: HistoryKeyboardNavigationRequest?,
+    func handleKeyboardScrollRequestChange(
+        _ newRequest: HistoryKeyboardScrollRequest?,
         items: [ClipboardItem],
         store: ClipboardStore,
         settings: SettingsManager,
@@ -142,20 +140,33 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         context: ClipboardListScrollContext
     ) {
         guard let newRequest else {
-            keyboardNavigationCoordinator.cancelCommit()
+            keyboardNavigationCoordinator.invalidateCurrentRequest()
             return
         }
 
+        guard items[safe: newRequest.targetIndex]?.id == newRequest.itemID else {
+            return
+        }
+
+        let result = keyboardNavigationCoordinator.scrollSelectedItemIntoView(
+            request: newRequest,
+            targetFrameExists: context.layoutIndex.frame(for: newRequest.itemID) != nil,
+            scrollController: scrollController,
+            resolveMetrics: { [weak self] itemID in
+                self?.keyboardNavigationMetrics(for: itemID, context: context)
+            }
+        )
+        guard result.didApplyViewportOperation else { return }
+
+        BufferPerformanceDiagnostics.recordElapsed(
+            since: newRequest.selectionPublishedAt,
+            for: .keyboardScroll
+        )
         assetPrewarmer.prewarmAssetsForKeyboardNavigation(
             request: newRequest,
             items: items,
             store: store,
             settings: settings
-        )
-        scheduleKeyboardNavigationCommit(
-            for: newRequest,
-            scrollController: scrollController,
-            context: context
         )
     }
 
@@ -356,7 +367,6 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         context: ClipboardListScrollContext,
         completion: ((Bool) -> Void)? = nil
     ) {
-        keyboardNavigationCoordinator.cancelScroll()
         measuredScrollCoordinator.schedule(
             request,
             using: scrollProxy,
@@ -400,30 +410,13 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         let requestID = nextRequestID()
 
         measuredScrollCoordinator.cancel()
-        keyboardNavigationCoordinator.scheduleVisibilityScroll(
-            to: itemID,
-            requestID: requestID,
-            currentRequestID: { [weak self] in self?.scrollRequestID ?? 0 },
-            scrollController: scrollController,
-            resolveMetrics: { [weak self] itemID in
-                self?.keyboardNavigationMetrics(for: itemID, context: context)
-            }
-        )
-    }
-
-    private func scheduleKeyboardNavigationCommit(
-        for request: HistoryKeyboardNavigationRequest,
-        scrollController: ScrollController,
-        context: ClipboardListScrollContext
-    ) {
-        keyboardNavigationCoordinator.scheduleCommit(
-            for: request,
-            scrollController: scrollController,
-            resolveMetrics: { [weak self] itemID in
-                self?.keyboardNavigationMetrics(for: itemID, context: context)
-            },
-            onComplete: context.onCompleteKeyboardNavigation
-        )
+        guard requestID == scrollRequestID,
+            let metrics = keyboardNavigationMetrics(for: itemID, context: context),
+            abs(metrics.targetOffset - metrics.currentOffset) > 0.5
+        else {
+            return
+        }
+        scrollController.scrollTo(offset: metrics.targetOffset)
     }
 
     private func keyboardNavigationMetrics(
@@ -461,7 +454,6 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         settledScrollExecutor.execute(
             settledScrollCommand(for: command),
             measuredScrollCoordinator: measuredScrollCoordinator,
-            keyboardNavigationCoordinator: keyboardNavigationCoordinator,
             scrollController: scrollController
         )
     }

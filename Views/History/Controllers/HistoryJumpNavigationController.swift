@@ -4,8 +4,8 @@ struct HistoryNavigationState {
     var jumpToHistoryState = HistoryJumpToHistoryState.idle
     var jumpToHistoryGenerationCounter: UInt = 0
     var jumpToHistoryFailureCount = 0
-    var keyboardNavigationRequest: HistoryKeyboardNavigationRequest?
-    var keyboardNavigationGenerationCounter: UInt = 0
+    var keyboardScrollRequest: HistoryKeyboardScrollRequest?
+    var keyboardScrollGenerationCounter: UInt = 0
 }
 
 struct HistoryJumpNavigationController {
@@ -81,35 +81,26 @@ struct HistoryJumpNavigationController {
         }
     }
 
-    func requestKeyboardNavigation(
-        by delta: Int,
-        selectedIndex: Int,
-        filteredItems: [ClipboardItem],
+    func makeKeyboardScrollRequest(
+        itemID: UUID,
+        targetIndex: Int,
         state: HistoryNavigationState
     ) -> HistoryNavigationState {
         var nextState = state
-        nextState.keyboardNavigationRequest = nil
-
-        let targetIndex = selectedIndex + delta
-        guard filteredItems.indices.contains(targetIndex),
-              let itemID = filteredItems[safe: targetIndex]?.id else {
-            return nextState
-        }
-
-        nextState.keyboardNavigationGenerationCounter &+= 1
-        nextState.keyboardNavigationRequest = HistoryKeyboardNavigationRequest(
+        nextState.keyboardScrollGenerationCounter &+= 1
+        nextState.keyboardScrollRequest = HistoryKeyboardScrollRequest(
             itemID: itemID,
             targetIndex: targetIndex,
-            generation: nextState.keyboardNavigationGenerationCounter
+            generation: nextState.keyboardScrollGenerationCounter
         )
         return nextState
     }
 
-    func clearKeyboardNavigation(
+    func clearKeyboardScrollRequest(
         state: HistoryNavigationState
     ) -> HistoryNavigationState {
         var nextState = state
-        nextState.keyboardNavigationRequest = nil
+        nextState.keyboardScrollRequest = nil
         return nextState
     }
 }

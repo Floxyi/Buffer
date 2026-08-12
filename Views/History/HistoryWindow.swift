@@ -74,9 +74,6 @@ struct HistoryContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             viewModel.handleAppResignActive()
         }
-        .task(id: viewModel.selectedItem?.id) {
-            await viewModel.loadPreviewIfNeeded()
-        }
         .background(
             HistoryWindowKeyMonitor(
                 onCommand: handleKeyboardCommand(_:)

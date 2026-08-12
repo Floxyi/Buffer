@@ -1,22 +1,15 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
 final class HistoryPreviewStateControllerTests: XCTestCase {
     func testLoadPreviewForInlineTextUsesPastedText() {
-        let paths = TestStorageFactory.makePaths()
-        let settings = SettingsManager(
-            defaults: makeTestDefaults(),
-            launchAtLoginController: FakeLaunchAtLoginController()
-        )
-        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
         let item = ClipboardItem.text("hello")
-        let loader = HistoryPreviewLoader(store: store, ocrService: FakeOCRService(result: nil))
 
-        let state = HistoryPreviewStateController().loadPreview(
+        let state = HistoryPreviewStateController().immediatePreview(
             for: item,
-            store: store,
-            previewLoader: loader
+            cachedPreviewImage: nil
         )
 
         XCTAssertEqual(state.chunkedText.visibleText, "hello")

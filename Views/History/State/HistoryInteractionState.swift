@@ -14,10 +14,29 @@ struct HistoryJumpToHistoryRequest: Equatable {
     let generation: UInt
 }
 
-struct HistoryKeyboardNavigationRequest: Equatable {
+struct HistoryKeyboardScrollRequest: Equatable {
     let itemID: UUID
     let targetIndex: Int
     let generation: UInt
+    let selectionPublishedAt: ContinuousClock.Instant
+
+    init(
+        itemID: UUID,
+        targetIndex: Int,
+        generation: UInt,
+        selectionPublishedAt: ContinuousClock.Instant = .now
+    ) {
+        self.itemID = itemID
+        self.targetIndex = targetIndex
+        self.generation = generation
+        self.selectionPublishedAt = selectionPublishedAt
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.itemID == rhs.itemID
+            && lhs.targetIndex == rhs.targetIndex
+            && lhs.generation == rhs.generation
+    }
 }
 
 enum HistoryJumpToHistoryState: Equatable {
