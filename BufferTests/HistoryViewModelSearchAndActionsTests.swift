@@ -19,13 +19,19 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             URL(string: "https://openai.com/research")!,
             originalText: "openai.com/research"
         )
+        let emailItem = ClipboardItem.email(
+            ClipboardEmailValue.parse("person@example.com")!
+        )
         let imageItem = ClipboardItem(
             type: .image,
             imageFilename: "image.png",
             ocrText: "ocr needle text"
         )
 
-        await populateStore(store, with: [inlineItem, fileBackedItem, colorItem, linkItem, imageItem])
+        await populateStore(
+            store,
+            with: [inlineItem, fileBackedItem, colorItem, linkItem, emailItem, imageItem]
+        )
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
 
@@ -43,6 +49,9 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
 
         viewModel.searchText = "openai.com/research"
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [linkItem.id])
+
+        viewModel.searchText = "person@example.com"
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [emailItem.id])
     }
 
     func testTypeDrivenImageActionsExcludeColorItems() async {

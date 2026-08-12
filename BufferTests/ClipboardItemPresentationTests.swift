@@ -40,4 +40,19 @@ final class ClipboardItemPresentationTests: XCTestCase {
             [.saveImage, .extractImageText]
         )
     }
+
+    func testEmailPresentationUsesDedicatedTypeAndComposeAction() throws {
+        let item = ClipboardItem.email(
+            try XCTUnwrap(ClipboardEmailValue.parse("person@example.com"))
+        )
+        let definition = ClipboardItemPresentation.definition(for: item)
+
+        XCTAssertEqual(definition.displayName, "Email")
+        XCTAssertEqual(definition.detailActions, [.composeEmail])
+        XCTAssertEqual(ClipboardItemPresentation.primaryLabelText(for: item), "person@example.com")
+
+        guard case .email = ClipboardItemPresentation.leadingVisualStyle(for: item) else {
+            return XCTFail("Expected the dedicated email leading visual")
+        }
+    }
 }

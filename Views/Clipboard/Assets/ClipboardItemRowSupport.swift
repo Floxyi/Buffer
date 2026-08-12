@@ -13,7 +13,7 @@ struct ClipboardItemRowAssets {
 
     func shouldTreatAsLoaded(for item: ClipboardItem) -> Bool {
         switch item.kind {
-        case .text, .color, .link:
+        case .text, .color, .link, .email:
             return true
         case .image:
             return thumbnail != nil || imageDimensionsText != nil

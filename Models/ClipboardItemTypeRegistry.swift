@@ -12,6 +12,8 @@ enum ClipboardItemTypeRegistry {
             return payload.originalText
         case .link(let payload):
             return payload.originalText
+        case .email(let payload):
+            return payload.originalText
         }
     }
 
@@ -23,6 +25,8 @@ enum ClipboardItemTypeRegistry {
         case .color(let payload):
             return payload.originalText
         case .link(let payload):
+            return payload.originalText
+        case .email(let payload):
             return payload.originalText
         case .image:
             return nil
@@ -38,6 +42,8 @@ enum ClipboardItemTypeRegistry {
         case .color(let payload):
             return payload.originalText.hashValue
         case .link(let payload):
+            return payload.originalText.hashValue
+        case .email(let payload):
             return payload.originalText.hashValue
         }
     }
@@ -63,5 +69,9 @@ enum ClipboardItemTypeRegistry {
     static func canOpenLink(for item: ClipboardItem?) -> Bool {
         guard let item else { return false }
         return item.kind == .link
+    }
+
+    static func canComposeEmail(for item: ClipboardItem?) -> Bool {
+        item?.emailPayload?.mailtoURL != nil
     }
 }

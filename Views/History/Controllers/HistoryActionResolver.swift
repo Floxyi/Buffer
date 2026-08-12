@@ -31,6 +31,10 @@ struct HistoryActionResolver {
             actions.append(.init(action: .openLink))
         }
 
+        if ClipboardItemTypeRegistry.canComposeEmail(for: item) {
+            actions.append(.init(action: .composeEmail))
+        }
+
         if allowsJumpToHistory {
             actions.append(.init(action: .jumpToHistory))
         }

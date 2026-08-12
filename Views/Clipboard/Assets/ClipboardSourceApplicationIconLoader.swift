@@ -34,6 +34,8 @@ enum ClipboardSourceApplicationIconLoader {
         for item: ClipboardItem,
         settings: SettingsManager
     ) async -> NSImage? {
+        guard item.kind != .email else { return nil }
+
         if let cachedIcon = cachedSourceApplicationIcon(for: item, settings: settings) {
             return cachedIcon
         }
@@ -55,6 +57,8 @@ enum ClipboardSourceApplicationIconLoader {
         for item: ClipboardItem,
         settings: SettingsManager
     ) async -> NSImage? {
+        guard item.kind != .email else { return nil }
+
         guard let key = sourceIconCacheKey(for: item) else {
             return nil
         }
@@ -106,6 +110,8 @@ enum ClipboardSourceApplicationIconLoader {
         for item: ClipboardItem,
         settings: SettingsManager
     ) -> NSImage? {
+        guard item.kind != .email else { return nil }
+
         if item.kind == .link {
             guard settings.enableWebsitePreviews,
                 let url = item.linkPayload?.url
@@ -123,6 +129,8 @@ enum ClipboardSourceApplicationIconLoader {
         for item: ClipboardItem,
         settings: SettingsManager
     ) -> NSImage? {
+        guard item.kind != .email else { return nil }
+
         if item.kind == .link {
             if settings.enableWebsitePreviews,
                 let url = item.linkPayload?.url,
@@ -147,6 +155,8 @@ enum ClipboardSourceApplicationIconLoader {
             if Task.isCancelled {
                 return
             }
+
+            guard item.kind != .email else { continue }
 
             let key: String
             if item.kind == .link {

@@ -59,6 +59,23 @@ final class ClipboardHistoryPersistenceTests: XCTestCase {
         XCTAssertEqual(decoded.linkPayload?.websiteName, "Youtube")
     }
 
+    func testClipboardItemRoundTripsStructuredEmailWithoutChangingLinks() throws {
+        let payload = try XCTUnwrap(ClipboardEmailValue.parse("person+buffer@example.com"))
+        let emailItem = ClipboardItem.email(payload)
+        let existingLink = ClipboardItem.link(
+            try XCTUnwrap(URL(string: "https://person@example.com")),
+            originalText: "person@example.com"
+        )
+
+        let data = try JSONEncoder().encode([emailItem, existingLink])
+        let decoded = try JSONDecoder().decode([ClipboardItem].self, from: data)
+
+        XCTAssertEqual(decoded[0].kind, .email)
+        XCTAssertEqual(decoded[0].emailPayload, payload)
+        XCTAssertEqual(decoded[1].kind, .link)
+        XCTAssertEqual(decoded[1].linkPayload, existingLink.linkPayload)
+    }
+
     func testClipboardColorValueFormatsOpaqueVariants() {
         let colorValue = ClipboardColorValue(red: 1, green: 0, blue: 0.5, alpha: 1)
 

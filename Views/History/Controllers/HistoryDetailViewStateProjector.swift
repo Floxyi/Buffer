@@ -40,8 +40,9 @@ struct HistoryDetailViewStateProjector {
             imageSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .image }.count,
             colorSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .color }.count,
             linkSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .link }.count,
+            emailSelectionCount: selectedItemsInVisualOrder.filter { $0.kind == .email }.count,
             firstTextPreview: selectedItemsInVisualOrder.first(where: {
-                $0.kind == .text || $0.kind == .color || $0.kind == .link
+                $0.kind == .text || $0.kind == .color || $0.kind == .link || $0.kind == .email
             }).map {
                 String(ClipboardItemPresentation.previewText(for: $0).prefix(200))
             },

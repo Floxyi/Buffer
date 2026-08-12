@@ -112,6 +112,10 @@ struct HistoryActionHandler {
             guard let url = items.first?.linkPayload?.url else { return }
             NSWorkspace.shared.open(url)
 
+        case .composeEmail:
+            guard let url = items.first?.emailPayload?.mailtoURL else { return }
+            NSWorkspace.shared.open(url)
+
         case .jumpToHistory:
             guard let item = items.first else { return }
             viewModel.jumpToHistory(for: item)

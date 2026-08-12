@@ -28,4 +28,19 @@ final class HistoryActionResolverTests: XCTestCase {
 
         XCTAssertEqual(actions.map(\.action), [.copy, .openLink, .jumpToHistory, .togglePin, .delete])
     }
+
+    func testResolveActionsForEmailIncludesComposeButNotOpenWebsite() throws {
+        let resolver = HistoryActionResolver()
+        let item = ClipboardItem.email(
+            try XCTUnwrap(ClipboardEmailValue.parse("person@example.com"))
+        )
+
+        let actions = resolver.resolveActions(
+            for: [item],
+            allowsJumpToHistory: true,
+            isExtractingText: false
+        )
+
+        XCTAssertEqual(actions.map(\.action), [.copy, .composeEmail, .jumpToHistory, .togglePin, .delete])
+    }
 }

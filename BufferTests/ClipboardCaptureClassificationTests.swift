@@ -106,6 +106,61 @@ final class ClipboardCaptureClassificationTests: XCTestCase {
         XCTAssertEqual(schemeLessItem.linkPayload?.url.absoluteString, "https://openai.com/research")
     }
 
+    func testEmailClassificationCreatesDedicatedItemWithoutWebsiteLookup() async {
+        let onlineItem = await ClipboardCaptureSupport.classifyTextItem(
+            "person+buffer@example.com",
+            sourceApp: nil,
+            enableWebsitePreviews: true,
+            websiteReachability: { _ in
+                XCTFail("Email classification must not perform website reachability checks")
+                return true
+            }
+        ) { _ in
+            XCTFail("Expected inline email item")
+            return nil
+        }
+        let localOnlyItem = await ClipboardCaptureSupport.classifyTextItem(
+            "person@example.com",
+            sourceApp: nil,
+            enableWebsitePreviews: false
+        ) { _ in
+            XCTFail("Expected inline email item")
+            return nil
+        }
+
+        XCTAssertEqual(onlineItem.kind, .email)
+        XCTAssertEqual(onlineItem.emailPayload?.address, "person+buffer@example.com")
+        XCTAssertEqual(onlineItem.emailPayload?.originalText, "person+buffer@example.com")
+        XCTAssertNil(onlineItem.linkPayload)
+        XCTAssertEqual(localOnlyItem.kind, .email)
+    }
+
+    func testEmailClassificationRequiresExactlyOneCompleteAddress() async {
+        let inputs = [
+            "Contact person@example.com for help",
+            "person@example.com other@example.com",
+            "person@localhost",
+            "person@example",
+            "mailto:person@example.com",
+            "person@example.com?subject=Hello",
+            "person@example.com.",
+        ]
+
+        for input in inputs {
+            let item = await ClipboardCaptureSupport.classifyTextItem(
+                input,
+                sourceApp: nil,
+                enableWebsitePreviews: true,
+                websiteReachability: { _ in false }
+            ) { _ in
+                XCTFail("Expected inline text item")
+                return nil
+            }
+
+            XCTAssertEqual(item.kind, .text, "Unexpected email classification for: \(input)")
+        }
+    }
+
     func testLinkClassificationRejectsNonURLText() async {
         let plainTextItem = await ClipboardCaptureSupport.classifyTextItem(
             "openai research",

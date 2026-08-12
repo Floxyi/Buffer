@@ -15,6 +15,7 @@ struct HistoryDetailViewState {
     var imageSelectionCount = 0
     var colorSelectionCount = 0
     var linkSelectionCount = 0
+    var emailSelectionCount = 0
     var firstTextPreview: String?
     var actions: [HistoryItemActionDescriptor] = []
     var canSaveSelectedImage = false

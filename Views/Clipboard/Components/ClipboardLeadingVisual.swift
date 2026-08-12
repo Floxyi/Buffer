@@ -19,6 +19,8 @@ struct ClipboardLeadingVisual: View {
             colorVisual(colorValue)
         case .link:
             linkVisual
+        case .email:
+            emailVisual
         }
     }
 
@@ -106,6 +108,13 @@ struct ClipboardLeadingVisual: View {
                 shape.stroke(Color.primary.opacity(0.12), lineWidth: 1)
             )
             .help(item.linkPayload?.websiteName ?? "Website")
+    }
+
+    private var emailVisual: some View {
+        Image(systemName: "envelope.fill")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(secondaryForegroundColor)
+            .help("Email")
     }
 
     @ViewBuilder

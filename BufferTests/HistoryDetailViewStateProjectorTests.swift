@@ -50,4 +50,26 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertTrue(state.canExtractSelectedImageText)
         XCTAssertFalse(state.canJumpToHistorySelection)
     }
+
+    func testProjectsEmailSelectionIntoDedicatedCountAndPreview() throws {
+        let projector = HistoryDetailViewStateProjector()
+        let item = ClipboardItem.email(
+            try XCTUnwrap(ClipboardEmailValue.parse("person@example.com"))
+        )
+        let state = projector.project(
+            selectedItem: item,
+            selectedItemsInVisualOrder: [item],
+            selectedItemsInActionOrder: [item],
+            searchText: "person",
+            previewState: HistoryPreviewState(),
+            selectedItemsTotalSizeBytes: 18,
+            actionResolver: HistoryActionResolver(),
+            copiedAtFormatter: HistoryCopiedAtFormatter()
+        )
+
+        XCTAssertEqual(state.emailSelectionCount, 1)
+        XCTAssertEqual(state.linkSelectionCount, 0)
+        XCTAssertEqual(state.firstTextPreview, "person@example.com")
+        XCTAssertEqual(state.actions.map(\.action), [.copy, .composeEmail, .jumpToHistory, .togglePin, .delete])
+    }
 }

@@ -862,6 +862,8 @@ final class HistoryViewModel: ObservableObject {
                     itemSize = payload.originalText.utf8.count
                 case .link(let payload):
                     itemSize = payload.originalText.utf8.count
+                case .email(let payload):
+                    itemSize = payload.originalText.utf8.count
                 case .text, .image:
                     itemSize = nil
                 }

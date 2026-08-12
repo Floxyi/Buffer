@@ -5,9 +5,10 @@ enum ClipboardItemContent: Codable, Equatable, Sendable {
     case image(ImageItemContent)
     case color(ColorItemContent)
     case link(LinkItemContent)
+    case email(EmailItemContent)
 
     enum CodingKeys: String, CodingKey {
-        case kind, text, image, color, link
+        case kind, text, image, color, link, email
     }
 
     var kind: ClipboardItemKind {
@@ -20,6 +21,8 @@ enum ClipboardItemContent: Codable, Equatable, Sendable {
             return .color
         case .link:
             return .link
+        case .email:
+            return .email
         }
     }
 
@@ -36,6 +39,8 @@ enum ClipboardItemContent: Codable, Equatable, Sendable {
             self = .color(try container.decode(ColorItemContent.self, forKey: .color))
         case .link:
             self = .link(try container.decode(LinkItemContent.self, forKey: .link))
+        case .email:
+            self = .email(try container.decode(EmailItemContent.self, forKey: .email))
         }
     }
 
@@ -52,6 +57,8 @@ enum ClipboardItemContent: Codable, Equatable, Sendable {
             try container.encode(payload, forKey: .color)
         case .link(let payload):
             try container.encode(payload, forKey: .link)
+        case .email(let payload):
+            try container.encode(payload, forKey: .email)
         }
     }
 }

@@ -5,12 +5,14 @@ enum ClipboardDetailContentKind: Sendable {
     case image
     case color
     case link
+    case email
 }
 
 enum ClipboardDetailAction: String, Sendable, CaseIterable, Hashable {
     case saveImage
     case extractImageText
     case openLink
+    case composeEmail
 }
 
 enum ClipboardLeadingVisualStyle: Sendable {
@@ -18,6 +20,7 @@ enum ClipboardLeadingVisualStyle: Sendable {
     case image
     case colorSwatch(ClipboardColorValue)
     case link
+    case email
 }
 
 struct ClipboardItemPresentationDefinition: Sendable {
@@ -47,6 +50,11 @@ enum ClipboardItemPresentation {
             displayName: "Link",
             detailContentKind: .link,
             detailActions: [.openLink]
+        ),
+        .email: ClipboardItemPresentationDefinition(
+            displayName: "Email",
+            detailContentKind: .email,
+            detailActions: [.composeEmail]
         )
     ]
 
@@ -68,6 +76,8 @@ enum ClipboardItemPresentation {
             return payload.originalText
         case .link(let payload):
             return payload.originalText
+        case .email(let payload):
+            return payload.originalText
         }
     }
 
@@ -75,7 +85,7 @@ enum ClipboardItemPresentation {
         switch item.content {
         case .image:
             return definition(for: item).displayName
-        case .text, .color, .link:
+        case .text, .color, .link, .email:
             let rawText = previewText(for: item)
             let collapsed = rawText
                 .split(whereSeparator: \.isWhitespace)
@@ -100,11 +110,13 @@ enum ClipboardItemPresentation {
             return .colorSwatch(payload.value)
         case .link:
             return .link
+        case .email:
+            return .email
         }
     }
 
     static func showsSourceApplication(for item: ClipboardItem?) -> Bool {
         guard let item else { return false }
-        return item.kind != .color && item.kind != .link
+        return item.kind != .color && item.kind != .link && item.kind != .email
     }
 }

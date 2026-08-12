@@ -5,6 +5,7 @@ enum ClipboardItemKind: String, Codable, Sendable, CaseIterable {
     case image
     case color
     case link
+    case email
 }
 
 typealias ClipboardItemType = ClipboardItemKind

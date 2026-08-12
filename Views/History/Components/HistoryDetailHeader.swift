@@ -3,6 +3,7 @@ import SwiftUI
 enum HistoryItemAction: Hashable {
     case copy
     case openLink
+    case composeEmail
     case jumpToHistory
     case saveImage
     case extractImageText
@@ -13,6 +14,7 @@ enum HistoryItemAction: Hashable {
         switch self {
         case .copy: return "Copy"
         case .openLink: return "Open Website"
+        case .composeEmail: return "Compose Email"
         case .jumpToHistory: return "Jump to History"
         case .saveImage: return "Save Image"
         case .extractImageText: return "Extract Text"
@@ -25,6 +27,7 @@ enum HistoryItemAction: Hashable {
         switch self {
         case .copy: return "doc.on.doc"
         case .openLink: return "arrow.up.forward.app"
+        case .composeEmail: return "envelope"
         case .jumpToHistory: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .saveImage: return "arrow.down.to.line"
         case .extractImageText: return "text.viewfinder"
@@ -112,6 +115,13 @@ struct HistoryDetailHeader: View {
         case .link:
             HistoryLinkDetailHeader(
                 websiteName: item.linkPayload?.websiteName ?? "Website",
+                copiedAtText: copiedAtText,
+                actions: actions,
+                onSelectAction: onSelectAction
+            )
+        case .email:
+            HistoryTextDetailHeader(
+                sourceAppName: "Email",
                 copiedAtText: copiedAtText,
                 actions: actions,
                 onSelectAction: onSelectAction

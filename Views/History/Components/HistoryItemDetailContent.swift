@@ -42,6 +42,27 @@ struct HistoryItemDetailContent: View {
                 item: item,
                 enableWebsitePreviews: enableWebsitePreviews
             )
+        case .email:
+            HistoryEmailDetailContent(
+                item: item,
+                textDetailFontStyle: textDetailFontStyle,
+                textDetailFontSize: textDetailFontSize
+            )
         }
+    }
+}
+
+struct HistoryEmailDetailContent: View {
+    let item: ClipboardItem
+    let textDetailFontStyle: TextDetailFontStyle
+    let textDetailFontSize: TextDetailFontSize
+
+    var body: some View {
+        SelectableMonospacedTextView(
+            text: item.emailPayload?.originalText ?? "",
+            fontSize: CGFloat(textDetailFontSize.rawValue),
+            usesMonospacedFont: textDetailFontStyle == .monospaced
+        )
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }

@@ -219,7 +219,7 @@ struct ClipboardItemRow: View {
             imageDimensionsText = loadedDimensionsText
         }
 
-        if sourceAppIcon == nil {
+        if sourceAppIcon == nil, item.kind != .email {
             let fallbackIcon = await ClipboardSourceApplicationIconLoader.loadLocalSourceApplicationIcon(
                 for: item,
                 settings: settings

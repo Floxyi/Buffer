@@ -151,6 +151,16 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         )
     }
 
+    static func email(_ payload: EmailItemContent, sourceApp: SourceApplicationInfo? = nil) -> ClipboardItem {
+        let sourceApplication = sourceApplicationValues(from: sourceApp)
+        return ClipboardItem(
+            sourceApp: sourceApplication.name,
+            sourceAppBundleIdentifier: sourceApplication.bundleIdentifier,
+            sourceAppBundlePath: sourceApplication.bundlePath,
+            content: .email(payload)
+        )
+    }
+
     static func image(filename: String, sourceApp: SourceApplicationInfo? = nil) -> ClipboardItem {
         let sourceApplication = sourceApplicationValues(from: sourceApp)
         return ClipboardItem(
@@ -213,6 +223,11 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
 
     var linkPayload: LinkItemContent? {
         guard case .link(let payload) = content else { return nil }
+        return payload
+    }
+
+    var emailPayload: EmailItemContent? {
+        guard case .email(let payload) = content else { return nil }
         return payload
     }
 

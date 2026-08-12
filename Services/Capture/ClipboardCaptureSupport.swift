@@ -37,6 +37,10 @@ enum ClipboardCaptureSupport {
             return .color(colorValue, originalText: text, sourceApp: sourceApp)
         }
 
+        if let emailPayload = ClipboardEmailValue.parse(text) {
+            return .email(emailPayload, sourceApp: sourceApp)
+        }
+
         if let url = ClipboardLinkValue.parseExplicit(
             text,
             requiringHTTPS: !enableWebsitePreviews

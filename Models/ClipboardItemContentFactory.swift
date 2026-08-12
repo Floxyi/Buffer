@@ -32,7 +32,14 @@ enum ClipboardItemContentFactory {
                 ?? ClipboardLinkValue.parseImplicitWebsiteCandidate(originalText)
                 ?? URL(string: "https://example.com")!
             return .link(LinkItemContent(url: parsedURL, originalText: originalText))
+        case .email:
+            let originalText = textContent ?? ""
+            let payload = ClipboardEmailValue.parse(originalText)
+                ?? EmailItemContent(
+                    address: originalText.trimmingCharacters(in: .whitespacesAndNewlines),
+                    originalText: originalText
+                )
+            return .email(payload)
         }
     }
 }
-

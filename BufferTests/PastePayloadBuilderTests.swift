@@ -22,6 +22,22 @@ final class PastePayloadBuilderTests: XCTestCase {
         XCTAssertNil(preparation.temporaryAssetSessionID)
     }
 
+    func testEmailCopyAndPastePreserveOriginalText() throws {
+        let builder = PastePayloadBuilder(
+            store: makeStore(),
+            imageExporter: FakePasteImageExporter()
+        )
+        let item = ClipboardItem.email(
+            try XCTUnwrap(ClipboardEmailValue.parse("  person@example.com\n"))
+        )
+
+        let copy = try builder.prepareCopyPayload(for: [item])
+        let paste = try builder.makePastePlan(for: [item])
+
+        XCTAssertEqual(copy.payload, .string("  person@example.com\n"))
+        XCTAssertEqual(paste.steps.map(\.payload), [.string("  person@example.com\n")])
+    }
+
     func testPastePlanForImagePrefersSessionScopedTempFileURL() throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))

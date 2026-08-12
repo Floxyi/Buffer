@@ -72,6 +72,8 @@ final class ClipboardAssetStore: @unchecked Sendable, ClipboardAssetAccessing {
             return item.colorPayload?.originalText.utf8.count
         case .link:
             return item.linkPayload?.originalText.utf8.count
+        case .email:
+            return item.emailPayload?.originalText.utf8.count
         }
     }
 

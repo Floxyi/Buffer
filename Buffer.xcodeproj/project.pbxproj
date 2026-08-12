@@ -86,6 +86,7 @@
 		AAA00094 /* ImageItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00096 /* ImageItemContent.swift */; };
 		AAA00095 /* ColorItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00097 /* ColorItemContent.swift */; };
 		AAA00096 /* LinkItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00098 /* LinkItemContent.swift */; };
+		EAA00001 /* EmailItemContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB00001 /* EmailItemContent.swift */; };
 		AAA00097 /* ClipboardColorValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00099 /* ClipboardColorValue.swift */; };
 		AAA00098 /* ClipboardLinkValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00100 /* ClipboardLinkValue.swift */; };
 		AAA00099 /* ClipboardItemPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00101 /* ClipboardItemPresentation.swift */; };
@@ -422,6 +423,7 @@
 		BBB00096 /* ImageItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageItemContent.swift; sourceTree = "<group>"; };
 		BBB00097 /* ColorItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorItemContent.swift; sourceTree = "<group>"; };
 		BBB00098 /* LinkItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkItemContent.swift; sourceTree = "<group>"; };
+		EBB00001 /* EmailItemContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailItemContent.swift; sourceTree = "<group>"; };
 		BBB00099 /* ClipboardColorValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardColorValue.swift; sourceTree = "<group>"; };
 		BBB00100 /* ClipboardLinkValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardLinkValue.swift; sourceTree = "<group>"; };
 		BBB00101 /* ClipboardItemPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemPresentation.swift; sourceTree = "<group>"; };
@@ -666,6 +668,7 @@
 				BBB00096 /* ImageItemContent.swift */,
 				BBB00097 /* ColorItemContent.swift */,
 				BBB00098 /* LinkItemContent.swift */,
+				EBB00001 /* EmailItemContent.swift */,
 				BBB00099 /* ClipboardColorValue.swift */,
 				BBB00169 /* ClipboardColorFormatter.swift */,
 				BBB00170 /* ClipboardColorHSLConverter.swift */,
@@ -1279,6 +1282,7 @@
 				AAA00094 /* ImageItemContent.swift in Sources */,
 				AAA00095 /* ColorItemContent.swift in Sources */,
 				AAA00096 /* LinkItemContent.swift in Sources */,
+				EAA00001 /* EmailItemContent.swift in Sources */,
 				AAA00097 /* ClipboardColorValue.swift in Sources */,
 				AAA00155 /* ClipboardColorFormatter.swift in Sources */,
 				AAA00156 /* ClipboardColorHSLConverter.swift in Sources */,

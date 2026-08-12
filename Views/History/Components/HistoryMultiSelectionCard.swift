@@ -131,6 +131,8 @@ private struct HistoryMultiSelectionCardHeader: View {
             return item.colorPayload?.originalText ?? "Color"
         case .link:
             return item.linkPayload?.websiteName ?? "Website"
+        case .email:
+            return item.emailPayload?.address ?? "Email"
         }
     }
 
@@ -144,6 +146,8 @@ private struct HistoryMultiSelectionCardHeader: View {
             return "Color"
         case .link:
             return "Link"
+        case .email:
+            return "Email"
         }
     }
 }
@@ -197,6 +201,14 @@ private struct HistoryMultiSelectionCardContent: View {
             )
             .padding(.top, 16)
             .frame(minHeight: 220, maxHeight: 320)
+
+        case .email:
+            HistoryEmailDetailContent(
+                item: item,
+                textDetailFontStyle: textDetailFontStyle,
+                textDetailFontSize: textDetailFontSize
+            )
+            .padding(.top, 16)
         }
     }
 }
