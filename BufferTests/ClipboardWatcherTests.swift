@@ -10,7 +10,7 @@ final class ClipboardWatcherTests: XCTestCase {
         context.pasteboard.text = "ignored"
         context.pasteboard.changeCount = 1
 
-        context.watcher.ignoreNextCapturedChange()
+        context.watcher.suppressCapture(forChangeCount: 1)
         context.watcher.checkClipboard()
 
         await eventually {
@@ -23,6 +23,19 @@ final class ClipboardWatcherTests: XCTestCase {
 
         await eventually {
             context.store.items.map(\.textContent) == ["captured"]
+        }
+    }
+
+    func testSuppressionReceiptDoesNotHideAUsersLaterClipboardWrite() async {
+        let context = makeWatcherContext()
+        context.watcher.suppressCapture(forChangeCount: 1)
+
+        context.pasteboard.text = "user content"
+        context.pasteboard.changeCount = 2
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.map(\.textContent) == ["user content"]
         }
     }
 

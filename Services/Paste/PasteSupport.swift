@@ -1,40 +1,55 @@
 import Cocoa
 import UniformTypeIdentifiers
 
-protocol PasteAutomating {
-    func simulatePaste(after delay: TimeInterval)
+@MainActor
+protocol PasteEventSending {
+    var hasPostEventAccess: Bool { get }
+    @discardableResult func requestPostEventAccess() -> Bool
+    func sendPasteShortcut() -> Bool
 }
 
-struct PasteAutomation: PasteAutomating {
-    func simulatePaste(after delay: TimeInterval) {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: delay.nanoseconds)
-            simulatePaste()
-        }
+@MainActor
+struct PasteEventSender: PasteEventSending {
+    var hasPostEventAccess: Bool {
+        CGPreflightPostEventAccess()
     }
 
-    private func simulatePaste() {
+    @discardableResult
+    func requestPostEventAccess() -> Bool {
+        CGRequestPostEventAccess()
+    }
+
+    func sendPasteShortcut() -> Bool {
+        guard hasPostEventAccess else { return false }
+
         let source = CGEventSource(stateID: .hidSystemState)
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+        guard
+            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+        else {
+            return false
+        }
 
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
-
-        keyDown?.post(tap: .cgAnnotatedSessionEventTap)
-        keyUp?.post(tap: .cgAnnotatedSessionEventTap)
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.post(tap: .cgAnnotatedSessionEventTap)
+        keyUp.post(tap: .cgAnnotatedSessionEventTap)
+        return true
     }
 }
 
 @MainActor
 struct PasteImageExporter: PasteImageExporting {
-    func saveImageToTemp(_ image: NSImage, fileName: String) -> URL? {
-        guard let tempDirectory = tempDirectory() else { return nil }
-        let fileURL = tempDirectory.appendingPathComponent(fileName)
+    private static let staleSessionAge: TimeInterval = 24 * 60 * 60
+
+    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL? {
+        guard let sessionDirectory = sessionDirectory(for: sessionID, createIfNeeded: true) else { return nil }
+        let fileURL = sessionDirectory.appendingPathComponent(fileName, isDirectory: false)
 
         guard let tiffData = image.tiffRepresentation,
-              let bitmapImage = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+            let bitmapImage = NSBitmapImageRep(data: tiffData),
+            let pngData = bitmapImage.representation(using: .png, properties: [:])
+        else {
             return nil
         }
 
@@ -42,8 +57,45 @@ struct PasteImageExporter: PasteImageExporting {
             try pngData.write(to: fileURL, options: .atomic)
             return fileURL
         } catch {
-            BufferLogger.clipboard.error("Failed to write temp image \(fileName, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.clipboard.error(
+                "Failed to write temporary paste image \(fileName, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
             return nil
+        }
+    }
+
+    func removePasteSession(_ sessionID: UUID) {
+        guard let directory = sessionDirectory(for: sessionID, createIfNeeded: false) else { return }
+        do {
+            try FileManager.default.removeItem(at: directory)
+        } catch  where (error as NSError).code == NSFileNoSuchFileError {
+            return
+        } catch {
+            BufferLogger.clipboard.error(
+                "Failed to clean paste session \(sessionID.uuidString, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
+        }
+    }
+
+    func removeStalePasteSessions() {
+        let root = pasteRootDirectory
+        guard
+            let directories = try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return }
+
+        let cutoff = Date().addingTimeInterval(-Self.staleSessionAge)
+        for directory in directories {
+            guard
+                let values = try? directory.resourceValues(forKeys: [.contentModificationDateKey, .isDirectoryKey]),
+                values.isDirectory == true,
+                values.contentModificationDate.map({ $0 < cutoff }) == true
+            else { continue }
+
+            try? FileManager.default.removeItem(at: directory)
         }
     }
 
@@ -58,8 +110,9 @@ struct PasteImageExporter: PasteImageExporting {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         guard let tiffData = image.tiffRepresentation,
-              let bitmapRep = NSBitmapImageRep(data: tiffData),
-              let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+            let bitmapRep = NSBitmapImageRep(data: tiffData),
+            let pngData = bitmapRep.representation(using: .png, properties: [:])
+        else {
             BufferLogger.clipboard.error("Failed to create PNG data from image")
             return
         }
@@ -67,35 +120,42 @@ struct PasteImageExporter: PasteImageExporting {
         do {
             try pngData.write(to: url, options: .atomic)
         } catch {
-            BufferLogger.clipboard.error("Failed to save image to disk: \(String(describing: error), privacy: .public)")
+            BufferLogger.clipboard.error(
+                "Failed to save image to disk: \(String(describing: error), privacy: .public)"
+            )
         }
     }
 
-    private func tempDirectory() -> URL? {
-        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("BufferPaste")
-        do {
-            try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-            return tempDirectory
-        } catch {
-            BufferLogger.clipboard.error("Failed to create temp paste directory: \(String(describing: error), privacy: .public)")
-            return nil
+    private var pasteRootDirectory: URL {
+        URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("BufferPaste", isDirectory: true)
+    }
+
+    private func sessionDirectory(for sessionID: UUID, createIfNeeded: Bool) -> URL? {
+        let root = pasteRootDirectory
+        let directory = root.appendingPathComponent(sessionID.uuidString, isDirectory: true)
+
+        if createIfNeeded {
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+            } catch {
+                BufferLogger.clipboard.error(
+                    "Failed to create temporary paste directory: \(String(describing: error), privacy: .public)"
+                )
+                return nil
+            }
         }
+
+        return directory
     }
 }
 
 @MainActor
 enum PasteImageSupport {
-    static func saveImageToTemp(_ image: NSImage, fileName: String) -> URL? {
-        PasteImageExporter().saveImageToTemp(image, fileName: fileName)
-    }
-
     static func saveImageToDisk(_ image: NSImage) {
         PasteImageExporter().saveImageToDisk(image)
-    }
-}
-
-extension TimeInterval {
-    var nanoseconds: UInt64 {
-        UInt64((self * 1_000_000_000).rounded())
     }
 }

@@ -1,26 +1,28 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
 final class PastePayloadBuilderTests: XCTestCase {
-    func testCopyPayloadForMultipleTextItemsJoinsWithNewlines() {
+    func testCopyPayloadForMultipleTextItemsJoinsWithNewlines() throws {
         let builder = PastePayloadBuilder(
             store: makeStore(),
             imageExporter: FakePasteImageExporter()
         )
 
-        let payload = builder.copyPayload(for: [
+        let preparation = try builder.prepareCopyPayload(for: [
             .text("first"),
-            .text("second")
+            .text("second"),
         ])
 
-        guard case .string(let text)? = payload else {
+        guard case .string(let text) = preparation.payload else {
             return XCTFail("Expected joined string payload")
         }
         XCTAssertEqual(text, "first\nsecond")
+        XCTAssertNil(preparation.temporaryAssetSessionID)
     }
 
-    func testPastePayloadForImagePrefersTempFileURL() throws {
+    func testPastePlanForImagePrefersSessionScopedTempFileURL() throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
         let item = ClipboardItem.image(filename: filename)
@@ -30,27 +32,35 @@ final class PastePayloadBuilderTests: XCTestCase {
             imageExporter: FakePasteImageExporter(tempURLs: ["image-0001.png": expectedURL])
         )
 
-        let payload = builder.pastePayload(for: item)
+        let plan = try builder.makePastePlan(for: [item])
 
-        guard case .fileURLs(let urls)? = payload else {
+        guard case .fileURLs(let urls) = plan.steps.first?.payload else {
             return XCTFail("Expected file URL payload")
         }
         XCTAssertEqual(urls, [expectedURL])
+        XCTAssertNotNil(plan.temporaryAssetSessionID)
     }
 
-    func testBatchPayloadSeparatesTextAndImageFiles() throws {
+    func testMixedPastePlanSeparatesTextAndImageFilesInOrder() throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
         let item = ClipboardItem.image(filename: filename)
         let builder = PastePayloadBuilder(
             store: store,
-            imageExporter: FakePasteImageExporter(tempURLs: ["image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png")])
+            imageExporter: FakePasteImageExporter(tempURLs: [
+                "image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png")
+            ])
         )
 
-        let batch = builder.batchPayload(for: [.text("hello"), item])
+        let plan = try builder.makePastePlan(for: [.text("hello"), item])
 
-        XCTAssertEqual(batch.textPayload, "hello")
-        XCTAssertEqual(batch.imageFileURLs.map(\.lastPathComponent), ["image-0001.png"])
+        XCTAssertEqual(
+            plan.steps.map(\.payload),
+            [
+                .string("hello"),
+                .fileURLs([URL(fileURLWithPath: "/tmp/image-0001.png")]),
+            ])
+        XCTAssertEqual(plan.steps.map(\.delayBeforeExecution), [0, 0.4])
     }
 
     private func makeStore() -> ClipboardStore {
@@ -66,9 +76,11 @@ final class PastePayloadBuilderTests: XCTestCase {
 private struct FakePasteImageExporter: PasteImageExporting {
     var tempURLs: [String: URL] = [:]
 
-    func saveImageToTemp(_ image: NSImage, fileName: String) -> URL? {
+    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL? {
         tempURLs[fileName]
     }
 
+    func removePasteSession(_ sessionID: UUID) {}
+    func removeStalePasteSessions() {}
     func saveImageToDisk(_ image: NSImage) {}
 }

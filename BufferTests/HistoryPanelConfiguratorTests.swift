@@ -54,6 +54,17 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertFalse(panel.isReleasedWhenClosed)
     }
 
+    func testProgrammaticPasteDismissalDoesNotTriggerClickOutsideHandling() {
+        let panel = HistoryPanelConfigurator().makePanel()
+        var clickOutsideCount = 0
+        panel.onClickOutside = { clickOutsideCount += 1 }
+        panel.dismissesWhenResigningKey = false
+
+        panel.resignKey()
+
+        XCTAssertEqual(clickOutsideCount, 0)
+    }
+
     func testMakeContentConfigurationReturnsAnimatedEffectContainer() {
         let configurator = HistoryPanelConfigurator()
         let configuration = configurator.makeContentConfiguration(

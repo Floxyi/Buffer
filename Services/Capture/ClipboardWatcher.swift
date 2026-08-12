@@ -24,7 +24,7 @@ final class ClipboardWatcher: ObservableObject {
     private var pendingAsyncCaptureTask: Task<Void, Never>?
     private var lastChangeCount: Int
     private var lastContentHash = 0
-    private var ignoreNextChange = false
+    private var suppressedChangeCounts: Set<Int> = []
 
     private let pollIntervalNanoseconds: UInt64 = 500_000_000
 
@@ -70,8 +70,9 @@ final class ClipboardWatcher: ObservableObject {
         lastChangeCount = pasteboard.changeCount
     }
 
-    func ignoreNextCapturedChange() {
-        ignoreNextChange = true
+    func suppressCapture(forChangeCount changeCount: Int) {
+        guard changeCount > lastChangeCount else { return }
+        suppressedChangeCounts.insert(changeCount)
     }
 
     func checkClipboard() {
@@ -84,10 +85,11 @@ final class ClipboardWatcher: ObservableObject {
         pendingAsyncCaptureTask?.cancel()
         pendingAsyncCaptureTask = nil
 
-        if ignoreNextChange {
-            ignoreNextChange = false
+        if suppressedChangeCounts.remove(currentChangeCount) != nil {
+            discardStaleSuppressionReceipts(before: currentChangeCount)
             return
         }
+        discardStaleSuppressionReceipts(before: currentChangeCount)
 
         let sourceApp = ClipboardCaptureSupport.currentSourceApplicationInfo(using: activeApplicationProvider)
         guard !settingsManager.shouldExcludeCapture(from: sourceApp) else { return }
@@ -163,5 +165,9 @@ final class ClipboardWatcher: ObservableObject {
                 }
             }
         }
+    }
+
+    private func discardStaleSuppressionReceipts(before changeCount: Int) {
+        suppressedChangeCounts = suppressedChangeCounts.filter { $0 > changeCount }
     }
 }

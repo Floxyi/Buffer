@@ -121,8 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             activeApplicationProvider: container.activeApplicationMonitor,
             pasteController: container.pasteController,
             ocrService: container.ocrService,
-            ignoreNextCapturedChange: { [weak watcher = container.clipboardWatcher] in
-                watcher?.ignoreNextCapturedChange()
+            suppressCapturedChange: { [weak watcher = container.clipboardWatcher] receipt in
+                watcher?.suppressCapture(forChangeCount: receipt.changeCount)
             }
         )
         return controller

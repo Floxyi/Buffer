@@ -126,7 +126,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(viewModel.searchText, "needle")
     }
 
-    func testPrimaryPasteCapturesFilteredSelectionBeforeClearingSearch() async {
+    func testPrimaryPasteCapturesFilteredSelectionWithoutClearingSearchBeforeCommit() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
         await populateStore(
@@ -151,10 +151,10 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         actionHandler.performPrimaryPasteAction()
 
         XCTAssertEqual(pastedItem?.id, selectedItem.id)
-        XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertEqual(viewModel.searchText, "matching")
     }
 
-    func testPrimaryPasteCapturesFilteredMultiSelectionInActionOrder() async {
+    func testPrimaryPasteCapturesFilteredMultiSelectionInActionOrderWithoutClearingSearch() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
         await populateStore(
@@ -181,7 +181,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         actionHandler.performPrimaryPasteAction()
 
         XCTAssertEqual(pastedItems.map(\.id), [firstSelectedItem.id, secondSelectedItem.id])
-        XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertEqual(viewModel.searchText, "matching")
     }
 
     func testDeleteSelectedItemPrefersNextVisibleItem() async {
@@ -244,8 +244,8 @@ private func makeActionHandler(
     HistoryActionHandler(
         viewModel: viewModel,
         store: store,
-        onCopyToClipboard: { _ in },
-        onCopyMultipleToClipboard: { _ in },
+        onCopyToClipboard: { _ in true },
+        onCopyMultipleToClipboard: { _ in true },
         onPaste: onPaste,
         onPasteMultiple: onPasteMultiple,
         onDismiss: {}

@@ -14,17 +14,51 @@ protocol ActiveApplicationProviding: AnyObject {
 
 @MainActor
 final class ActiveApplicationMonitor: ActiveApplicationProviding {
+    private let notificationCenter: NotificationCenter
+    private let frontmostApplicationProvider: @MainActor () -> NSRunningApplication?
+    private let currentProcessIdentifier: pid_t
     nonisolated(unsafe) private var activationObserver: NSObjectProtocol?
 
-    private(set) var currentApplication: NSRunningApplication?
+    private var lastExternalApplication: NSRunningApplication?
 
-    init(notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter) {
+    var currentApplication: NSRunningApplication? {
+        if let frontmostApplication = frontmostApplicationProvider(),
+            isExternalApplication(frontmostApplication)
+        {
+            lastExternalApplication = frontmostApplication
+        }
+
+        guard lastExternalApplication?.isTerminated != true else {
+            lastExternalApplication = nil
+            return nil
+        }
+        return lastExternalApplication
+    }
+
+    init(
+        notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        frontmostApplicationProvider: @escaping @MainActor () -> NSRunningApplication? = {
+            NSWorkspace.shared.frontmostApplication
+        },
+        currentProcessIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier
+    ) {
+        self.notificationCenter = notificationCenter
+        self.frontmostApplicationProvider = frontmostApplicationProvider
+        self.currentProcessIdentifier = currentProcessIdentifier
+
+        if let frontmostApplication = frontmostApplicationProvider(),
+            frontmostApplication.processIdentifier != currentProcessIdentifier
+        {
+            lastExternalApplication = frontmostApplication
+        }
+
         activationObserver = notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {
+            guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            else {
                 return
             }
 
@@ -36,24 +70,26 @@ final class ActiveApplicationMonitor: ActiveApplicationProviding {
 
     deinit {
         if let activationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+            notificationCenter.removeObserver(activationObserver)
         }
     }
 
     var currentApplicationInfo: SourceApplicationInfo {
-        SourceApplicationInfo(
-            name: currentApplication?.localizedName,
-            bundleIdentifier: currentApplication?.bundleIdentifier,
-            bundlePath: currentApplication?.bundleURL?.path
+        let application = currentApplication
+        return SourceApplicationInfo(
+            name: application?.localizedName,
+            bundleIdentifier: application?.bundleIdentifier,
+            bundlePath: application?.bundleURL?.path
         )
     }
 
     private func handleAppActivation(_ application: NSRunningApplication) {
-        let currentProcessID = ProcessInfo.processInfo.processIdentifier
-        guard application.processIdentifier != currentProcessID else {
-            return
-        }
+        guard isExternalApplication(application) else { return }
 
-        currentApplication = application
+        lastExternalApplication = application
+    }
+
+    private func isExternalApplication(_ application: NSRunningApplication) -> Bool {
+        application.processIdentifier != currentProcessIdentifier && !application.isTerminated
     }
 }

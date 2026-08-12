@@ -4,14 +4,18 @@ import SwiftUI
 struct HistoryContentView: View {
     @ObservedObject var viewModel: HistoryViewModel
     @ObservedObject var settings: SettingsManager
+    @ObservedObject var pasteState: HistoryPasteStateController
     let store: ClipboardStore
-    let onCopyToClipboard: (ClipboardItem) -> Void
-    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Void
+    let onCopyToClipboard: (ClipboardItem) -> Bool
+    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Bool
     let onPaste: (ClipboardItem) -> Void
     let onPasteMultiple: ([ClipboardItem]) -> Void
     let onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
+    let onRetryPaste: () -> Void
+    let onDismissPasteFailure: () -> Void
+    let onRequestPastePermission: () -> Void
 
     @StateObject private var searchFocusController = HistorySearchFocusController()
     @StateObject private var deleteConfirmationController = HistoryDeleteConfirmationController()
@@ -79,10 +83,45 @@ struct HistoryContentView: View {
                 onCommand: handleKeyboardCommand(_:)
             )
         )
+        .disabled(pasteState.isPasteInProgress)
+        .alert(item: $pasteState.failure) { failure in
+            pasteFailureAlert(failure)
+        }
     }
 
     private func handleKeyboardCommand(_ command: HistoryKeyboardCommand) {
+        guard !pasteState.isPasteInProgress else { return }
         keyboardCommandHandler.handle(command)
+    }
+
+    private func pasteFailureAlert(_ failure: HistoryPasteFailurePresentation) -> Alert {
+        switch failure.recovery {
+        case .cancelOnly:
+            return Alert(
+                title: Text(failure.title),
+                message: Text(failure.message),
+                dismissButton: .default(Text("OK"), action: onDismissPasteFailure)
+            )
+
+        case .retry:
+            return Alert(
+                title: Text(failure.title),
+                message: Text(failure.message),
+                primaryButton: .default(Text("Retry"), action: onRetryPaste),
+                secondaryButton: .cancel(onDismissPasteFailure)
+            )
+
+        case .requestPermission:
+            return Alert(
+                title: Text(failure.title),
+                message: Text(failure.message),
+                primaryButton: .default(
+                    Text("Open System Settings"),
+                    action: onRequestPastePermission
+                ),
+                secondaryButton: .cancel(onDismissPasteFailure)
+            )
+        }
     }
 
     private var listPane: some View {
@@ -97,28 +136,28 @@ struct HistoryContentView: View {
     }
 
     private var detailPane: some View {
-            HistoryDetailPane(
-                detailState: viewModel.detailViewState,
-                textDetailFontStyle: settings.textDetailFontStyle,
-                textDetailFontSize: settings.textDetailFontSize,
-                enableWebsitePreviews: settings.enableWebsitePreviews,
-                store: store,
-                actionsForItem: { item in
-                    viewModel.contextMenuActions(for: item.id)
-                },
-                onSelectItemAction: { item, action in
-                    actionHandler.performContextMenuAction(item.id, action)
-                },
-                onSelectAction: actionHandler.performDetailAction,
-                onDownloadAllImages: actionHandler.downloadAllImages,
-                onCopyOCRText: actionHandler.copyOCRText,
-                onCopyColorVariant: actionHandler.copyPlainText,
-                onLoadNextChunk: { _ in
-                    Task {
-                        await viewModel.loadNextChunk()
-                    }
+        HistoryDetailPane(
+            detailState: viewModel.detailViewState,
+            textDetailFontStyle: settings.textDetailFontStyle,
+            textDetailFontSize: settings.textDetailFontSize,
+            enableWebsitePreviews: settings.enableWebsitePreviews,
+            store: store,
+            actionsForItem: { item in
+                viewModel.contextMenuActions(for: item.id)
+            },
+            onSelectItemAction: { item, action in
+                actionHandler.performContextMenuAction(item.id, action)
+            },
+            onSelectAction: actionHandler.performDetailAction,
+            onDownloadAllImages: actionHandler.downloadAllImages,
+            onCopyOCRText: actionHandler.copyOCRText,
+            onCopyColorVariant: actionHandler.copyPlainText,
+            onLoadNextChunk: { _ in
+                Task {
+                    await viewModel.loadNextChunk()
                 }
-            )
+            }
+        )
     }
 
     private var actionHandler: HistoryActionHandler {

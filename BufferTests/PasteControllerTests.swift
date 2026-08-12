@@ -5,121 +5,120 @@ import XCTest
 
 @MainActor
 final class PasteControllerTests: XCTestCase {
-    func testCopySingleTextUsesInjectedPayloadWriter() {
-        let writer = RecordingPastePayloadWriter()
-        let controller = PasteController(
-            store: makeStore(),
-            automation: RecordingPasteAutomation(),
-            imageExporter: RecordingPasteImageExporter(),
-            payloadWriter: writer,
-            scheduler: RecordingPasteScheduler()
-        )
+    func testCopyReturnsWriterReceipt() throws {
+        let writer = RecordingControllerPayloadWriter()
+        let controller = makeController(payloadWriter: writer)
 
-        controller.copyToClipboard(.text("single"))
+        let receipt = try controller.copyToClipboard([.text("single")])
 
-        XCTAssertEqual(writer.payloads.count, 1)
-        guard case .string(let text) = writer.payloads[0] else {
-            return XCTFail("Expected string payload")
-        }
-        XCTAssertEqual(text, "single")
+        XCTAssertEqual(receipt, PasteboardWriteReceipt(changeCount: 1))
+        XCTAssertEqual(writer.payloads, [.string("single")])
     }
 
-    func testCopyMultipleUsesInjectedPayloadWriter() {
-        let writer = RecordingPastePayloadWriter()
-        let controller = PasteController(
-            store: makeStore(),
-            automation: RecordingPasteAutomation(),
-            imageExporter: RecordingPasteImageExporter(),
-            payloadWriter: writer,
-            scheduler: RecordingPasteScheduler()
-        )
+    func testCopyMultipleTextJoinsInActionOrder() throws {
+        let writer = RecordingControllerPayloadWriter()
+        let controller = makeController(payloadWriter: writer)
 
-        controller.copyMultipleToClipboard([.text("first"), .text("second")])
+        _ = try controller.copyToClipboard([.text("first"), .text("second")])
 
-        XCTAssertEqual(writer.payloads.count, 1)
-        guard case .string(let text) = writer.payloads[0] else {
-            return XCTFail("Expected string payload")
-        }
-        XCTAssertEqual(text, "first\nsecond")
+        XCTAssertEqual(writer.payloads, [.string("first\nsecond")])
     }
 
-    func testPasteTextWritesPayloadAndTriggersAutomation() {
-        let writer = RecordingPastePayloadWriter()
-        let automation = RecordingPasteAutomation()
-        let controller = PasteController(
-            store: makeStore(),
-            automation: automation,
-            imageExporter: RecordingPasteImageExporter(),
-            payloadWriter: writer,
-            scheduler: RecordingPasteScheduler()
-        )
-        var ignoreCount = 0
-
-        controller.paste(.text("paste me"), previousApp: nil) {
-            ignoreCount += 1
-        }
-
-        XCTAssertEqual(writer.payloads.count, 1)
-        guard case .string(let text) = writer.payloads[0] else {
-            return XCTFail("Expected string payload")
-        }
-        XCTAssertEqual(text, "paste me")
-        XCTAssertEqual(automation.delays, [0.1])
-        XCTAssertEqual(ignoreCount, 1)
-    }
-
-    func testPasteMultipleMixedPayloadSchedulesDelayedImagePaste() throws {
-        let writer = RecordingPastePayloadWriter()
-        let automation = RecordingPasteAutomation()
-        let scheduler = RecordingPasteScheduler()
+    func testPrepareMixedPasteCreatesOrderedTextAndImageSteps() throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
-        let controller = PasteController(
-            store: store,
-            automation: automation,
-            imageExporter: RecordingPasteImageExporter(
-                tempURLs: ["image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png")]
-            ),
-            payloadWriter: writer,
-            scheduler: scheduler
+        let exporter = RecordingControllerImageExporter(
+            tempURLs: ["image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png")]
         )
-        var ignoreCount = 0
+        let controller = makeController(store: store, imageExporter: exporter)
 
-        controller.pasteMultiple([.text("hello"), .image(filename: filename)], previousApp: nil) {
-            ignoreCount += 1
-        }
+        let plan = try controller.preparePastePlan(for: [
+            .text("hello"),
+            .image(filename: filename),
+        ])
 
-        XCTAssertEqual(writer.payloads.count, 1)
-        XCTAssertEqual(automation.delays, [0.1])
-        XCTAssertEqual(scheduler.scheduledDelays, [0.5])
-        XCTAssertEqual(ignoreCount, 1)
+        XCTAssertEqual(
+            plan.steps.map(\.payload),
+            [
+                .string("hello"),
+                .fileURLs([URL(fileURLWithPath: "/tmp/image-0001.png")]),
+            ])
+        XCTAssertEqual(plan.steps.map(\.delayBeforeExecution), [0, 0.4])
+        XCTAssertNotNil(plan.temporaryAssetSessionID)
+    }
 
-        scheduler.runScheduledOperations()
+    func testExecutePassesReceiptsToCaptureSuppression() async throws {
+        let writer = RecordingControllerPayloadWriter()
+        let controller = makeController(payloadWriter: writer)
+        let plan = try controller.preparePastePlan(for: [.text("hello")])
+        var receipts: [PasteboardWriteReceipt] = []
 
-        XCTAssertEqual(writer.payloads.count, 2)
-        guard case .fileURLs(let urls) = writer.payloads[1] else {
-            return XCTFail("Expected file URL payload")
-        }
-        XCTAssertEqual(urls.map(\.lastPathComponent), ["image-0001.png"])
-        XCTAssertEqual(automation.delays, [0.1, 0.05])
-        XCTAssertEqual(ignoreCount, 2)
+        let outcome = await controller.executePaste(
+            plan,
+            target: makeTarget(),
+            suppressCapture: { receipts.append($0) }
+        )
+
+        guard case .success = outcome else { return XCTFail("Expected successful paste") }
+        XCTAssertEqual(receipts, [PasteboardWriteReceipt(changeCount: 1)])
+    }
+
+    func testFailedMultiImageCopyRemovesPreparedTemporaryAssets() throws {
+        let store = makeStore()
+        let filename = try XCTUnwrap(store.saveImage(makePNGData()))
+        let exporter = RecordingControllerImageExporter(tempURLs: [
+            "image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png"),
+            "image-0002.png": URL(fileURLWithPath: "/tmp/image-0002.png"),
+        ])
+        let writer = RecordingControllerPayloadWriter(writeError: .writeRejected)
+        let controller = makeController(
+            store: store,
+            imageExporter: exporter,
+            payloadWriter: writer
+        )
+
+        XCTAssertThrowsError(
+            try controller.copyToClipboard([
+                .image(filename: filename),
+                .image(filename: filename),
+            ]))
+        XCTAssertEqual(exporter.removedSessionIDs.count, 1)
     }
 
     func testSaveImageToDiskDelegatesToExporter() {
-        let exporter = RecordingPasteImageExporter()
-        let controller = PasteController(
-            store: makeStore(),
-            automation: RecordingPasteAutomation(),
-            imageExporter: exporter,
-            payloadWriter: RecordingPastePayloadWriter(),
-            scheduler: RecordingPasteScheduler()
-        )
+        let exporter = RecordingControllerImageExporter()
+        let controller = makeController(imageExporter: exporter)
         let image = makeTestImage()
 
         controller.saveImageToDisk(image)
 
-        XCTAssertEqual(exporter.savedImages.count, 1)
-        XCTAssertEqual(exporter.savedImages[0].size, image.size)
+        XCTAssertEqual(exporter.savedImages.map(\.size), [image.size])
+    }
+
+    private func makeController(
+        store: ClipboardStore? = nil,
+        imageExporter: RecordingControllerImageExporter = RecordingControllerImageExporter(),
+        payloadWriter: RecordingControllerPayloadWriter = RecordingControllerPayloadWriter()
+    ) -> PasteController {
+        PasteController(
+            store: store ?? makeStore(),
+            imageExporter: imageExporter,
+            payloadWriter: payloadWriter,
+            focusRestorer: SuccessfulControllerFocusRestorer(),
+            eventSender: SuccessfulControllerEventSender(),
+            sleeper: ImmediateControllerSleeper(),
+            targetResolver: { _ in self.makeTarget() }
+        )
+    }
+
+    private func makeTarget() -> ApplicationTarget {
+        ApplicationTarget(
+            processIdentifier: 42,
+            applicationName: "Target",
+            activate: {},
+            isReady: { true },
+            isTerminated: { false }
+        )
     }
 
     private func makeStore() -> ClipboardStore {
@@ -131,53 +130,62 @@ final class PasteControllerTests: XCTestCase {
     }
 }
 
-private final class RecordingPastePayloadWriter: PastePayloadWriting {
+@MainActor
+private final class RecordingControllerPayloadWriter: PastePayloadWriting {
     private(set) var payloads: [PastePayload] = []
+    private let writeError: PasteboardWriteError?
 
-    func write(_ payload: PastePayload) {
+    init(writeError: PasteboardWriteError? = nil) {
+        self.writeError = writeError
+    }
+
+    func write(_ payload: PastePayload) throws -> PasteboardWriteReceipt {
         payloads.append(payload)
-    }
-}
-
-private final class RecordingPasteAutomation: PasteAutomating {
-    private(set) var delays: [TimeInterval] = []
-
-    func simulatePaste(after delay: TimeInterval) {
-        delays.append(delay)
-    }
-}
-
-private final class RecordingPasteScheduler: PasteScheduling {
-    private(set) var scheduledDelays: [TimeInterval] = []
-    private var operations: [MainActorOperationBox] = []
-
-    func schedule(after delay: TimeInterval, operation: MainActorOperationBox) {
-        scheduledDelays.append(delay)
-        operations.append(operation)
-    }
-
-    @MainActor
-    func runScheduledOperations() {
-        let pendingOperations = operations
-        operations.removeAll()
-        pendingOperations.forEach { $0.run() }
+        if let writeError {
+            throw writeError
+        }
+        return PasteboardWriteReceipt(changeCount: payloads.count)
     }
 }
 
 @MainActor
-private final class RecordingPasteImageExporter: PasteImageExporting {
+private final class RecordingControllerImageExporter: PasteImageExporting {
     private(set) var savedImages: [NSImage] = []
+    private(set) var removedSessionIDs: [UUID] = []
     private let tempURLs: [String: URL]
 
     init(tempURLs: [String: URL] = [:]) {
         self.tempURLs = tempURLs
     }
 
-    func saveImageToTemp(_ image: NSImage, fileName: String) -> URL? {
+    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL? {
         tempURLs[fileName]
     }
+
+    func removePasteSession(_ sessionID: UUID) {
+        removedSessionIDs.append(sessionID)
+    }
+
+    func removeStalePasteSessions() {}
 
     func saveImageToDisk(_ image: NSImage) {
         savedImages.append(image)
     }
+}
+
+@MainActor
+private struct SuccessfulControllerFocusRestorer: PasteFocusRestoring {
+    func restoreFocus(to target: ApplicationTarget) async -> Bool { true }
+}
+
+@MainActor
+private struct SuccessfulControllerEventSender: PasteEventSending {
+    var hasPostEventAccess: Bool { true }
+    func requestPostEventAccess() -> Bool { true }
+    func sendPasteShortcut() -> Bool { true }
+}
+
+@MainActor
+private struct ImmediateControllerSleeper: PasteSleeping {
+    func sleep(for interval: TimeInterval) async throws {}
 }

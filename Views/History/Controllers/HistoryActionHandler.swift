@@ -5,14 +5,14 @@ import Foundation
 struct HistoryActionHandler {
     let viewModel: HistoryViewModel
     let store: ClipboardStore
-    let onCopyToClipboard: (ClipboardItem) -> Void
-    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Void
+    let onCopyToClipboard: (ClipboardItem) -> Bool
+    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Bool
     let onPaste: (ClipboardItem) -> Void
     let onPasteMultiple: ([ClipboardItem]) -> Void
     let onDismiss: () -> Void
 
     func performPrimaryPasteAction() {
-        performCommittedSelectionAction(
+        performSelectionAction(
             onSingle: onPaste,
             onMultiple: onPasteMultiple
         )
@@ -23,13 +23,10 @@ struct HistoryActionHandler {
     }
 
     func copySelection(dismissAfterCopy: Bool) {
-        guard
-            performCommittedSelectionAction(
-                onSingle: onCopyToClipboard,
-                onMultiple: onCopyMultipleToClipboard
-            )
-        else { return }
+        let items = currentSelectionSnapshot()
+        guard performCopyAction(with: items) else { return }
 
+        viewModel.clearSearchAfterCommittedAction()
         if dismissAfterCopy {
             onDismiss()
         }
@@ -99,8 +96,7 @@ struct HistoryActionHandler {
     }
 
     func copyPlainText(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        _ = onCopyToClipboard(.text(text))
     }
 
     private func performAction(_ action: HistoryItemAction, items: [ClipboardItem]) {
@@ -108,11 +104,9 @@ struct HistoryActionHandler {
 
         switch action {
         case .copy:
-            performCommittedAction(
-                with: items,
-                onSingle: onCopyToClipboard,
-                onMultiple: onCopyMultipleToClipboard
-            )
+            if performCopyAction(with: items) {
+                viewModel.clearSearchAfterCommittedAction()
+            }
 
         case .openLink:
             guard let url = items.first?.linkPayload?.url else { return }
@@ -153,36 +147,27 @@ struct HistoryActionHandler {
         }
     }
 
-    @discardableResult
-    private func performCommittedSelectionAction(
+    private func performSelectionAction(
         onSingle: (ClipboardItem) -> Void,
         onMultiple: ([ClipboardItem]) -> Void
-    ) -> Bool {
-        performCommittedAction(
-            with: currentSelectionSnapshot(),
-            onSingle: onSingle,
-            onMultiple: onMultiple
-        )
-    }
-
-    @discardableResult
-    private func performCommittedAction(
-        with items: [ClipboardItem],
-        onSingle: (ClipboardItem) -> Void,
-        onMultiple: ([ClipboardItem]) -> Void
-    ) -> Bool {
-        guard !items.isEmpty else { return false }
-
-        // Clearing search rebuilds the visible list and may change selection. Keep the
-        // immutable action targets captured above authoritative for this commit.
-        viewModel.clearSearchAfterCommittedAction()
+    ) {
+        let items = currentSelectionSnapshot()
+        guard !items.isEmpty else { return }
 
         if items.count == 1 {
             onSingle(items[0])
         } else {
             onMultiple(items)
         }
-        return true
+    }
+
+    private func performCopyAction(with items: [ClipboardItem]) -> Bool {
+        guard !items.isEmpty else { return false }
+
+        if items.count == 1 {
+            return onCopyToClipboard(items[0])
+        }
+        return onCopyMultipleToClipboard(items)
     }
 
     private func currentSelectionSnapshot() -> [ClipboardItem] {

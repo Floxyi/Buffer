@@ -9,6 +9,7 @@ enum BufferPerformanceEvent: String {
     case jumpScroll = "jump_scroll"
     case keyboardSelection = "keyboard_selection"
     case keyboardScroll = "keyboard_scroll"
+    case pasteSession = "paste_session"
     case ocr = "ocr"
 
     var signpostName: StaticString {
@@ -20,6 +21,7 @@ enum BufferPerformanceEvent: String {
         case .jumpScroll: "Jump Scroll"
         case .keyboardSelection: "Keyboard Selection"
         case .keyboardScroll: "Keyboard Scroll"
+        case .pasteSession: "Paste Session"
         case .ocr: "OCR"
         }
     }
