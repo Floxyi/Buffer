@@ -14,16 +14,13 @@ struct ClipboardListContent: View {
     let settings: SettingsManager
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
-    let hoveredItemID: UUID?
     let isAwaitingInitialOpenScroll: Bool
     let onCommitSelection: () -> Void
-    let onSelectSingle: (UUID) -> Void
+    let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
     let onExtendSelectionTo: (UUID) -> Void
     let contextMenuActions: (UUID) -> [HistoryItemActionDescriptor]
     let onContextMenuAction: (UUID, HistoryItemAction) -> Void
-    let onHoveredItemIDChanged: (UUID?) -> Void
-    let onSelectedIndexChanged: (Int) -> Void
     let primaryLabelText: (ClipboardItem) -> String
     let indexForItem: (ClipboardItem) -> Int
     let onScrollViewReady: (NSScrollView) -> Void
@@ -43,16 +40,12 @@ struct ClipboardListContent: View {
                         settings: settings,
                         quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
                         selectedIDs: selectedIDs,
-                        hoveredItemID: hoveredItemID,
                         onCommitSelection: onCommitSelection,
                         onSelectSingle: onSelectSingle,
                         onToggleSelection: onToggleSelection,
                         onExtendSelectionTo: onExtendSelectionTo,
                         contextMenuActions: contextMenuActions,
                         onContextMenuAction: onContextMenuAction,
-                        onHoveredItemIDChanged: onHoveredItemIDChanged,
-                        onSelectedIndexChanged: onSelectedIndexChanged,
-                        scrollController: scrollController,
                         contextMenuState: contextMenuState,
                         measuredScrollCoordinator: measuredScrollCoordinator,
                         primaryLabelText: primaryLabelText,
@@ -85,7 +78,6 @@ struct ClipboardListContent: View {
             .overlay(alignment: .bottom) {
                 ClipboardScrollToTopOverlay(scrollController: scrollController) {
                     onMenuTrackingEnded()
-                    onHoveredItemIDChanged(nil)
                     onScrollToTopRequested(scrollProxy)
                 }
             }

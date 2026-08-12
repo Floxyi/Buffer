@@ -147,11 +147,6 @@ final class HistoryViewModel: ObservableObject {
         set { updatePresentationState { $0.scrollTrigger = newValue } }
     }
 
-    var hoveredItemID: UUID? {
-        get { presentationState.hoveredItemID }
-        set { updatePresentationState { $0.hoveredItemID = newValue } }
-    }
-
     var selectedIDs: Set<UUID> {
         selectionViewState.selectedIDs
     }
@@ -283,10 +278,43 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func selectSingle(_ id: UUID) {
+        guard let index = filteredItems.firstIndex(where: { $0.id == id }) else { return }
+        selectSingle(id, at: index)
+    }
+
+    func selectSingle(_ id: UUID, at index: Int) {
+        let resolvedIndex: Int
+        if filteredItems.indices.contains(index), filteredItems[index].id == id {
+            resolvedIndex = index
+        } else if let currentIndex = filteredItems.firstIndex(where: { $0.id == id }) {
+            resolvedIndex = currentIndex
+        } else {
+            return
+        }
+
+        let selectionToken = BufferPerformanceDiagnostics.begin(.pointerSelection)
         navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
         updatePresentationState { $0.keyboardScrollRequest = nil }
-        selectionState = selectionController.applySingleSelection(id, in: filteredItems, state: selectionState)
-        applySelectionState()
+        selectionState = selectionController.applySingleSelection(
+            id,
+            index: resolvedIndex,
+            in: filteredItems,
+            state: selectionState
+        )
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            selectionViewState = selectionViewStateProjector.project(selectionState)
+        }
+        BufferPerformanceDiagnostics.end(selectionToken)
+
+        let item = filteredItems[resolvedIndex]
+        beginDetailLoad(
+            selectedItem: item,
+            selectedItemsInVisualOrder: [item],
+            selectedItemsInActionOrder: [item]
+        )
     }
 
     @discardableResult
@@ -556,10 +584,6 @@ final class HistoryViewModel: ObservableObject {
                 )
             }
         }
-    }
-
-    func setHoveredItemID(_ itemID: UUID?, isHovered: Bool) {
-        updatePresentationState { $0.hoveredItemID = isHovered ? itemID : nil }
     }
 
     func performQuickPaste(at index: Int) -> ClipboardItem? {

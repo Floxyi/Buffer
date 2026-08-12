@@ -1,14 +1,16 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
-/// A simple wrapper that detects clicks with modifier keys
+/// Routes pointer interactions through AppKit without SwiftUI gesture arbitration.
 struct ClickModifierDetector: NSViewRepresentable {
     let onClickWithModifiers: (NSEvent.ModifierFlags) -> Void
+    var onDoubleClick: (() -> Void)? = nil
     var onHoverChanged: ((Bool) -> Void)? = nil
     var onSecondaryClick: (() -> Void)? = nil
-    
+
     class ClickView: NSView {
         var onClickWithModifiers: ((NSEvent.ModifierFlags) -> Void)?
+        var onDoubleClick: (() -> Void)?
         var onHoverChanged: ((Bool) -> Void)?
         var onSecondaryClick: (() -> Void)?
         private var trackingArea: NSTrackingArea?
@@ -29,8 +31,13 @@ struct ClickModifierDetector: NSViewRepresentable {
             addTrackingArea(trackingArea)
             self.trackingArea = trackingArea
         }
-        
+
         override func mouseDown(with event: NSEvent) {
+            if event.clickCount == 2, onDoubleClick != nil {
+                onDoubleClick?()
+                return
+            }
+
             onClickWithModifiers?(event.modifierFlags)
         }
 
@@ -47,20 +54,22 @@ struct ClickModifierDetector: NSViewRepresentable {
             onHoverChanged?(false)
         }
     }
-    
+
     func makeNSView(context: Context) -> NSView {
         let view = ClickView()
         view.wantsLayer = true
         view.layer?.backgroundColor = .clear
         view.onClickWithModifiers = onClickWithModifiers
+        view.onDoubleClick = onDoubleClick
         view.onHoverChanged = onHoverChanged
         view.onSecondaryClick = onSecondaryClick
         return view
     }
-    
+
     func updateNSView(_ nsView: NSView, context: Context) {
         if let clickView = nsView as? ClickView {
             clickView.onClickWithModifiers = onClickWithModifiers
+            clickView.onDoubleClick = onDoubleClick
             clickView.onHoverChanged = onHoverChanged
             clickView.onSecondaryClick = onSecondaryClick
         }
@@ -72,7 +81,7 @@ extension NSEvent.ModifierFlags {
     var hasCommand: Bool {
         self.contains(.command)
     }
-    
+
     var hasShift: Bool {
         self.contains(.shift)
     }

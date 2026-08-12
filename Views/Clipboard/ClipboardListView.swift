@@ -24,9 +24,8 @@ struct ClipboardListView: View {
     let onDismiss: () -> Void
 
     @Binding var selectedIDs: Set<UUID>
-    @Binding var hoveredItemID: UUID?
 
-    var onSelectSingle: (UUID) -> Void = { _ in }
+    var onSelectSingle: (UUID, Int) -> Void = { _, _ in }
     var onSelectPreferredTopItem: () -> UUID? = { nil }
     var onToggleSelection: (UUID) -> Void = { _ in }
     var onExtendSelectionTo: (UUID) -> Void = { _ in }
@@ -80,7 +79,6 @@ struct ClipboardListView: View {
             settings: settings,
             quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
             selectedIDs: selectedIDs,
-            hoveredItemID: hoveredItemID,
             isAwaitingInitialOpenScroll: scrollCoordinator.isAwaitingInitialOpenScroll,
             onCommitSelection: onCommitSelection,
             onSelectSingle: onSelectSingle,
@@ -88,8 +86,6 @@ struct ClipboardListView: View {
             onExtendSelectionTo: onExtendSelectionTo,
             contextMenuActions: contextMenuActions,
             onContextMenuAction: onContextMenuAction,
-            onHoveredItemIDChanged: { hoveredItemID = $0 },
-            onSelectedIndexChanged: { selectedIndex = $0 },
             primaryLabelText: primaryLabelText(for:),
             indexForItem: index(for:),
             onScrollViewReady: configureScrollView(_:),

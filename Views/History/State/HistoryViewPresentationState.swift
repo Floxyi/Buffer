@@ -10,5 +10,4 @@ struct HistoryViewPresentationState {
     var jumpToHistoryState = HistoryJumpToHistoryState.idle
     var keyboardScrollRequest: HistoryKeyboardScrollRequest?
     var scrollTrigger = false
-    var hoveredItemID: UUID?
 }

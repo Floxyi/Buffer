@@ -34,11 +34,7 @@ struct HistoryClipboardListPane: View {
                         get: { viewModel.selectedIDs },
                         set: { _ in }
                     ),
-                    hoveredItemID: Binding(
-                        get: { viewModel.hoveredItemID },
-                        set: { viewModel.hoveredItemID = $0 }
-                    ),
-                    onSelectSingle: viewModel.selectSingle,
+                    onSelectSingle: viewModel.selectSingle(_:at:),
                     onSelectPreferredTopItem: viewModel.selectPreferredTopItem,
                     onToggleSelection: viewModel.toggleSelection,
                     onExtendSelectionTo: viewModel.extendSelectionTo,

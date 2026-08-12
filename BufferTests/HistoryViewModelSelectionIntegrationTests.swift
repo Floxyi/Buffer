@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
+    func testIndexedPointerSelectionPublishesExactItemBeforeReturning() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        let targetIndex = 2
+        let target = viewModel.filteredItems[targetIndex]
+
+        viewModel.selectSingle(target.id, at: targetIndex)
+
+        XCTAssertEqual(viewModel.selectedIndex, targetIndex)
+        XCTAssertEqual(viewModel.selectedID, target.id)
+        XCTAssertEqual(viewModel.selectedIDs, [target.id])
+    }
+
+    func testIndexedPointerSelectionResolvesStaleIndexByIdentity() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        let target = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(target.id, at: 0)
+
+        XCTAssertEqual(viewModel.selectedIndex, 2)
+        XCTAssertEqual(viewModel.selectedID, target.id)
+        XCTAssertEqual(viewModel.selectedIDs, [target.id])
+    }
+
     func testArrowDownPublishesSingleSelectionBeforeReturning() async {
         let viewModel = await makeSelectionHistoryViewModel()
         let target = viewModel.filteredItems[1]

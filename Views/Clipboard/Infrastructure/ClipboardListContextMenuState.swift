@@ -11,8 +11,4 @@ final class ClipboardListContextMenuState: ObservableObject {
     func clear() {
         highlightedItemID = nil
     }
-
-    func displayedHighlightedItemID(hoveredItemID: UUID?) -> UUID? {
-        highlightedItemID ?? hoveredItemID
-    }
 }

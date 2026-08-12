@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ClipboardListRowsSection: View {
@@ -7,26 +8,18 @@ struct ClipboardListRowsSection: View {
     let settings: SettingsManager
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
-    let hoveredItemID: UUID?
     let onCommitSelection: () -> Void
-    let onSelectSingle: (UUID) -> Void
+    let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
     let onExtendSelectionTo: (UUID) -> Void
     let contextMenuActions: (UUID) -> [HistoryItemActionDescriptor]
     let onContextMenuAction: (UUID, HistoryItemAction) -> Void
-    let onHoveredItemIDChanged: (UUID?) -> Void
-    let onSelectedIndexChanged: (Int) -> Void
 
-    let scrollController: ScrollController
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
 
     let primaryLabelText: (ClipboardItem) -> String
     let indexForItem: (ClipboardItem) -> Int
-
-    private var highlightedItemID: UUID? {
-        contextMenuState.displayedHighlightedItemID(hoveredItemID: hoveredItemID)
-    }
 
     var body: some View {
         ForEach(rows) { row in
@@ -52,8 +45,9 @@ struct ClipboardListRowsSection: View {
         let previousItemID = adjacentItemID(before: index)
         let nextItemID = adjacentItemID(after: index)
 
-        return ClipboardItemRow(
+        return ClipboardInteractiveItemRow(
             item: item,
+            index: index,
             store: store,
             settings: settings,
             primaryLabelText: primaryLabelText(item),
@@ -62,7 +56,21 @@ struct ClipboardListRowsSection: View {
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
-            isHovered: highlightedItemID == item.id
+            isContextMenuHighlighted: contextMenuState.highlightedItemID == item.id,
+            contextMenuIsActive: contextMenuState.highlightedItemID != nil,
+            onCommitSelection: onCommitSelection,
+            onSelectSingle: onSelectSingle,
+            onToggleSelection: onToggleSelection,
+            onExtendSelectionTo: onExtendSelectionTo,
+            contextMenuActions: contextMenuActions(item.id),
+            onPrimaryInteraction: contextMenuState.clear,
+            onContextMenuAction: { itemID, action in
+                contextMenuState.clear()
+                onContextMenuAction(itemID, action)
+            },
+            onSecondaryClick: {
+                contextMenuState.highlight(item.id)
+            }
         )
         .id(clipboardListScrollID(for: item.id))
         .background {
@@ -74,56 +82,6 @@ struct ClipboardListRowsSection: View {
                     )
                 }
             }
-        }
-        .contentShape(Rectangle())
-        .overlay(
-            ClickModifierDetector { modifiers in
-                contextMenuState.clear()
-                onSelectedIndexChanged(index)
-
-                if modifiers.hasCommand {
-                    onToggleSelection(item.id)
-                } else if modifiers.hasShift {
-                    onExtendSelectionTo(item.id)
-                } else {
-                    onSelectSingle(item.id)
-                }
-            } onHoverChanged: { hovering in
-                guard !scrollController.activityTracker.isScrolling else { return }
-                guard contextMenuState.highlightedItemID == nil || !hovering else { return }
-
-                onHoveredItemIDChanged(
-                    hovering ? item.id : (hoveredItemID == item.id ? nil : hoveredItemID)
-                )
-            } onSecondaryClick: {
-                onHoveredItemIDChanged(nil)
-                contextMenuState.highlight(item.id)
-            },
-            alignment: .center
-        )
-        .simultaneousGesture(
-            TapGesture(count: 1)
-                .onEnded { _ in
-                    // Handled by ClickModifierDetector.
-                }
-        )
-        .highPriorityGesture(
-            TapGesture(count: 2)
-                .onEnded { _ in
-                    onSelectedIndexChanged(index)
-                    onSelectSingle(item.id)
-                    onCommitSelection()
-                }
-        )
-        .contextMenu {
-            HistoryActionMenuContent(
-                actions: contextMenuActions(item.id),
-                onSelect: { action in
-                    contextMenuState.clear()
-                    onSelectedIndexChanged(index)
-                    onContextMenuAction(item.id, action)
-                }
-            )
         }
     }
 
@@ -143,5 +101,90 @@ struct ClipboardListRowsSection: View {
         }
 
         return items[nextIndex].id
+    }
+}
+
+private struct ClipboardInteractiveItemRow: View {
+    let item: ClipboardItem
+    let index: Int
+    let store: ClipboardStore
+    let settings: SettingsManager
+    let primaryLabelText: String
+    let isMultiSelected: Bool
+    let joinsSelectionAbove: Bool
+    let joinsSelectionBelow: Bool
+    let selectionJoinOverlap: CGFloat
+    let quickPasteNumber: Int?
+    let isContextMenuHighlighted: Bool
+    let contextMenuIsActive: Bool
+    let onCommitSelection: () -> Void
+    let onSelectSingle: (UUID, Int) -> Void
+    let onToggleSelection: (UUID) -> Void
+    let onExtendSelectionTo: (UUID) -> Void
+    let contextMenuActions: [HistoryItemActionDescriptor]
+    let onPrimaryInteraction: () -> Void
+    let onContextMenuAction: (UUID, HistoryItemAction) -> Void
+    let onSecondaryClick: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        ClipboardItemRow(
+            item: item,
+            store: store,
+            settings: settings,
+            primaryLabelText: primaryLabelText,
+            isMultiSelected: isMultiSelected,
+            joinsSelectionAbove: joinsSelectionAbove,
+            joinsSelectionBelow: joinsSelectionBelow,
+            selectionJoinOverlap: selectionJoinOverlap,
+            quickPasteNumber: quickPasteNumber,
+            isHovered: isHovered || isContextMenuHighlighted
+        )
+        .contentShape(Rectangle())
+        .overlay {
+            ClickModifierDetector(
+                onClickWithModifiers: handlePrimaryMouseDown(modifiers:),
+                onDoubleClick: handleDoubleClick,
+                onHoverChanged: handleHoverChanged(_:),
+                onSecondaryClick: onSecondaryClick
+            )
+        }
+        .contextMenu {
+            HistoryActionMenuContent(
+                actions: contextMenuActions,
+                onSelect: { action in
+                    onContextMenuAction(item.id, action)
+                }
+            )
+        }
+    }
+
+    private func handlePrimaryMouseDown(modifiers: NSEvent.ModifierFlags) {
+        onPrimaryInteraction()
+
+        if modifiers.hasCommand {
+            onToggleSelection(item.id)
+        } else if modifiers.hasShift {
+            onExtendSelectionTo(item.id)
+        } else {
+            onSelectSingle(item.id, index)
+        }
+    }
+
+    private func handleDoubleClick() {
+        onPrimaryInteraction()
+        onSelectSingle(item.id, index)
+        onCommitSelection()
+    }
+
+    private func handleHoverChanged(_ hovering: Bool) {
+        guard !contextMenuIsActive || !hovering else { return }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isHovered = hovering
+        }
     }
 }

@@ -77,3 +77,51 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertEqual(configuration.animatedContentView.subviews.count, 1)
     }
 }
+
+@MainActor
+final class ClickModifierDetectorTests: XCTestCase {
+    func testSingleClickRoutesOnlyPrimaryInteraction() throws {
+        let view = ClickModifierDetector.ClickView()
+        var primaryModifiers: NSEvent.ModifierFlags?
+        var doubleClickCount = 0
+        view.onClickWithModifiers = { primaryModifiers = $0 }
+        view.onDoubleClick = { doubleClickCount += 1 }
+
+        view.mouseDown(with: try mouseDownEvent(clickCount: 1, modifiers: .command))
+
+        XCTAssertEqual(primaryModifiers, .command)
+        XCTAssertEqual(doubleClickCount, 0)
+    }
+
+    func testDoubleClickRoutesOnlyCommitInteraction() throws {
+        let view = ClickModifierDetector.ClickView()
+        var primaryClickCount = 0
+        var doubleClickCount = 0
+        view.onClickWithModifiers = { _ in primaryClickCount += 1 }
+        view.onDoubleClick = { doubleClickCount += 1 }
+
+        view.mouseDown(with: try mouseDownEvent(clickCount: 2))
+
+        XCTAssertEqual(primaryClickCount, 0)
+        XCTAssertEqual(doubleClickCount, 1)
+    }
+
+    private func mouseDownEvent(
+        clickCount: Int,
+        modifiers: NSEvent.ModifierFlags = []
+    ) throws -> NSEvent {
+        try XCTUnwrap(
+            NSEvent.mouseEvent(
+                with: .leftMouseDown,
+                location: .zero,
+                modifierFlags: modifiers,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 0,
+                clickCount: clickCount,
+                pressure: 1
+            )
+        )
+    }
+}
