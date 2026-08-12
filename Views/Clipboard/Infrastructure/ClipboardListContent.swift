@@ -6,6 +6,7 @@ struct ClipboardListContent: View {
     @ObservedObject var scrollCoordinator: ClipboardListScrollCoordinator
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
+    let hoverCoordinator: ClipboardListHoverCoordinator
 
     let items: [ClipboardItem]
     let displayRowsForRendering: [ClipboardListStructure.DisplayRow]
@@ -48,6 +49,7 @@ struct ClipboardListContent: View {
                         onContextMenuAction: onContextMenuAction,
                         contextMenuState: contextMenuState,
                         measuredScrollCoordinator: measuredScrollCoordinator,
+                        hoverCoordinator: hoverCoordinator,
                         primaryLabelText: primaryLabelText,
                         indexForItem: indexForItem
                     )

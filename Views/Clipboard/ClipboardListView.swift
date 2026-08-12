@@ -7,6 +7,7 @@ struct ClipboardListView: View {
     @StateObject private var scrollCoordinator = ClipboardListScrollCoordinator()
     @StateObject private var measuredScrollCoordinator = ClipboardMeasuredScrollCoordinator()
     @StateObject private var contextMenuState = ClipboardListContextMenuState()
+    @State private var hoverCoordinator = ClipboardListHoverCoordinator()
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var assetPrewarmer = ClipboardListAssetPrewarmer()
     private let lifecycleCoordinator = ClipboardListLifecycleCoordinator()
@@ -72,6 +73,7 @@ struct ClipboardListView: View {
             scrollCoordinator: scrollCoordinator,
             measuredScrollCoordinator: measuredScrollCoordinator,
             contextMenuState: contextMenuState,
+            hoverCoordinator: hoverCoordinator,
             items: items,
             displayRowsForRendering: displayState.displayRows,
             contentTrailingPadding: displayState.contentTrailingPadding,
@@ -175,7 +177,8 @@ struct ClipboardListView: View {
     }
 
     private func configureMetricsCallback() {
-        scrollController.onMetricsChanged = { [assetPrewarmer] metrics in
+        scrollController.onMetricsChanged = { [assetPrewarmer, hoverCoordinator] metrics in
+            hoverCoordinator.suppressUntilPointerMoves()
             assetPrewarmer.prewarmVisibleAssets(
                 in: items,
                 layoutIndex: displayState.layoutIndex,
@@ -237,6 +240,7 @@ struct ClipboardListView: View {
 
     private func handleDisappear() {
         scrollController.onMetricsChanged = nil
+        hoverCoordinator.reset()
         lifecycleCoordinator.handleDisappear(
             cancelVisibleAssetPrewarm: {
                 assetPrewarmer.cancelAll()

@@ -6,12 +6,14 @@ struct ClickModifierDetector: NSViewRepresentable {
     let onClickWithModifiers: (NSEvent.ModifierFlags) -> Void
     var onDoubleClick: (() -> Void)? = nil
     var onHoverChanged: ((Bool) -> Void)? = nil
+    var onPointerMoved: (() -> Void)? = nil
     var onSecondaryClick: (() -> Void)? = nil
 
     class ClickView: NSView {
         var onClickWithModifiers: ((NSEvent.ModifierFlags) -> Void)?
         var onDoubleClick: (() -> Void)?
         var onHoverChanged: ((Bool) -> Void)?
+        var onPointerMoved: (() -> Void)?
         var onSecondaryClick: (() -> Void)?
         private var trackingArea: NSTrackingArea?
 
@@ -24,7 +26,7 @@ struct ClickModifierDetector: NSViewRepresentable {
 
             let trackingArea = NSTrackingArea(
                 rect: bounds,
-                options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited],
+                options: [.activeAlways, .inVisibleRect, .mouseEnteredAndExited, .mouseMoved],
                 owner: self,
                 userInfo: nil
             )
@@ -53,6 +55,10 @@ struct ClickModifierDetector: NSViewRepresentable {
         override func mouseExited(with event: NSEvent) {
             onHoverChanged?(false)
         }
+
+        override func mouseMoved(with event: NSEvent) {
+            onPointerMoved?()
+        }
     }
 
     func makeNSView(context: Context) -> NSView {
@@ -62,6 +68,7 @@ struct ClickModifierDetector: NSViewRepresentable {
         view.onClickWithModifiers = onClickWithModifiers
         view.onDoubleClick = onDoubleClick
         view.onHoverChanged = onHoverChanged
+        view.onPointerMoved = onPointerMoved
         view.onSecondaryClick = onSecondaryClick
         return view
     }
@@ -71,6 +78,7 @@ struct ClickModifierDetector: NSViewRepresentable {
             clickView.onClickWithModifiers = onClickWithModifiers
             clickView.onDoubleClick = onDoubleClick
             clickView.onHoverChanged = onHoverChanged
+            clickView.onPointerMoved = onPointerMoved
             clickView.onSecondaryClick = onSecondaryClick
         }
     }

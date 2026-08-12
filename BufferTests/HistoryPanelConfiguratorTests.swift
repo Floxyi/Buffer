@@ -106,13 +106,35 @@ final class ClickModifierDetectorTests: XCTestCase {
         XCTAssertEqual(doubleClickCount, 1)
     }
 
+    func testPointerMovementIsForwarded() throws {
+        let view = ClickModifierDetector.ClickView()
+        var pointerMoveCount = 0
+        view.onPointerMoved = { pointerMoveCount += 1 }
+
+        view.mouseMoved(with: try mouseEvent(type: .mouseMoved))
+
+        XCTAssertEqual(pointerMoveCount, 1)
+    }
+
     private func mouseDownEvent(
         clickCount: Int,
         modifiers: NSEvent.ModifierFlags = []
     ) throws -> NSEvent {
+        try mouseEvent(
+            type: .leftMouseDown,
+            clickCount: clickCount,
+            modifiers: modifiers
+        )
+    }
+
+    private func mouseEvent(
+        type: NSEvent.EventType,
+        clickCount: Int = 0,
+        modifiers: NSEvent.ModifierFlags = []
+    ) throws -> NSEvent {
         try XCTUnwrap(
             NSEvent.mouseEvent(
-                with: .leftMouseDown,
+                with: type,
                 location: .zero,
                 modifierFlags: modifiers,
                 timestamp: 0,
@@ -123,5 +145,72 @@ final class ClickModifierDetectorTests: XCTestCase {
                 pressure: 1
             )
         )
+    }
+}
+
+@MainActor
+final class ClipboardListHoverCoordinatorTests: XCTestCase {
+    func testScrollClearsActiveHoverAndSuppressesSyntheticEnterEvents() {
+        let coordinator = ClipboardListHoverCoordinator()
+        let firstItemID = UUID()
+        let secondItemID = UUID()
+        var clearedItemIDs: [UUID] = []
+
+        XCTAssertTrue(
+            coordinator.activate(itemID: firstItemID) {
+                clearedItemIDs.append(firstItemID)
+            }
+        )
+
+        coordinator.suppressUntilPointerMoves()
+
+        XCTAssertEqual(clearedItemIDs, [firstItemID])
+        XCTAssertFalse(
+            coordinator.activate(itemID: secondItemID) {
+                clearedItemIDs.append(secondItemID)
+            }
+        )
+        XCTAssertEqual(clearedItemIDs, [firstItemID])
+    }
+
+    func testPointerMovementReenablesHoverAfterScroll() {
+        let coordinator = ClipboardListHoverCoordinator()
+        let itemID = UUID()
+        var clearCount = 0
+
+        coordinator.suppressUntilPointerMoves()
+
+        XCTAssertTrue(
+            coordinator.activateFromPointerMovement(itemID: itemID) {
+                clearCount += 1
+            }
+        )
+
+        coordinator.suppressUntilPointerMoves()
+        XCTAssertEqual(clearCount, 1)
+    }
+
+    func testActivatingAnotherRowClearsOnlyPreviousHover() {
+        let coordinator = ClipboardListHoverCoordinator()
+        let firstItemID = UUID()
+        let secondItemID = UUID()
+        var firstClearCount = 0
+        var secondClearCount = 0
+
+        coordinator.activate(itemID: firstItemID) {
+            firstClearCount += 1
+        }
+        coordinator.activate(itemID: secondItemID) {
+            secondClearCount += 1
+        }
+
+        XCTAssertEqual(firstClearCount, 1)
+        XCTAssertEqual(secondClearCount, 0)
+
+        coordinator.deactivate(itemID: firstItemID)
+        coordinator.suppressUntilPointerMoves()
+
+        XCTAssertEqual(firstClearCount, 1)
+        XCTAssertEqual(secondClearCount, 1)
     }
 }

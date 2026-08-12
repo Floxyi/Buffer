@@ -1,6 +1,56 @@
 import AppKit
 import SwiftUI
 
+/// Owns the single transient hover for the list without publishing view-model state.
+@MainActor
+final class ClipboardListHoverCoordinator {
+    private var activeItemID: UUID?
+    private var clearActiveHover: (() -> Void)?
+    private var suppressesHoverUntilPointerMoves = false
+
+    @discardableResult
+    func activate(itemID: UUID, onClear: @escaping () -> Void) -> Bool {
+        guard !suppressesHoverUntilPointerMoves else { return false }
+
+        if activeItemID != itemID {
+            clearCurrentHover()
+        }
+
+        activeItemID = itemID
+        clearActiveHover = onClear
+        return true
+    }
+
+    @discardableResult
+    func activateFromPointerMovement(itemID: UUID, onClear: @escaping () -> Void) -> Bool {
+        suppressesHoverUntilPointerMoves = false
+        return activate(itemID: itemID, onClear: onClear)
+    }
+
+    func deactivate(itemID: UUID) {
+        guard activeItemID == itemID else { return }
+        activeItemID = nil
+        clearActiveHover = nil
+    }
+
+    func suppressUntilPointerMoves() {
+        suppressesHoverUntilPointerMoves = true
+        clearCurrentHover()
+    }
+
+    func reset() {
+        suppressesHoverUntilPointerMoves = false
+        clearCurrentHover()
+    }
+
+    private func clearCurrentHover() {
+        let clear = clearActiveHover
+        activeItemID = nil
+        clearActiveHover = nil
+        clear?()
+    }
+}
+
 struct ClipboardListRowsSection: View {
     let rows: [ClipboardListStructure.DisplayRow]
     let items: [ClipboardItem]
@@ -17,6 +67,7 @@ struct ClipboardListRowsSection: View {
 
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
+    let hoverCoordinator: ClipboardListHoverCoordinator
 
     let primaryLabelText: (ClipboardItem) -> String
     let indexForItem: (ClipboardItem) -> Int
@@ -63,6 +114,7 @@ struct ClipboardListRowsSection: View {
             onToggleSelection: onToggleSelection,
             onExtendSelectionTo: onExtendSelectionTo,
             contextMenuActions: contextMenuActions(item.id),
+            hoverCoordinator: hoverCoordinator,
             onPrimaryInteraction: contextMenuState.clear,
             onContextMenuAction: { itemID, action in
                 contextMenuState.clear()
@@ -122,6 +174,7 @@ private struct ClipboardInteractiveItemRow: View {
     let onToggleSelection: (UUID) -> Void
     let onExtendSelectionTo: (UUID) -> Void
     let contextMenuActions: [HistoryItemActionDescriptor]
+    let hoverCoordinator: ClipboardListHoverCoordinator
     let onPrimaryInteraction: () -> Void
     let onContextMenuAction: (UUID, HistoryItemAction) -> Void
     let onSecondaryClick: () -> Void
@@ -147,6 +200,7 @@ private struct ClipboardInteractiveItemRow: View {
                 onClickWithModifiers: handlePrimaryMouseDown(modifiers:),
                 onDoubleClick: handleDoubleClick,
                 onHoverChanged: handleHoverChanged(_:),
+                onPointerMoved: handlePointerMoved,
                 onSecondaryClick: onSecondaryClick
             )
         }
@@ -157,6 +211,9 @@ private struct ClipboardInteractiveItemRow: View {
                     onContextMenuAction(item.id, action)
                 }
             )
+        }
+        .onDisappear {
+            hoverCoordinator.deactivate(itemID: item.id)
         }
     }
 
@@ -179,7 +236,28 @@ private struct ClipboardInteractiveItemRow: View {
     }
 
     private func handleHoverChanged(_ hovering: Bool) {
-        guard !contextMenuIsActive || !hovering else { return }
+        if hovering {
+            guard !contextMenuIsActive else { return }
+            let didActivate = hoverCoordinator.activate(itemID: item.id) {
+                setHovered(false)
+            }
+            setHovered(didActivate)
+        } else {
+            hoverCoordinator.deactivate(itemID: item.id)
+            setHovered(false)
+        }
+    }
+
+    private func handlePointerMoved() {
+        guard !contextMenuIsActive, !isHovered else { return }
+        let didActivate = hoverCoordinator.activateFromPointerMovement(itemID: item.id) {
+            setHovered(false)
+        }
+        setHovered(didActivate)
+    }
+
+    private func setHovered(_ hovering: Bool) {
+        guard isHovered != hovering else { return }
 
         var transaction = Transaction()
         transaction.disablesAnimations = true
