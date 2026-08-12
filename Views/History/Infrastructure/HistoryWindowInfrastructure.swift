@@ -6,7 +6,28 @@ final class HistoryPanel: NSPanel {
     var onClickOutside: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
+    override var canBecomeMain: Bool { false }
+
+    init(contentRect: NSRect) {
+        // Window-manager exclusion depends on these structural traits. Hiding the
+        // controls of a titled panel still exposes an accessibility close button.
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+
+        isReleasedWhenClosed = false
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func close() {
+        orderOut(nil)
+    }
 
     override func resignKey() {
         super.resignKey()
@@ -119,7 +140,6 @@ final class HistoryWindowController: NSWindowController {
         }
 
         window.makeKeyAndOrderFront(nil)
-        window.makeMain()
 
         if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
             scrollRestorationCoordinator.restoreIfNeeded(for: settingsManager.historyWindowOpenBehavior)
@@ -135,10 +155,10 @@ final class HistoryWindowController: NSWindowController {
     override func close() {
         openAnimator.cancelAnimations(for: window)
         scrollRestorationCoordinator.captureCurrentOffset()
-        super.close()
+        window?.orderOut(nil)
     }
 
-    private func setupPanel(_ panel: NSPanel) {
+    private func setupPanel(_ panel: HistoryPanel) {
         keyObserver = panelConfigurator.configure(panel) { [weak self] in
             self?.handlePanelDidBecomeKey()
         }

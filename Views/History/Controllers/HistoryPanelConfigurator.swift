@@ -29,29 +29,33 @@ struct HistoryPanelConfigurator {
                 y: 0,
                 width: HistoryWindowStyle.panelSize.width,
                 height: HistoryWindowStyle.panelSize.height
-            ),
-            styleMask: [.titled, .closable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
+            )
         )
     }
 
     func configure(
-        _ panel: NSPanel,
+        _ panel: HistoryPanel,
         onDidBecomeKey: @escaping @MainActor @Sendable () -> Void
     ) -> NSObjectProtocol {
-        panel.level = .floating
+        // AppKit resets the level when a panel becomes floating, so set the
+        // popup level afterward and keep that ordering covered by tests.
         panel.isFloatingPanel = true
+        panel.level = .popUpMenu
         panel.becomesKeyOnlyIfNeeded = false
         panel.hidesOnDeactivate = false
         panel.animationBehavior = .none
+        panel.isExcludedFromWindowsMenu = true
+        panel.collectionBehavior = [
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .transient,
+            .ignoresCycle,
+        ]
 
         panel.setContentSize(HistoryWindowStyle.panelSize)
         panel.minSize = HistoryWindowStyle.panelSize
         panel.maxSize = HistoryWindowStyle.panelSize
 
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
         panel.isOpaque = false
         panel.backgroundColor = .clear
 
@@ -65,10 +69,6 @@ struct HistoryPanelConfigurator {
         panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
 
         panel.center()
-
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
 
         return NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
@@ -135,7 +135,8 @@ private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffe
     }
 
     func updateBufferAppearance(cornerRadius: CGFloat) {
-        material = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        material =
+            NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? .hudWindow
             : .popover
 
