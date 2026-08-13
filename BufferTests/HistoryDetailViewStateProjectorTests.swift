@@ -111,4 +111,29 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
             HistoryDetailScrollResetID(detailState: nextItemState)
         )
     }
+
+    func testOnlySingleLinkSelectionUsesFittedDetailViewport() {
+        let link = ClipboardItem.link(
+            URL(string: "https://example.com/article")!,
+            originalText: "https://example.com/article"
+        )
+        let text = ClipboardItem.text("Scrollable text")
+
+        XCTAssertEqual(
+            HistoryDetailViewportMode(selectionCount: 1, selectedItem: link),
+            .fitted
+        )
+        XCTAssertEqual(
+            HistoryDetailViewportMode(selectionCount: 1, selectedItem: text),
+            .scrollable
+        )
+        XCTAssertEqual(
+            HistoryDetailViewportMode(selectionCount: 2, selectedItem: link),
+            .scrollable
+        )
+        XCTAssertEqual(
+            HistoryDetailViewportMode(selectionCount: 0, selectedItem: nil),
+            .scrollable
+        )
+    }
 }

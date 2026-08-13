@@ -257,6 +257,7 @@
 		ABC10043 /* ClipboardWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20043 /* ClipboardWatcherTests.swift */; };
 		ABC10044 /* PasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20044 /* PasteControllerTests.swift */; };
 		ABC10045 /* ClipboardWebsiteIconCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20045 /* ClipboardWebsiteIconCacheTests.swift */; };
+		ABC10046 /* SelectableMonospacedTextViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20046 /* SelectableMonospacedTextViewTests.swift */; };
 		ABC10005 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABC20005 /* XCTest.framework */; };
 		D87736122F8ECC6B00392A0B /* ClickDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87736112F8ECC6B00392A0B /* ClickDetector.swift */; };
 /* End PBXBuildFile section */
@@ -341,6 +342,7 @@
 		ABC20043 /* ClipboardWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWatcherTests.swift; sourceTree = "<group>"; };
 		ABC20044 /* PasteControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteControllerTests.swift; sourceTree = "<group>"; };
 		ABC20045 /* ClipboardWebsiteIconCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconCacheTests.swift; sourceTree = "<group>"; };
+		ABC20046 /* SelectableMonospacedTextViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableMonospacedTextViewTests.swift; sourceTree = "<group>"; };
 		BBB00000 /* Buffer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Buffer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBB00001 /* BufferApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferApp.swift; sourceTree = "<group>"; };
 		BBB00002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -619,6 +621,7 @@
 				ABC20043 /* ClipboardWatcherTests.swift */,
 				ABC20044 /* PasteControllerTests.swift */,
 				ABC20045 /* ClipboardWebsiteIconCacheTests.swift */,
+				ABC20046 /* SelectableMonospacedTextViewTests.swift */,
 				ABC20019 /* HistoryKeyboardCommandResolverTests.swift */,
 				ABC20013 /* HistoryWindowCoordinatorTests.swift */,
 				ABC2000A /* HistoryViewModelStateTests.swift */,
@@ -1258,6 +1261,7 @@
 				ABC10043 /* ClipboardWatcherTests.swift in Sources */,
 				ABC10044 /* PasteControllerTests.swift in Sources */,
 				ABC10045 /* ClipboardWebsiteIconCacheTests.swift in Sources */,
+				ABC10046 /* SelectableMonospacedTextViewTests.swift in Sources */,
 				ABC10019 /* HistoryKeyboardCommandResolverTests.swift in Sources */,
 				ABC10013 /* HistoryWindowCoordinatorTests.swift in Sources */,
 				ABC1000A /* HistoryViewModelStateTests.swift in Sources */,

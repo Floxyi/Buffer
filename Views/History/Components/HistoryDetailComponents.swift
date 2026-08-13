@@ -23,6 +23,13 @@ struct HistoryDetailPane: View {
     let onCopyColorVariant: (String) -> Void
     let onLoadNextChunk: (ClipboardItem) -> Void
 
+    private var viewportMode: HistoryDetailViewportMode {
+        HistoryDetailViewportMode(
+            selectionCount: detailState.selectionCount,
+            selectedItem: detailState.selectedItem
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let selectedItem = detailState.selectedItem, detailState.selectionCount == 1 {
@@ -43,42 +50,56 @@ struct HistoryDetailPane: View {
 
             BufferPanelSeparator(isVertical: false)
 
-            HistoryDetailScrollView(
-                resetID: HistoryDetailScrollResetID(detailState: detailState)
-            ) {
-                if detailState.selectionCount > 1 {
-                    HistoryMultiSelectionSummary(
-                        items: detailState.selectedItems,
-                        store: store,
-                        textDetailFontStyle: textDetailFontStyle,
-                        textDetailFontSize: textDetailFontSize,
-                        enableWebsitePreviews: enableWebsitePreviews,
-                        actionsForItem: actionsForItem,
-                        onSelectAction: onSelectItemAction,
-                        onCopyOCRText: onCopyOCRText,
-                        onCopyColorVariant: onCopyColorVariant
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                } else if let selectedItem = detailState.selectedItem {
-                    HistoryItemDetailContent(
-                        item: selectedItem,
-                        previewImage: detailState.previewImage,
-                        chunkedText: detailState.chunkedText,
-                        isExtractingText: detailState.isExtractingText,
-                        textDetailFontStyle: textDetailFontStyle,
-                        textDetailFontSize: textDetailFontSize,
-                        enableWebsitePreviews: enableWebsitePreviews,
-                        onCopyOCRText: onCopyOCRText,
-                        onCopyColorVariant: onCopyColorVariant,
-                        onLoadNextChunk: onLoadNextChunk
-                    )
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            Group {
+                switch viewportMode {
+                case .fitted:
+                    HistoryDetailFittedView {
+                        detailContent
+                    }
+                case .scrollable:
+                    HistoryDetailScrollView(
+                        resetID: HistoryDetailScrollResetID(detailState: detailState)
+                    ) {
+                        detailContent
+                    }
                 }
             }
             .padding(.trailing, 1)
         }
         .background {
             HistoryPanelSurfaceBackground()
+        }
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        if detailState.selectionCount > 1 {
+            HistoryMultiSelectionSummary(
+                items: detailState.selectedItems,
+                store: store,
+                textDetailFontStyle: textDetailFontStyle,
+                textDetailFontSize: textDetailFontSize,
+                enableWebsitePreviews: enableWebsitePreviews,
+                actionsForItem: actionsForItem,
+                onSelectAction: onSelectItemAction,
+                onCopyOCRText: onCopyOCRText,
+                onCopyColorVariant: onCopyColorVariant
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        } else if let selectedItem = detailState.selectedItem {
+            HistoryItemDetailContent(
+                item: selectedItem,
+                previewImage: detailState.previewImage,
+                chunkedText: detailState.chunkedText,
+                isExtractingText: detailState.isExtractingText,
+                textDetailFontStyle: textDetailFontStyle,
+                textDetailFontSize: textDetailFontSize,
+                enableWebsitePreviews: enableWebsitePreviews,
+                onCopyOCRText: onCopyOCRText,
+                onCopyColorVariant: onCopyColorVariant,
+                onLoadNextChunk: onLoadNextChunk
+            )
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 }

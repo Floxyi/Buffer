@@ -194,7 +194,8 @@ final class ClipboardScrollbarInteractionViewTests: XCTestCase {
 
         XCTAssertEqual(model.frame.minY, expected.thumbRect.minY, accuracy: 0.001)
         XCTAssertEqual(model.frame.height, expected.thumbRect.height, accuracy: 0.001)
-        XCTAssertEqual(model.frame.width, 6, accuracy: 0.001)
+        XCTAssertEqual(state.scrollbarWidth, 6, accuracy: 0.001)
+        XCTAssertEqual(model.frame.width, state.expandedWidth, accuracy: 0.001)
     }
 }
 

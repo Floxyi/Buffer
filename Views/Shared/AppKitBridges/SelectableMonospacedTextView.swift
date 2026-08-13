@@ -17,9 +17,28 @@ struct SelectableMonospacedTextView: NSViewRepresentable {
         nsView.configure(fontSize: fontSize, usesMonospacedFont: usesMonospacedFont)
         nsView.setText(text)
     }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: MeasuringSelectableTextView,
+        context: Context
+    ) -> CGSize? {
+        guard let proposedWidth = proposal.width,
+              proposedWidth.isFinite,
+              proposedWidth > 0 else {
+            return nil
+        }
+
+        return CGSize(
+            width: proposedWidth,
+            height: nsView.measuredHeight(constrainedTo: proposedWidth)
+        )
+    }
 }
 
 final class MeasuringSelectableTextView: NSTextView {
+    private static let geometryTolerance = CGFloat(0.5)
+
     override init(frame frameRect: NSRect) {
         let container = NSTextContainer(size: NSSize(width: frameRect.width, height: .greatestFiniteMagnitude))
         container.widthTracksTextView = true
@@ -45,6 +64,7 @@ final class MeasuringSelectableTextView: NSTextView {
             height: CGFloat.greatestFiniteMagnitude
         )
         autoresizingMask = [.width]
+        setContentCompressionResistancePriority(.required, for: .vertical)
     }
 
     @available(*, unavailable)
@@ -53,27 +73,37 @@ final class MeasuringSelectableTextView: NSTextView {
     }
 
     override var intrinsicContentSize: NSSize {
-        guard let textContainer, let layoutManager else {
+        let containerWidth = textContainer?.containerSize.width ?? 0
+        let measurementWidth = containerWidth > 0 ? containerWidth : bounds.width
+        guard measurementWidth.isFinite, measurementWidth > 0 else {
             return super.intrinsicContentSize
         }
 
-        layoutManager.ensureLayout(for: textContainer)
-
-        let usedRect = layoutManager.usedRect(for: textContainer)
-        let height = ceil(usedRect.height + textContainerInset.height * 2)
-
-        return NSSize(width: NSView.noIntrinsicMetric, height: max(1, height))
+        return NSSize(
+            width: NSView.noIntrinsicMetric,
+            height: measuredHeight(constrainedTo: measurementWidth)
+        )
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = abs(frame.width - newSize.width) > Self.geometryTolerance
         super.setFrameSize(newSize)
-        updateContainerWidthIfNeeded()
+
+        guard widthChanged else { return }
+        updateContainerWidth(newSize.width)
+        invalidateMeasuredLayout()
     }
 
     func configure(fontSize: CGFloat, usesMonospacedFont: Bool) {
-        font = usesMonospacedFont
+        let configuredFont: NSFont = usesMonospacedFont
             ? .monospacedSystemFont(ofSize: fontSize, weight: .regular)
             : .systemFont(ofSize: fontSize, weight: .regular)
+
+        if font != configuredFont {
+            font = configuredFont
+            invalidateMeasuredLayout()
+        }
+
         textColor = .labelColor
         insertionPointColor = .labelColor
     }
@@ -84,28 +114,44 @@ final class MeasuringSelectableTextView: NSTextView {
         invalidateMeasuredLayout()
     }
 
-    private func updateContainerWidthIfNeeded() {
+    func measuredHeight(constrainedTo proposedWidth: CGFloat) -> CGFloat {
+        let width = max(1, proposedWidth)
+        updateContainerWidth(width)
+
+        guard let layoutManager, let textContainer else { return 1 }
+
+        layoutManager.ensureLayout(for: textContainer)
+
+        var contentMaxY = layoutManager.usedRect(for: textContainer).maxY
+        if layoutManager.extraLineFragmentTextContainer === textContainer {
+            contentMaxY = max(contentMaxY, layoutManager.extraLineFragmentRect.maxY)
+        }
+
+        return max(1, ceil(contentMaxY + textContainerInset.height * 2))
+    }
+
+    private func updateContainerWidth(_ proposedWidth: CGFloat) {
         guard let textContainer else { return }
 
-        let availableWidth = max(0, bounds.width)
-        guard abs(textContainer.containerSize.width - availableWidth) > 0.5 else { return }
+        let width = max(1, proposedWidth)
+        guard abs(textContainer.containerSize.width - width) > Self.geometryTolerance else {
+            return
+        }
 
         textContainer.containerSize = NSSize(
-            width: availableWidth,
+            width: width,
             height: .greatestFiniteMagnitude
         )
-        invalidateMeasuredLayout()
     }
 
     private func invalidateMeasuredLayout() {
-        guard let layoutManager, let textContainer else {
+        guard let layoutManager else {
             invalidateIntrinsicContentSize()
             return
         }
 
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
         layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
-        layoutManager.ensureLayout(for: textContainer)
         invalidateIntrinsicContentSize()
     }
 }

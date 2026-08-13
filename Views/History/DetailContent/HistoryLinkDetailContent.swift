@@ -46,7 +46,10 @@ struct HistoryLinkDetailContent: View {
                         .lineLimit(2)
                         .truncationMode(.middle)
                 }
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .task(id: linkPayload.displayURL) {
                 await loadMetadataState(for: linkPayload.url)
             }
@@ -148,8 +151,7 @@ private struct HistoryLinkPreviewCard<Content: View>: View {
                     .stroke(Color.primary.opacity(0.08), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 280, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
