@@ -1,5 +1,20 @@
 import AppKit
 
+enum BufferPasteboardProvenance {
+    static let pasteboardType = NSPasteboard.PasteboardType("de.floxyi.buffer.source-application")
+    static let marker = "buffer"
+
+    static func add(to item: NSPasteboardItem) throws {
+        guard item.setString(marker, forType: pasteboardType) else {
+            throw PasteboardWriteError.encodeFailed
+        }
+    }
+
+    static func matches(_ markerValue: String?) -> Bool {
+        markerValue == marker
+    }
+}
+
 struct PasteboardWriteReceipt: Equatable {
     let changeCount: Int
 }
@@ -39,6 +54,7 @@ struct PasteboardPayloadWriter: PastePayloadWriting {
             guard item.setString(text, forType: .string) else {
                 throw PasteboardWriteError.encodeFailed
             }
+            try BufferPasteboardProvenance.add(to: item)
             objects = [item]
 
         case .fileURLs(let urls):
@@ -50,6 +66,7 @@ struct PasteboardPayloadWriter: PastePayloadWriting {
             guard item.setData(data, forType: .tiff) else {
                 throw PasteboardWriteError.encodeFailed
             }
+            try BufferPasteboardProvenance.add(to: item)
             objects = [item]
         }
 

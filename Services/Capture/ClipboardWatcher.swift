@@ -19,6 +19,7 @@ final class ClipboardWatcher: ObservableObject {
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
     private let pasteboard: ClipboardReadingPasteboard
+    private let bufferApplicationInfo: SourceApplicationInfo
     private let captureWorker = ClipboardCaptureWorker()
     private var watchTask: Task<Void, Never>?
     private var pendingAsyncCaptureTask: Task<Void, Never>?
@@ -32,12 +33,14 @@ final class ClipboardWatcher: ObservableObject {
         store: ClipboardStore,
         settingsManager: SettingsManager,
         activeApplicationProvider: ActiveApplicationProviding,
-        pasteboard: ClipboardReadingPasteboard = NSPasteboard.general
+        pasteboard: ClipboardReadingPasteboard = NSPasteboard.general,
+        bufferApplicationInfo: SourceApplicationInfo = .currentProcess
     ) {
         self.store = store
         self.settingsManager = settingsManager
         self.activeApplicationProvider = activeApplicationProvider
         self.pasteboard = pasteboard
+        self.bufferApplicationInfo = bufferApplicationInfo
         self.lastChangeCount = pasteboard.changeCount
     }
 
@@ -91,7 +94,11 @@ final class ClipboardWatcher: ObservableObject {
         }
         discardStaleSuppressionReceipts(before: currentChangeCount)
 
-        let sourceApp = ClipboardCaptureSupport.currentSourceApplicationInfo(using: activeApplicationProvider)
+        let sourceApp = ClipboardCaptureSupport.currentSourceApplicationInfo(
+            using: activeApplicationProvider,
+            pasteboard: pasteboard,
+            bufferApplicationInfo: bufferApplicationInfo
+        )
         guard !settingsManager.shouldExcludeCapture(from: sourceApp) else { return }
 
         if let filePaths = pasteboard.propertyList(forType: NSPasteboard.PasteboardType("NSFilenamesPboardType"))

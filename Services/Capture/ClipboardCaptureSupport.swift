@@ -7,8 +7,18 @@ enum ClipboardCaptureSupport {
     static let previewLength = 500
 
     @MainActor
-    static func currentSourceApplicationInfo(using provider: ActiveApplicationProviding) -> SourceApplicationInfo {
-        provider.currentApplicationInfo
+    static func currentSourceApplicationInfo(
+        using provider: ActiveApplicationProviding,
+        pasteboard: ClipboardReadingPasteboard,
+        bufferApplicationInfo: SourceApplicationInfo
+    ) -> SourceApplicationInfo {
+        if BufferPasteboardProvenance.matches(
+            pasteboard.string(forType: BufferPasteboardProvenance.pasteboardType)
+        ) {
+            return bufferApplicationInfo
+        }
+
+        return provider.currentApplicationInfo
     }
 
     @MainActor

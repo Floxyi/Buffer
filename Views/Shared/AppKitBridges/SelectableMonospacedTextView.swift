@@ -53,6 +53,7 @@ struct SelectableMonospacedTextView: NSViewRepresentable {
 
 final class MeasuringSelectableTextView: NSTextView {
     private static let geometryTolerance = CGFloat(0.5)
+    var copyPasteboard = NSPasteboard.general
 
     override init(frame frameRect: NSRect) {
         let container = NSTextContainer(size: NSSize(width: frameRect.width, height: .greatestFiniteMagnitude))
@@ -98,6 +99,27 @@ final class MeasuringSelectableTextView: NSTextView {
             width: NSView.noIntrinsicMetric,
             height: measuredHeight(constrainedTo: measurementWidth)
         )
+    }
+
+    override func copy(_ sender: Any?) {
+        let selection = selectedRange()
+        let content = string as NSString
+        guard selection.location != NSNotFound,
+              selection.length > 0,
+              NSMaxRange(selection) <= content.length else {
+            return
+        }
+
+        do {
+            _ = try PasteboardPayloadWriter(pasteboard: copyPasteboard).write(
+                .string(content.substring(with: selection))
+            )
+        } catch {
+            BufferLogger.clipboard.error(
+                "Failed to copy selected Buffer text: \(String(describing: error), privacy: .public)"
+            )
+            super.copy(sender)
+        }
     }
 
     override func setFrameSize(_ newSize: NSSize) {

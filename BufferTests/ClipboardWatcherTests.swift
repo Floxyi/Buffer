@@ -63,6 +63,50 @@ final class ClipboardWatcherTests: XCTestCase {
         }
     }
 
+    func testBufferProvenanceOverridesTheLastExternalSourceApplication() async {
+        let bufferApplication = SourceApplicationInfo(
+            name: "Buffer",
+            bundleIdentifier: "de.floxyi.buffer",
+            bundlePath: "/Applications/Buffer.app"
+        )
+        let context = makeWatcherContext(bufferApplicationInfo: bufferApplication)
+        context.pasteboard.text = "copied inside Buffer"
+        context.pasteboard.hasBufferProvenance = true
+        context.pasteboard.changeCount = 1
+
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.first?.sourceApp == "Buffer"
+        }
+        XCTAssertEqual(context.store.items.first?.sourceAppBundleIdentifier, "de.floxyi.buffer")
+        XCTAssertEqual(context.store.items.first?.sourceAppBundlePath, "/Applications/Buffer.app")
+    }
+
+    func testExternalCaptureIgnoresBufferIdentityWithoutProvenance() async {
+        let externalApplication = SourceApplicationInfo(
+            name: "Notes",
+            bundleIdentifier: "com.apple.Notes",
+            bundlePath: "/Applications/Notes.app"
+        )
+        let context = makeWatcherContext(
+            sourceApp: externalApplication,
+            bufferApplicationInfo: SourceApplicationInfo(
+                name: "Buffer",
+                bundleIdentifier: "de.floxyi.buffer",
+                bundlePath: "/Applications/Buffer.app"
+            )
+        )
+        context.pasteboard.text = "copied inside Notes"
+        context.pasteboard.changeCount = 1
+
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.first?.sourceApp == "Notes"
+        }
+    }
+
     func testDuplicateTextHashDoesNotAddSecondItem() async {
         let context = makeWatcherContext()
         context.pasteboard.text = "same text"
@@ -223,6 +267,11 @@ final class ClipboardWatcherTests: XCTestCase {
             name: "Preview",
             bundleIdentifier: "com.apple.Preview",
             bundlePath: "/Applications/Preview.app"
+        ),
+        bufferApplicationInfo: SourceApplicationInfo = SourceApplicationInfo(
+            name: "Buffer",
+            bundleIdentifier: "de.floxyi.buffer",
+            bundlePath: "/Applications/Buffer.app"
         )
     ) -> WatcherTestContext {
         let settings = SettingsManager(
@@ -239,7 +288,8 @@ final class ClipboardWatcherTests: XCTestCase {
             store: store,
             settingsManager: settings,
             activeApplicationProvider: activeApplicationProvider,
-            pasteboard: pasteboard
+            pasteboard: pasteboard,
+            bufferApplicationInfo: bufferApplicationInfo
         )
 
         return WatcherTestContext(
@@ -311,6 +361,7 @@ private final class FakeClipboardPasteboard: ClipboardReadingPasteboard {
     var text: String?
     var filePaths: [String]?
     var imageData: Data?
+    var hasBufferProvenance = false
 
     func propertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
         if type.rawValue == "NSFilenamesPboardType" {
@@ -320,6 +371,9 @@ private final class FakeClipboardPasteboard: ClipboardReadingPasteboard {
     }
 
     func string(forType type: NSPasteboard.PasteboardType) -> String? {
+        if type == BufferPasteboardProvenance.pasteboardType {
+            return hasBufferProvenance ? BufferPasteboardProvenance.marker : nil
+        }
         guard type == .string else {
             return nil
         }

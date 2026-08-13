@@ -1,9 +1,19 @@
 import AppKit
 
-struct SourceApplicationInfo: Sendable {
+struct SourceApplicationInfo: Equatable, Sendable {
     let name: String?
     let bundleIdentifier: String?
     let bundlePath: String?
+
+    @MainActor
+    static var currentProcess: SourceApplicationInfo {
+        let application = NSRunningApplication.current
+        return SourceApplicationInfo(
+            name: application.localizedName,
+            bundleIdentifier: application.bundleIdentifier,
+            bundlePath: application.bundleURL?.path
+        )
+    }
 }
 
 @MainActor

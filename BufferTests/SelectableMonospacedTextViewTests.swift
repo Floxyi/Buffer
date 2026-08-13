@@ -6,6 +6,39 @@ import XCTest
 
 @MainActor
 final class SelectableMonospacedTextViewTests: XCTestCase {
+    func testCopyWritesSelectedTextWithBufferProvenance() throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let textView = makeTextView(width: 180)
+        textView.setText("copy this text")
+        textView.copyPasteboard = pasteboard
+        textView.setSelectedRange(NSRange(location: 5, length: 4))
+
+        textView.copy(nil as Any?)
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "this")
+        XCTAssertEqual(
+            pasteboard.string(forType: BufferPasteboardProvenance.pasteboardType),
+            BufferPasteboardProvenance.marker
+        )
+    }
+
+    func testCopyWithoutASelectionDoesNotReplaceClipboardContents() {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.clearContents()
+        pasteboard.setString("existing", forType: .string)
+        let textView = makeTextView(width: 180)
+        textView.setText("copy this text")
+        textView.copyPasteboard = pasteboard
+        textView.setSelectedRange(NSRange(location: 0, length: 0))
+
+        textView.copy(nil as Any?)
+
+        XCTAssertEqual(pasteboard.string(forType: .string), "existing")
+        XCTAssertNil(pasteboard.string(forType: BufferPasteboardProvenance.pasteboardType))
+    }
+
     func testWhitespaceMarkersCoverOnlySpacesAndTabs() {
         XCTAssertEqual(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x20)), "·")
         XCTAssertEqual(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x09)), "→")
