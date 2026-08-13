@@ -92,7 +92,7 @@ enum HistoryKeyboardCommandResolver {
             guard isCommandOnlyPressed else { return nil }
             let quickPasteIndexByKeyCode: [UInt16: Int] = [
                 18: 0, 19: 1, 20: 2, 21: 3, 23: 4,
-                22: 5, 26: 6, 28: 7, 25: 8, 29: 9
+                22: 5, 26: 6, 28: 7, 25: 8, 29: 9,
             ]
             guard let quickPasteIndex = quickPasteIndexByKeyCode[input.keyCode] else { return nil }
             return .quickPaste(quickPasteIndex)

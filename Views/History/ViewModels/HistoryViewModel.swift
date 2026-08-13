@@ -9,76 +9,98 @@ final class HistoryViewModel: ObservableObject {
     typealias KeyboardScrollRequest = HistoryKeyboardScrollRequest
     typealias JumpToHistoryState = HistoryJumpToHistoryState
 
-    @Published var searchText = "" {
-        didSet {
-            let searchChange = sessionController.handleSearchTextChange(state: sessionState)
-            sessionState = searchChange.state
-
-            guard searchChange.shouldRebuildFilteredItems else {
-                refreshDetailViewState()
-                return
-            }
-
+    var searchText: String {
+        get { searchTextValue }
+        set {
+            guard newValue != searchTextValue else { return }
+            searchTextValue = newValue
+            guard !isApplyingQueryConfiguration else { return }
             rebuildFilteredItems(preferredID: filteredItems.first?.id)
         }
     }
 
-    @Published private(set) var filteredItems: [ClipboardItem] = []
+    @Published private var querySnapshot = HistoryQuerySnapshot()
     @Published private var selectionViewState = HistorySelectionViewState()
-    @Published private var previewState = HistoryPreviewState()
     @Published private var presentationState = HistoryViewPresentationState()
     @Published private(set) var detailViewState = HistoryDetailViewState()
-    @Published private(set) var selectionNavigationToken = 0
+    @Published var mutationFailure: HistoryMutationFailure?
 
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
-    private let ocrService: OCRServicing
-    private let visibleItemsController = HistoryVisibleItemsController()
+    private let queryModel = HistoryQueryModel()
     private let selectionController = HistorySelectionController()
     private let quickPasteController = HistoryQuickPasteController()
     private let jumpNavigationController = HistoryJumpNavigationController()
     private let actionResolver = HistoryActionResolver()
     private let contextMenuController = HistoryContextMenuController()
     private let itemMutationController = HistoryItemMutationController()
-    private let previewStateController = HistoryPreviewStateController()
     private let sessionController = HistorySessionController()
     private let selectionViewStateProjector = HistorySelectionViewStateProjector()
-    private let detailViewStateProjector = HistoryDetailViewStateProjector()
-    private let copiedAtFormatter = HistoryCopiedAtFormatter()
-
-    private lazy var previewLoader = HistoryPreviewLoader(store: store, ocrService: ocrService)
+    private let keyboardScrollRouter: HistoryKeyboardScrollRouter
+    private let detailModel: HistoryDetailModel
     private var selectionState = HistorySelectionState()
-    private var sessionState = HistorySessionState()
     private var quickPasteState = HistoryQuickPasteState()
     private var navigationState = HistoryNavigationState()
     private var cancellables: Set<AnyCancellable> = []
-    private var detailLoadTask: Task<Void, Never>?
-    private var detailLoadGeneration: UInt = 0
-    private var detailTotalSizeBytes: Int?
-    private var activeOCRItemID: UUID?
-    private var activeOCRGeneration: UInt = 0
-    private var activeOCRTask: Task<String?, Never>?
+    private var queryFilters = ClipboardFilters()
+    private var includesOCRTextInSearch = true
+    private var isApplyingQueryConfiguration = false
+    private var searchTextValue = ""
+    private var filteredItemByID: [UUID: ClipboardItem] = [:]
+    private var filteredItemIndexByID: [UUID: Int] = [:]
+    private var keyboardDetailTask: Task<Void, Never>?
 
-    init(store: ClipboardStore, settingsManager: SettingsManager, ocrService: OCRServicing) {
+    init(
+        store: ClipboardStore,
+        settingsManager: SettingsManager,
+        ocrService: OCRServicing,
+        assetProvider: (any ClipboardItemAssetProviding)? = nil,
+        keyboardScrollRouter: HistoryKeyboardScrollRouter = HistoryKeyboardScrollRouter()
+    ) {
         self.store = store
         self.settingsManager = settingsManager
-        self.ocrService = ocrService
+        let resolvedAssetProvider =
+            assetProvider ?? ClipboardItemAssetProvider(store: store, settings: settingsManager)
+        self.detailModel = HistoryDetailModel(
+            store: store,
+            assetProvider: resolvedAssetProvider,
+            ocrService: ocrService
+        )
+        self.keyboardScrollRouter = keyboardScrollRouter
 
-        filteredItems = visibleItemsController.initialFilteredItems(from: store.items, store: store)
+        let initialQuerySnapshot = queryModel.evaluate(
+            items: store.items,
+            query: ClipboardQuery(),
+            searchIndex: store.searchIndexSnapshot
+        )
+        publishQuerySnapshot(initialQuerySnapshot)
         syncSelection()
 
         store.$items
             .sink { [weak self] items in
                 guard let self else { return }
-                let update = self.visibleItemsController.handleStoreItemsChange(
-                    items: items,
-                    searchText: self.searchText,
-                    store: store,
-                    sessionState: self.sessionState
-                )
-                self.filteredItems = update.filteredItems
-                self.sessionState = update.sessionState
-                self.syncSelection(preferredID: update.preferredSelectionID)
+                if self.activeQuery.isEmpty || self.store.isSearchIndexReady {
+                    self.applyQuery(to: items)
+                } else {
+                    self.reconcilePendingIndexedItems(items)
+                }
+                self.syncSelection()
+            }
+            .store(in: &cancellables)
+
+        store.$searchIndexState
+            .sink { [weak self] searchIndexState in
+                guard let self else { return }
+                guard searchIndexState.isReady else { return }
+                let preferredID = self.selectedID
+                self.applyQuery(to: self.store.items, searchIndex: searchIndexState.index)
+                self.syncSelection(preferredID: preferredID)
+            }
+            .store(in: &cancellables)
+
+        detailModel.$viewState
+            .sink { [weak self] state in
+                self?.detailViewState = state
             }
             .store(in: &cancellables)
     }
@@ -89,9 +111,23 @@ final class HistoryViewModel: ObservableObject {
             selectedIDs: selectionViewState.selectedIDs,
             selectedActionOrderIDs: selectionViewState.selectedActionOrderIDs,
             selectedID: selectionViewState.selectedID,
-            searchText: searchText,
-            totalItemCount: store.items.count
+            isQueryEmpty: activeQuery.isEmpty,
+            totalItemCount: store.items.count,
+            itemByID: filteredItemByID,
+            itemIndexByID: filteredItemIndexByID
         )
+    }
+
+    var filteredItems: [ClipboardItem] {
+        querySnapshot.items
+    }
+
+    var filteredItemsRevision: UInt {
+        querySnapshot.revision
+    }
+
+    var searchResultsByItemID: [UUID: ClipboardSearchResult] {
+        querySnapshot.resultsByItemID
     }
 
     var selectedItem: ClipboardItem? {
@@ -139,12 +175,7 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var keyboardScrollRequest: KeyboardScrollRequest? {
-        presentationState.keyboardScrollRequest
-    }
-
-    var scrollTrigger: Bool {
-        get { presentationState.scrollTrigger }
-        set { updatePresentationState { $0.scrollTrigger = newValue } }
+        navigationState.keyboardScrollRequest
     }
 
     var selectedIDs: Set<UUID> {
@@ -189,6 +220,28 @@ final class HistoryViewModel: ObservableObject {
 
     var quickPasteBadgeNumberByItemID: [UUID: Int] {
         quickPasteController.badgeNumberByItemID(for: filteredItems, settings: settingsManager)
+    }
+
+    var activeQuery: ClipboardQuery {
+        ClipboardQuery(
+            text: searchText,
+            filters: queryFilters,
+            includesOCRText: includesOCRTextInSearch
+        )
+    }
+
+    func setFilters(_ filters: ClipboardFilters) {
+        guard queryFilters != filters else { return }
+        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
+            queryFilters = filters
+        }
+    }
+
+    func setIncludesOCRTextInSearch(_ isEnabled: Bool) {
+        guard includesOCRTextInSearch != isEnabled else { return }
+        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
+            includesOCRTextInSearch = isEnabled
+        }
     }
 
     func handleWindowOpen(
@@ -294,7 +347,6 @@ final class HistoryViewModel: ObservableObject {
 
         let selectionToken = BufferPerformanceDiagnostics.begin(.pointerSelection)
         navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
-        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.applySingleSelection(
             id,
             index: resolvedIndex,
@@ -330,7 +382,6 @@ final class HistoryViewModel: ObservableObject {
 
     func toggleSelection(_ id: UUID) {
         navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
-        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.toggleSelection(id, in: filteredItems, state: selectionState)
         applySelectionState()
     }
@@ -384,12 +435,11 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func togglePinForSelectedItem() {
-        itemMutationController.togglePinForSelectedItems(
-            selectedItemsInActionOrder,
-            selectedID: selectedID,
-            store: store,
-            syncSelection: syncSelection(preferredID:)
-        )
+        togglePin(for: selectedItemsInActionOrder)
+    }
+
+    func toggleBookmarkForSelectedItem() {
+        toggleBookmark(for: selectedItemsInActionOrder)
     }
 
     func deleteSelectedItems() {
@@ -406,52 +456,45 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func delete(_ request: HistoryDeleteRequest) {
-        itemMutationController.delete(
-            request,
-            store: store,
-            setPendingPreferredSelectionID: { [weak self] in
-                guard let self else { return }
-                self.sessionState = self.sessionController.setPendingPreferredSelectionID($0, state: self.sessionState)
-            }
-        )
+        performMutation { [self] in
+            let preferredID = try await itemMutationController.delete(request, store: store)
+            syncSelection(preferredID: preferredID)
+        }
     }
 
-    func togglePin(for item: ClipboardItem) {
-        itemMutationController.togglePin(
-            for: item,
-            selectSingle: selectSingle(_:),
-            store: store,
-            syncSelection: syncSelection(preferredID:)
-        )
+    func togglePin(for items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        focusSingleMutationTargetIfNeeded(items)
+        performMutation { [self] in
+            try await itemMutationController.togglePinForSelectedItems(items, store: store)
+        }
     }
 
-    func delete(_ item: ClipboardItem) {
-        itemMutationController.delete(
-            item,
-            filteredItems: filteredItems,
-            selectionController: selectionController,
-            selectSingle: selectSingle(_:),
-            store: store,
-            setPendingPreferredSelectionID: { [weak self] in
-                guard let self else { return }
-                self.sessionState = self.sessionController.setPendingPreferredSelectionID($0, state: self.sessionState)
-            }
-        )
+    func toggleBookmark(for items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        focusSingleMutationTargetIfNeeded(items)
+        performMutation { [self] in
+            try await itemMutationController.toggleBookmarkForSelectedItems(items, store: store)
+        }
+    }
+
+    func delete(_ items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        focusSingleMutationTargetIfNeeded(items)
+        guard
+            let request = itemMutationController.makeDeleteRequest(
+                for: items,
+                in: filteredItems,
+                selectionController: selectionController
+            )
+        else { return }
+        delete(request)
     }
 
     func contextMenuTargetItems(for clickedItemID: UUID) -> [ClipboardItem] {
         contextMenuController.targetItems(
             for: clickedItemID,
-            filteredItems: filteredItems,
-            selectedIDs: selectedIDs,
-            selectedItemsInActionOrder: selectedItemsInActionOrder
-        )
-    }
-
-    func visualContextMenuTargetItems(for clickedItemID: UUID) -> [ClipboardItem] {
-        contextMenuController.visualTargetItems(
-            for: clickedItemID,
-            filteredItems: filteredItems,
+            itemByID: filteredItemByID,
             selectedIDs: selectedIDs,
             selectedItemsInActionOrder: selectedItemsInActionOrder
         )
@@ -460,50 +503,22 @@ final class HistoryViewModel: ObservableObject {
     func contextMenuActions(for clickedItemID: UUID) -> [HistoryItemActionDescriptor] {
         contextMenuController.actions(
             for: clickedItemID,
-            filteredItems: filteredItems,
+            itemByID: filteredItemByID,
             selectedIDs: selectedIDs,
             selectedItemsInActionOrder: selectedItemsInActionOrder,
-            searchText: searchText,
+            allowsJumpToHistory: !activeQuery.isEmpty,
             isExtractingText: detailViewState.isExtractingText,
             actionResolver: actionResolver
         )
     }
 
-    func shouldShowUnpinForContextMenuTarget(_ clickedItemID: UUID) -> Bool {
-        contextMenuController.shouldShowUnpin(
-            for: clickedItemID,
-            filteredItems: filteredItems,
-            selectedIDs: selectedIDs,
-            selectedItemsInActionOrder: selectedItemsInActionOrder
-        )
-    }
-
-    func deleteContextMenuTarget(_ clickedItemID: UUID) {
-        itemMutationController.deleteContextMenuTarget(
-            contextMenuTargetItems(for: clickedItemID),
-            filteredItems: filteredItems,
-            selectionController: selectionController,
-            store: store,
-            setPendingPreferredSelectionID: { [weak self] in
-                guard let self else { return }
-                self.sessionState = self.sessionController.setPendingPreferredSelectionID($0, state: self.sessionState)
-            }
-        )
-    }
-
-    func togglePinForContextMenuTarget(_ clickedItemID: UUID) {
-        itemMutationController.togglePinForContextMenuTarget(
-            contextMenuTargetItems(for: clickedItemID),
-            clickedItemID: clickedItemID,
-            selectedIDs: selectedIDs,
-            selectedID: selectedID,
-            store: store,
-            syncSelection: syncSelection(preferredID:)
-        )
+    func dismissMutationFailure() {
+        mutationFailure = nil
     }
 
     func jumpToHistory(for item: ClipboardItem) {
         let targetID = item.id
+        let hadActiveFilters = !queryFilters.isEmpty
         navigationState = jumpNavigationController.beginJump(to: targetID, state: navigationState)
         updatePresentationState { $0.jumpToHistoryState = navigationState.jumpToHistoryState }
 
@@ -513,17 +528,15 @@ final class HistoryViewModel: ObservableObject {
 
         let jumpPlan = sessionController.makeJumpToHistoryPlan(
             for: targetID,
-            currentSearchText: searchText,
-            state: sessionState
+            currentSearchText: searchText
         )
-        sessionState = jumpPlan.state
-
-        if let nextSearchText = jumpPlan.searchText {
-            searchText = nextSearchText
-        }
-
-        if jumpPlan.shouldRebuildFilteredItems {
-            rebuildFilteredItems(preferredID: jumpPlan.preferredSelectionID)
+        if jumpPlan.searchText != nil || hadActiveFilters {
+            updateQueryConfiguration(preferredID: jumpPlan.preferredSelectionID) {
+                queryFilters = ClipboardFilters()
+                if let nextSearchText = jumpPlan.searchText {
+                    searchText = nextSearchText
+                }
+            }
         } else {
             syncSelection(preferredID: jumpPlan.preferredSelectionID)
         }
@@ -594,64 +607,35 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func loadPreviewIfNeeded() async {
-        await detailLoadTask?.value
+        // Search-index publication can legitimately resynchronize selection and
+        // replace an in-flight detail task during startup.
+        await store.waitForSearchIndex()
+        await keyboardDetailTask?.value
+        await detailModel.waitUntilLoaded()
     }
 
     func extractSelectedImageText() async {
+        await keyboardDetailTask?.value
         guard let item = selectedItem else { return }
         await extractImageText(for: item)
     }
 
     func extractImageText(for item: ClipboardItem) async {
-        guard activeOCRItemID != item.id else { return }
-
-        cancelActiveOCRExtraction()
-        activeOCRItemID = item.id
-        activeOCRGeneration &+= 1
-        let generation = activeOCRGeneration
-        updatePreviewState(previewStateController.beginExtracting(state: previewState))
-
-        let task = Task { [previewLoader] in
-            await previewLoader.extractImageText(
-                for: item,
-                previewImage: selectedItem?.id == item.id ? detailViewState.previewImage : nil
-            )
+        await keyboardDetailTask?.value
+        do {
+            try await detailModel.extractImageText(for: item)
+        } catch {
+            mutationFailure = HistoryMutationFailure(message: error.localizedDescription)
         }
-        activeOCRTask = task
-        let result = await withTaskCancellationHandler {
-            await task.value
-        } onCancel: {
-            task.cancel()
-        }
-
-        guard activeOCRGeneration == generation, activeOCRItemID == item.id else {
-            return
-        }
-
-        if !task.isCancelled, let result {
-            store.setOCRText(result.isEmpty ? "No text found in this image." : result, for: item)
-        }
-
-        updatePreviewState(previewStateController.finishExtracting(state: previewState))
-        activeOCRItemID = nil
-        activeOCRTask = nil
     }
 
     func loadNextChunk() async {
-        guard let item = selectedItem else { return }
-        let generation = detailLoadGeneration
-        let nextState = await previewStateController.loadNextChunk(
-            for: item,
-            currentState: previewState,
-            previewLoader: previewLoader
-        )
-        guard generation == detailLoadGeneration, selectedID == item.id else { return }
-        updatePreviewState(nextState)
+        await keyboardDetailTask?.value
+        await detailModel.loadNextChunk()
     }
 
     private func syncSelection(preferredID: UUID? = nil) {
         navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
-        updatePresentationState { $0.keyboardScrollRequest = nil }
         selectionState = selectionController.syncSelection(
             state: selectionState,
             in: filteredItems,
@@ -659,22 +643,24 @@ final class HistoryViewModel: ObservableObject {
             preferredTopSelectionID: preferredTopSelectionID()
         )
         applySelectionState()
+    }
 
-        if let activeOCRItemID, activeOCRItemID != selectedID {
-            cancelActiveOCRExtraction()
+    private func performMutation(
+        _ operation: @escaping @MainActor () async throws -> Void
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await operation()
+            } catch {
+                mutationFailure = HistoryMutationFailure(message: error.localizedDescription)
+            }
         }
     }
 
-    private func cancelActiveOCRExtraction() {
-        guard activeOCRItemID != nil || activeOCRTask != nil else {
-            return
-        }
-
-        activeOCRGeneration &+= 1
-        activeOCRTask?.cancel()
-        activeOCRTask = nil
-        activeOCRItemID = nil
-        updatePreviewState(previewStateController.finishExtracting(state: previewState))
+    private func focusSingleMutationTargetIfNeeded(_ items: [ClipboardItem]) {
+        guard items.count == 1, let item = items.first else { return }
+        selectSingle(item.id)
     }
 
     private func preferredTopSelectionID() -> UUID? {
@@ -685,12 +671,61 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func rebuildFilteredItems(preferredID: UUID? = nil) {
-        filteredItems = visibleItemsController.rebuildFilteredItems(
-            from: store.items,
-            searchText: searchText,
-            store: store
-        )
+        applyQuery(to: store.items)
         syncSelection(preferredID: preferredID)
+    }
+
+    /// Applies related query mutations as one transaction. User-entered search
+    /// text never passes through this path, so every editor change immediately
+    /// publishes a matching list snapshot.
+    private func updateQueryConfiguration(
+        preferredID: UUID?,
+        _ update: () -> Void
+    ) {
+        precondition(!isApplyingQueryConfiguration)
+        isApplyingQueryConfiguration = true
+        update()
+        isApplyingQueryConfiguration = false
+        rebuildFilteredItems(preferredID: preferredID)
+    }
+
+    private func applyQuery(
+        to items: [ClipboardItem],
+        searchIndex: ClipboardSearchIndex? = nil
+    ) {
+        let snapshot = queryModel.evaluate(
+            items: items,
+            query: activeQuery,
+            searchIndex: searchIndex ?? store.searchIndexSnapshot
+        )
+        publishQuerySnapshot(snapshot)
+    }
+
+    private func publishQuerySnapshot(_ snapshot: HistoryQuerySnapshot) {
+        var nextSnapshot = snapshot
+        nextSnapshot.revision = querySnapshot.revision &+ 1
+        filteredItemByID = Dictionary(uniqueKeysWithValues: snapshot.items.map { ($0.id, $0) })
+        filteredItemIndexByID = Dictionary(
+            uniqueKeysWithValues: snapshot.items.enumerated().map { ($1.id, $0) }
+        )
+        querySnapshot = nextSnapshot
+    }
+
+    /// Keeps the currently proven search result set stable while a replacement
+    /// index is being built. Removed items disappear immediately and updated
+    /// values are refreshed, while newly matching items arrive with the index.
+    private func reconcilePendingIndexedItems(_ items: [ClipboardItem]) {
+        let itemByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let reconciledItems = filteredItems.compactMap { itemByID[$0.id] }
+        let reconciledIDs = Set(reconciledItems.map(\.id))
+
+        publishQuerySnapshot(
+            HistoryQuerySnapshot(
+                query: activeQuery,
+                items: reconciledItems,
+                resultsByItemID: searchResultsByItemID.filter { reconciledIDs.contains($0.key) }
+            )
+        )
     }
 
     private func navigate(by delta: Int) {
@@ -701,7 +736,8 @@ final class HistoryViewModel: ObservableObject {
         guard filteredItems.indices.contains(targetIndex) else { return }
 
         let item = filteredItems[targetIndex]
-        let nextState = extending
+        let nextState =
+            extending
             ? selectionController.extendSelection(
                 to: item.id,
                 targetIndex: targetIndex,
@@ -723,8 +759,9 @@ final class HistoryViewModel: ObservableObject {
         focusedIndex: Int
     ) {
         guard nextState != selectionState,
-              filteredItems.indices.contains(focusedIndex),
-              nextState.selectedID == filteredItems[focusedIndex].id else {
+            filteredItems.indices.contains(focusedIndex),
+            nextState.selectedID == filteredItems[focusedIndex].id
+        else {
             return
         }
 
@@ -744,12 +781,10 @@ final class HistoryViewModel: ObservableObject {
             targetIndex: focusedIndex,
             state: navigationState
         )
-        updatePresentationState { $0.keyboardScrollRequest = navigationState.keyboardScrollRequest }
-        beginDetailLoad(
-            selectedItem: focusedItem,
-            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-            selectedItemsInActionOrder: selectedItemsInActionOrder
-        )
+        if let request = navigationState.keyboardScrollRequest {
+            keyboardScrollRouter.submit(request)
+        }
+        scheduleKeyboardDetailLoad(for: focusedItem.id)
     }
 
     private func logJumpToHistory(_ message: @autoclosure () -> String) {
@@ -777,16 +812,14 @@ final class HistoryViewModel: ObservableObject {
         applySelectionState()
     }
 
-    private func updatePreviewState(_ nextState: HistoryPreviewState) {
-        previewState = nextState
-        refreshDetailViewState()
-    }
-
     private func refreshDetailViewState() {
-        publishDetailViewState(
-            selectedItem: selectedItem,
-            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-            selectedItemsInActionOrder: selectedItemsInActionOrder
+        detailModel.update(
+            HistoryDetailContext(
+                selectedItem: selectedItem,
+                selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+                selectedItemsInActionOrder: selectedItemsInActionOrder,
+                isQueryActive: !activeQuery.isEmpty
+            )
         )
     }
 
@@ -795,121 +828,39 @@ final class HistoryViewModel: ObservableObject {
         selectedItemsInVisualOrder: [ClipboardItem],
         selectedItemsInActionOrder: [ClipboardItem]
     ) {
-        detailLoadGeneration &+= 1
-        let generation = detailLoadGeneration
-        detailLoadTask?.cancel()
-        detailLoadTask = nil
-
-        guard let selectedItem else {
-            detailTotalSizeBytes = nil
-            previewState = previewStateController.reset()
-            publishDetailViewState(
-                selectedItem: nil,
-                selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-                selectedItemsInActionOrder: selectedItemsInActionOrder
-            )
-            return
-        }
-
-        detailTotalSizeBytes = immediateTotalSizeBytes(for: selectedItemsInVisualOrder)
-        let cachedPreviewImage =
-            ClipboardItemTypeRegistry.supportsImageAssets(for: selectedItem)
-            ? ClipboardImageAssetLoader.cachedPreviewImage(for: selectedItem)
-            : nil
-        previewState = previewStateController.immediatePreview(
-            for: selectedItem,
-            cachedPreviewImage: cachedPreviewImage
-        )
-        publishDetailViewState(
-            selectedItem: selectedItem,
-            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-            selectedItemsInActionOrder: selectedItemsInActionOrder
-        )
-
-        let previewLoader = previewLoader
-        detailLoadTask = Task { [weak self, store] in
-            guard let self,
-                !Task.isCancelled,
-                self.detailLoadGeneration == generation
-            else {
-                return
-            }
-
-            var loadedPreviewState = self.previewState
-
-            var totalSize = 0
-
-            for item in selectedItemsInVisualOrder {
-                guard !Task.isCancelled else { return }
-                totalSize += await store.itemSizeAsync(for: item) ?? 0
-            }
-
-            if selectedItem.isFileBacked {
-                loadedPreviewState.chunkedText = await previewLoader.loadInitialChunk(for: selectedItem)
-            } else if selectedItem.kind == .image, loadedPreviewState.previewImage == nil {
-                loadedPreviewState.previewImage = await previewLoader.loadPreviewImage(for: selectedItem)
-            }
-
-            guard !Task.isCancelled,
-                self.detailLoadGeneration == generation,
-                self.selectedID == selectedItem.id
-            else {
-                return
-            }
-
-            self.previewState = loadedPreviewState
-            self.detailTotalSizeBytes = totalSize
-            self.publishDetailViewState(
+        detailModel.update(
+            HistoryDetailContext(
                 selectedItem: selectedItem,
                 selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-                selectedItemsInActionOrder: selectedItemsInActionOrder
+                selectedItemsInActionOrder: selectedItemsInActionOrder,
+                isQueryActive: !activeQuery.isEmpty
             )
-            self.detailLoadTask = nil
-        }
-    }
-
-    private func immediateTotalSizeBytes(for items: [ClipboardItem]) -> Int? {
-        var totalSize = 0
-        for item in items {
-            let itemSize: Int?
-            if let originalSizeBytes = item.originalSizeBytes {
-                itemSize = originalSizeBytes
-            } else {
-                switch item.content {
-                case .text(let payload) where payload.fileName == nil:
-                    itemSize = payload.inlineText?.utf8.count
-                case .color(let payload):
-                    itemSize = payload.originalText.utf8.count
-                case .link(let payload):
-                    itemSize = payload.originalText.utf8.count
-                case .email(let payload):
-                    itemSize = payload.originalText.utf8.count
-                case .text, .image:
-                    itemSize = nil
-                }
-            }
-
-            guard let itemSize else { return nil }
-            totalSize += itemSize
-        }
-        return totalSize
-    }
-
-    private func publishDetailViewState(
-        selectedItem: ClipboardItem?,
-        selectedItemsInVisualOrder: [ClipboardItem],
-        selectedItemsInActionOrder: [ClipboardItem]
-    ) {
-        detailViewState = detailViewStateProjector.project(
-            selectedItem: selectedItem,
-            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
-            selectedItemsInActionOrder: selectedItemsInActionOrder,
-            searchText: searchText,
-            previewState: previewState,
-            selectedItemsTotalSizeBytes: detailTotalSizeBytes,
-            actionResolver: actionResolver,
-            copiedAtFormatter: copiedAtFormatter
         )
+    }
+
+    /// Detail projection can invalidate a large portion of the detail hierarchy.
+    /// Coalescing it separately keeps repeated key events limited to selection and
+    /// the imperative viewport update; only the latest selection starts detail work.
+    private func scheduleKeyboardDetailLoad(for selectedItemID: UUID) {
+        keyboardDetailTask?.cancel()
+        keyboardDetailTask = Task { @MainActor [weak self] in
+            // Key-repeat events arrive in separate run-loop turns. A short debounce
+            // prevents each intermediate row from rebuilding the detail hierarchy.
+            try? await Task.sleep(nanoseconds: 40_000_000)
+
+            guard let self,
+                !Task.isCancelled,
+                selectionState.selectedID == selectedItemID,
+                let selectedItem = filteredItemByID[selectedItemID]
+            else { return }
+
+            beginDetailLoad(
+                selectedItem: selectedItem,
+                selectedItemsInVisualOrder: selectionQuery.selectedItems,
+                selectedItemsInActionOrder: selectionQuery.selectedItemsInActionOrder
+            )
+            keyboardDetailTask = nil
+        }
     }
 
     private func updatePresentationState(_ update: (inout HistoryViewPresentationState) -> Void) {

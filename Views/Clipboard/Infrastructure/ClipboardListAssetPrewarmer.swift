@@ -19,42 +19,35 @@ final class ClipboardListAssetPrewarmer {
         let signature: VisiblePrewarmSignature
     }
 
-    private var visibleAssetTask: Task<Void, Never>?
-    private var keyboardNavigationAssetTask: Task<Void, Never>?
+    private var prewarmTask: Task<Void, Never>?
     private var visiblePrewarmSignature: VisiblePrewarmSignature?
     private var keyboardPrewarmSignature: Int?
     private var lastScrollOffset: CGFloat?
     private var lastKeyboardTargetIndex: Int?
     private var scrollDirection = ScrollDirection.downward
     private let rowLeadingVisualSize = CGFloat(28)
+    private let assetProvider: any ClipboardItemAssetProviding
+
+    init(assetProvider: any ClipboardItemAssetProviding) {
+        self.assetProvider = assetProvider
+    }
 
     func prewarmVisibleAssets(
-        in items: [ClipboardItem],
-        store: ClipboardStore,
-        settings: SettingsManager
+        in items: [ClipboardItem]
     ) {
-        visibleAssetTask?.cancel()
+        prewarmTask?.cancel()
         visiblePrewarmSignature = nil
         lastScrollOffset = nil
 
         let visibleItems = Self.visiblePrewarmItems(from: items)
-        visibleAssetTask = Task { @MainActor in
-            await ClipboardItemRowAssetLoader.prewarmImageAssets(
-                for: visibleItems,
-                store: store,
-                leadingVisualSize: rowLeadingVisualSize,
-                limit: 32
-            )
-        }
+        schedulePrewarm(for: visibleItems, limit: 32)
     }
 
     func prewarmVisibleAssets(
         in items: [ClipboardItem],
         layoutIndex: ClipboardListLayoutIndex,
         scrollOffset: CGFloat,
-        viewportHeight: CGFloat,
-        store: ClipboardStore,
-        settings: SettingsManager
+        viewportHeight: CGFloat
     ) {
         updateScrollDirection(for: scrollOffset)
         let plan = Self.prioritizedVisiblePrewarmPlan(
@@ -69,24 +62,13 @@ final class ClipboardListAssetPrewarmer {
             return
         }
 
-        visibleAssetTask?.cancel()
         visiblePrewarmSignature = plan.signature
-
-        visibleAssetTask = Task { @MainActor in
-            await ClipboardItemRowAssetLoader.prewarmImageAssets(
-                for: plan.items,
-                store: store,
-                leadingVisualSize: rowLeadingVisualSize,
-                limit: 24
-            )
-        }
+        schedulePrewarm(for: plan.items, limit: 24)
     }
 
     func prewarmAssetsForKeyboardNavigation(
         request: HistoryKeyboardScrollRequest,
-        items: [ClipboardItem],
-        store: ClipboardStore,
-        settings: SettingsManager
+        items: [ClipboardItem]
     ) {
         let direction: ScrollDirection =
             if let lastKeyboardTargetIndex, request.targetIndex < lastKeyboardTargetIndex {
@@ -102,7 +84,6 @@ final class ClipboardListAssetPrewarmer {
             return
         }
 
-        keyboardNavigationAssetTask?.cancel()
         keyboardPrewarmSignature = directionalBucket
 
         let nearbyItems = Self.prioritizedKeyboardNavigationPrewarmItems(
@@ -110,24 +91,15 @@ final class ClipboardListAssetPrewarmer {
             in: items,
             direction: direction
         )
-        keyboardNavigationAssetTask = Task { @MainActor in
-            await ClipboardItemRowAssetLoader.prewarmImageAssets(
-                for: nearbyItems,
-                store: store,
-                leadingVisualSize: rowLeadingVisualSize,
-                limit: 8
-            )
-        }
+        schedulePrewarm(for: nearbyItems, limit: 8)
     }
 
     func cancelAll() {
-        visibleAssetTask?.cancel()
-        visibleAssetTask = nil
+        prewarmTask?.cancel()
+        prewarmTask = nil
         visiblePrewarmSignature = nil
         lastScrollOffset = nil
 
-        keyboardNavigationAssetTask?.cancel()
-        keyboardNavigationAssetTask = nil
         keyboardPrewarmSignature = nil
         lastKeyboardTargetIndex = nil
     }
@@ -220,13 +192,17 @@ final class ClipboardListAssetPrewarmer {
             indices = Array(visible.reversed()) + Array(lower.reversed()) + upper
         }
 
+        // A one-row viewport change is already covered by the existing look-ahead
+        // window and should not restart asset work during key repeat.
+        let bucketSize = max(8, viewportItemCount)
+
         return VisiblePrewarmPlan(
             items: indices.compactMap { entryIndex in
                 let itemIndex = layoutIndex.entries[entryIndex].itemIndex
                 return items[safe: itemIndex]
             },
             signature: VisiblePrewarmSignature(
-                anchorBucket: firstVisibleEntry,
+                anchorBucket: firstVisibleEntry / bucketSize,
                 direction: direction,
                 itemCount: items.count,
                 viewportItemCount: viewportItemCount
@@ -368,6 +344,17 @@ final class ClipboardListAssetPrewarmer {
             scrollDirection = .downward
         } else if scrollOffset < lastScrollOffset - 0.5 {
             scrollDirection = .upward
+        }
+    }
+
+    private func schedulePrewarm(for items: [ClipboardItem], limit: Int) {
+        prewarmTask?.cancel()
+        prewarmTask = Task { @MainActor [assetProvider, rowLeadingVisualSize] in
+            await assetProvider.prewarmImageAssets(
+                for: items,
+                leadingVisualSize: rowLeadingVisualSize,
+                limit: limit
+            )
         }
     }
 }

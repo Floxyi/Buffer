@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import Buffer
 
 final class SettingsMigrationTests: XCTestCase {
@@ -20,7 +21,9 @@ final class SettingsMigrationTests: XCTestCase {
         let defaults = makeTestDefaults()
         let store = UserDefaultsSettingsStore(defaults: defaults)
         defaults.set(false, forKey: SettingsKey.keepHistoryWindowSelectionOnReopen.rawValue)
-        defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
+        defaults.set(
+            HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue
+        )
 
         let behavior = SettingsMigration.loadHistoryWindowOpenBehavior(from: store)
 

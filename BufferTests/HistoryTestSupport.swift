@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -12,12 +13,18 @@ func makeHistoryTestSettings(testName: String = UUID().uuidString) -> SettingsMa
 @MainActor
 func makeHistoryTestStore(
     settings: SettingsManager,
-    testName: String = UUID().uuidString
+    testName: String = UUID().uuidString,
+    searchIndexer: (any ClipboardSearchIndexing)? = nil
 ) -> ClipboardStore {
-    ClipboardStore(
-        settingsManager: settings,
-        storagePaths: TestStorageFactory.makePaths(testName: testName)
-    )
+    let storagePaths = TestStorageFactory.makePaths(testName: testName)
+    if let searchIndexer {
+        return ClipboardStore(
+            settingsManager: settings,
+            storagePaths: storagePaths,
+            searchIndexer: searchIndexer
+        )
+    }
+    return ClipboardStore(settingsManager: settings, storagePaths: storagePaths)
 }
 
 @MainActor
@@ -35,13 +42,19 @@ func makeHistoryTestViewModel(
 
 @MainActor
 func populateStore(_ store: ClipboardStore, with items: [ClipboardItem]) async {
-    for item in items {
-        store.add(item)
+    do {
+        for item in items {
+            try await store.add(item)
+        }
+    } catch {
+        XCTFail("Failed to populate clipboard history: \(error.localizedDescription)")
+        return
     }
 
     await eventually {
         store.items.count == items.count
     }
+    await store.waitForSearchIndex()
 }
 
 @MainActor

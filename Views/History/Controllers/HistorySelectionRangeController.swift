@@ -13,11 +13,12 @@ struct HistorySelectionRangeController {
         }
 
         guard let anchorIndex = filteredItems.firstIndex(where: { $0.id == anchorID }),
-              let resolvedTargetIndex = resolvedIndex(
-                  for: targetID,
-                  proposedIndex: targetIndex,
-                  in: filteredItems
-              ) else {
+            let resolvedTargetIndex = resolvedIndex(
+                for: targetID,
+                proposedIndex: targetIndex,
+                in: filteredItems
+            )
+        else {
             return state
         }
 
@@ -50,17 +51,18 @@ struct HistorySelectionRangeController {
         state: HistorySelectionState
     ) -> HistorySelectionState? {
         guard let focusedID = state.selectedID,
-              let focusedIndex = resolvedIndex(
-                  for: focusedID,
-                  proposedIndex: state.selectedIndex,
-                  in: filteredItems
-              ),
-              abs(targetIndex - focusedIndex) == 1,
-              isCanonicalRange(
-                  state,
-                  anchorIndex: anchorIndex,
-                  focusedIndex: focusedIndex
-              ) else {
+            let focusedIndex = resolvedIndex(
+                for: focusedID,
+                proposedIndex: state.selectedIndex,
+                in: filteredItems
+            ),
+            abs(targetIndex - focusedIndex) == 1,
+            isCanonicalRange(
+                state,
+                anchorIndex: anchorIndex,
+                focusedIndex: focusedIndex
+            )
+        else {
             return nil
         }
 
@@ -111,8 +113,9 @@ struct HistorySelectionRangeController {
         in filteredItems: [ClipboardItem]
     ) -> Int? {
         if let proposedIndex,
-           filteredItems.indices.contains(proposedIndex),
-           filteredItems[proposedIndex].id == id {
+            filteredItems.indices.contains(proposedIndex),
+            filteredItems[proposedIndex].id == id
+        {
             return proposedIndex
         }
 

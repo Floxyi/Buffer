@@ -14,7 +14,8 @@ final class ScrollControllerMetricsObserver {
         onSyncRequested: @escaping @Sendable @MainActor (NSScrollView) -> Void
     ) {
         if observedScrollView === scrollView,
-           observedDocumentView === scrollView.documentView {
+            observedDocumentView === scrollView.documentView
+        {
             scheduleSync(for: scrollView, onSyncRequested: onSyncRequested)
             return
         }
@@ -42,9 +43,10 @@ final class ScrollControllerMetricsObserver {
             self.scheduledSyncTask = nil
 
             guard !Task.isCancelled,
-                  let scrollView,
-                  self.observedScrollView === scrollView,
-                  self.observedDocumentView === scrollView.documentView else {
+                let scrollView,
+                self.observedScrollView === scrollView,
+                self.observedDocumentView === scrollView.documentView
+            else {
                 return
             }
             onSyncRequested(scrollView)

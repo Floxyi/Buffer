@@ -1,38 +1,6 @@
 import Foundation
 
 enum ClipboardItemTypeRegistry {
-    @MainActor
-    static func searchableText(for item: ClipboardItem, store: any ClipboardStoreReading) -> String {
-        switch item.content {
-        case .text:
-            return store.fullText(for: item) ?? item.textContent ?? ""
-        case .image(let payload):
-            return payload.ocrText ?? ""
-        case .color(let payload):
-            return payload.originalText
-        case .link(let payload):
-            return payload.originalText
-        case .email(let payload):
-            return payload.originalText
-        }
-    }
-
-    @MainActor
-    static func pastedText(for item: ClipboardItem, store: any ClipboardStoreReading) -> String? {
-        switch item.content {
-        case .text:
-            return store.fullText(for: item) ?? item.textContent
-        case .color(let payload):
-            return payload.originalText
-        case .link(let payload):
-            return payload.originalText
-        case .email(let payload):
-            return payload.originalText
-        case .image:
-            return nil
-        }
-    }
-
     static func contentHash(for item: ClipboardItem) -> Int {
         switch item.content {
         case .text(let payload):

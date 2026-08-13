@@ -11,10 +11,12 @@ struct ClipboardListContent: View {
     let items: [ClipboardItem]
     let displayRowsForRendering: [ClipboardListStructure.DisplayRow]
     let contentTrailingPadding: CGFloat
-    let store: ClipboardStore
-    let settings: SettingsManager
+    let websitePreviewsEnabled: Bool
+    let assetProvider: any ClipboardItemAssetProviding
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
+    let searchResultsByItemID: [UUID: ClipboardSearchResult]
+    let queryText: String
     let isAwaitingInitialOpenScroll: Bool
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
@@ -37,10 +39,12 @@ struct ClipboardListContent: View {
                     ClipboardListRowsSection(
                         rows: displayRowsForRendering,
                         items: items,
-                        store: store,
-                        settings: settings,
+                        websitePreviewsEnabled: websitePreviewsEnabled,
+                        assetProvider: assetProvider,
                         quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
                         selectedIDs: selectedIDs,
+                        searchResultsByItemID: searchResultsByItemID,
+                        queryText: queryText,
                         onCommitSelection: onCommitSelection,
                         onSelectSingle: onSelectSingle,
                         onToggleSelection: onToggleSelection,

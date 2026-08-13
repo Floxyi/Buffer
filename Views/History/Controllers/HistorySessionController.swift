@@ -1,16 +1,6 @@
 import Foundation
 
 struct HistorySessionController {
-    func handleSearchTextChange(state: HistorySessionState) -> (shouldRebuildFilteredItems: Bool, state: HistorySessionState) {
-        guard state.isApplyingProgrammaticSearchChange else {
-            return (true, state)
-        }
-
-        var nextState = state
-        nextState.isApplyingProgrammaticSearchChange = false
-        return (false, nextState)
-    }
-
     func makeWindowOpenPlan(
         searchText: String,
         focusSearch: Bool,
@@ -46,50 +36,17 @@ struct HistorySessionController {
 
     func makeJumpToHistoryPlan(
         for itemID: UUID,
-        currentSearchText: String,
-        state: HistorySessionState
+        currentSearchText: String
     ) -> HistoryJumpToHistoryPlan {
-        guard !currentSearchText.isEmpty else {
-            return HistoryJumpToHistoryPlan(
-                searchText: nil,
-                shouldRebuildFilteredItems: false,
-                preferredSelectionID: itemID,
-                state: state
-            )
-        }
-
-        var nextState = state
-        nextState.isApplyingProgrammaticSearchChange = true
-
         return HistoryJumpToHistoryPlan(
-            searchText: "",
-            shouldRebuildFilteredItems: true,
-            preferredSelectionID: itemID,
-            state: nextState
+            searchText: currentSearchText.isEmpty ? nil : "",
+            preferredSelectionID: itemID
         )
     }
 
     func clearedSearchText(currentSearchText: String, shouldKeepSearchText: Bool) -> String? {
         guard !shouldKeepSearchText, !currentSearchText.isEmpty else { return nil }
         return ""
-    }
-
-    func setPendingPreferredSelectionID(
-        _ preferredSelectionID: UUID?,
-        state: HistorySessionState
-    ) -> HistorySessionState {
-        var nextState = state
-        nextState.pendingPreferredSelectionID = preferredSelectionID
-        return nextState
-    }
-
-    func consumePendingPreferredSelectionID(
-        state: HistorySessionState
-    ) -> (preferredSelectionID: UUID?, state: HistorySessionState) {
-        var nextState = state
-        let preferredSelectionID = nextState.pendingPreferredSelectionID
-        nextState.pendingPreferredSelectionID = nil
-        return (preferredSelectionID, nextState)
     }
 
     func preferredTopSelectionID(

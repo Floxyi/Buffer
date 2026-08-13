@@ -40,7 +40,8 @@ struct PreparedClipboardText: Equatable, Sendable {
         let normalizedText = ClipboardTextNormalizer.normalize(text, mode: whitespaceMode)
         guard !normalizedText.isEmpty else { return nil }
 
-        let hashSource = normalizedText.utf8.count > ClipboardCaptureSupport.inlineTextLimit
+        let hashSource =
+            normalizedText.utf8.count > ClipboardCaptureSupport.inlineTextLimit
             ? String(normalizedText.prefix(10_000))
             : normalizedText
 

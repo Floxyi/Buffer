@@ -51,18 +51,21 @@ enum SettingsMigration {
         }
 
         let rawValue = store.string(for: .historyWindowOpenBehavior)
-        return HistoryWindowOpenBehavior(rawValue: rawValue ?? SettingsDefaults.defaultHistoryWindowOpenBehavior.rawValue)
+        return HistoryWindowOpenBehavior(
+            rawValue: rawValue ?? SettingsDefaults.defaultHistoryWindowOpenBehavior.rawValue)
             ?? SettingsDefaults.defaultHistoryWindowOpenBehavior
     }
 
     static func loadQuickPasteSettings(from store: any SettingsPersisting) -> QuickPasteSettings {
         let defaults = SettingsDefaults.defaultQuickPasteSettings
-        let enabled = store.object(for: .quickPasteEnabled) != nil
+        let enabled =
+            store.object(for: .quickPasteEnabled) != nil
             ? store.bool(for: .quickPasteEnabled)
             : defaults.enabled
-        let numberingStart = QuickPasteNumberingStart(
-            rawValue: store.string(for: .quickPasteNumberingStart) ?? defaults.numberingStart.rawValue
-        ) ?? defaults.numberingStart
+        let numberingStart =
+            QuickPasteNumberingStart(
+                rawValue: store.string(for: .quickPasteNumberingStart) ?? defaults.numberingStart.rawValue
+            ) ?? defaults.numberingStart
         let entryCount = store.object(for: .quickPasteEntryCount) as? Int ?? defaults.entryCount
 
         return QuickPasteSettings(enabled: enabled, numberingStart: numberingStart, entryCount: entryCount)
@@ -70,9 +73,10 @@ enum SettingsMigration {
 
     static func loadTextDetailSettings(from store: any SettingsPersisting) -> TextDetailSettings {
         let defaults = SettingsDefaults.defaultTextDetailSettings
-        let style = TextDetailFontStyle(
-            rawValue: store.string(for: .textDetailFontStyle) ?? defaults.style.rawValue
-        ) ?? defaults.style
+        let style =
+            TextDetailFontStyle(
+                rawValue: store.string(for: .textDetailFontStyle) ?? defaults.style.rawValue
+            ) ?? defaults.style
         let size = TextDetailFontSize(rawValue: store.integer(for: .textDetailFontSize)) ?? defaults.size
         return TextDetailSettings(style: style, size: size)
     }
@@ -90,10 +94,12 @@ enum SettingsMigration {
 
     static func loadPrivacySettings(from store: any SettingsPersisting) -> PrivacySettings {
         let defaults = SettingsDefaults.defaultPrivacySettings
-        let historyRetentionPeriod = HistoryRetentionPeriod(
-            rawValue: store.string(for: .historyRetentionPeriod) ?? defaults.historyRetentionPeriod.rawValue
-        ) ?? defaults.historyRetentionPeriod
-        let enableWebsitePreviews = store.object(for: .enableWebsitePreviews) != nil
+        let historyRetentionPeriod =
+            HistoryRetentionPeriod(
+                rawValue: store.string(for: .historyRetentionPeriod) ?? defaults.historyRetentionPeriod.rawValue
+            ) ?? defaults.historyRetentionPeriod
+        let enableWebsitePreviews =
+            store.object(for: .enableWebsitePreviews) != nil
             ? store.bool(for: .enableWebsitePreviews)
             : defaults.enableWebsitePreviews
 
@@ -116,7 +122,8 @@ enum SettingsMigration {
         do {
             return try JSONDecoder().decode([ExcludedApp].self, from: data)
         } catch {
-            BufferLogger.settings.error("Failed to decode excluded apps: \(String(describing: error), privacy: .public)")
+            BufferLogger.settings.error(
+                "Failed to decode excluded apps: \(String(describing: error), privacy: .public)")
             return []
         }
     }

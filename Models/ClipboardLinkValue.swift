@@ -21,14 +21,16 @@ enum ClipboardLinkValue {
         let host = (url.host ?? url.absoluteString)
             .replacingOccurrences(of: "^www\\.", with: "", options: .regularExpression)
 
-        let labels = host
+        let labels =
+            host
             .split(separator: ".")
             .map(String.init)
 
         let baseLabel: String
         if labels.count >= 3,
-           labels[labels.count - 1].count == 2,
-           labels[labels.count - 2].count <= 3 {
+            labels[labels.count - 1].count == 2,
+            labels[labels.count - 2].count <= 3
+        {
             baseLabel = labels[labels.count - 3]
         } else if labels.count >= 2 {
             baseLabel = labels[labels.count - 2]
@@ -36,7 +38,8 @@ enum ClipboardLinkValue {
             baseLabel = labels.first ?? host
         }
 
-        return baseLabel
+        return
+            baseLabel
             .split(whereSeparator: { $0 == "-" || $0 == "_" })
             .map { segment in
                 let word = String(segment)
@@ -67,9 +70,10 @@ enum ClipboardLinkValue {
     private static func normalizedWebURL(from string: String, requiringHTTPS: Bool = false) -> URL? {
         guard var components = URLComponents(string: string) else { return nil }
         guard let scheme = components.scheme?.lowercased(),
-              (requiringHTTPS ? scheme == "https" : (scheme == "http" || scheme == "https")),
-              let host = components.host,
-              hostLooksWebLike(host) else {
+            requiringHTTPS ? scheme == "https" : (scheme == "http" || scheme == "https"),
+            let host = components.host,
+            hostLooksWebLike(host)
+        else {
             return nil
         }
 

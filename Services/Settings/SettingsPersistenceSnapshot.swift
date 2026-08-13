@@ -63,7 +63,8 @@ struct SettingsPersistenceSnapshot {
             let data = try JSONEncoder().encode(excludedApps)
             store.set(data, for: .excludedApps)
         } catch {
-            BufferLogger.settings.error("Failed to encode excluded apps: \(String(describing: error), privacy: .public)")
+            BufferLogger.settings.error(
+                "Failed to encode excluded apps: \(String(describing: error), privacy: .public)")
         }
     }
 }

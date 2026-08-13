@@ -4,8 +4,7 @@ import Foundation
 struct ClipboardListLifecycleCoordinator {
     func handleAppear(
         items: [ClipboardItem],
-        settings: SettingsManager,
-        prewarmVisibleAssets: ([ClipboardItem], SettingsManager) -> Void,
+        prewarmVisibleAssets: ([ClipboardItem]) -> Void,
         currentScrollOffsetSnapshot: @escaping () -> CGFloat,
         syncScrollMetrics: @escaping () -> Void,
         onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void),
@@ -13,7 +12,7 @@ struct ClipboardListLifecycleCoordinator {
         restoreScrollOffset: @escaping (CGFloat) -> Void,
         applyOpenScrollRequestIfPossible: @escaping () -> Void
     ) {
-        prewarmVisibleAssets(items, settings)
+        prewarmVisibleAssets(items)
         onScrollOffsetProviderChanged {
             syncScrollMetrics()
             return currentScrollOffsetSnapshot()

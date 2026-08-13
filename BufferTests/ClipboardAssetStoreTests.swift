@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -44,15 +45,19 @@ final class ClipboardAssetStoreTests: XCTestCase {
 
         let items = [
             ClipboardItem.largeText(preview: "keep", filename: keptText),
-            ClipboardItem.image(filename: keptImage)
+            ClipboardItem.image(filename: keptImage),
         ]
 
         assetStore.cleanupOrphanedAssets(referencedBy: items)
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.textsDirectory.appendingPathComponent(keptText).path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: paths.textsDirectory.appendingPathComponent(orphanText).path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.imagesDirectory.appendingPathComponent(keptImage).path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: paths.imagesDirectory.appendingPathComponent(orphanImage).path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: paths.textsDirectory.appendingPathComponent(keptText).path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: paths.textsDirectory.appendingPathComponent(orphanText).path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: paths.imagesDirectory.appendingPathComponent(keptImage).path))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: paths.imagesDirectory.appendingPathComponent(orphanImage).path))
     }
 
     func testImageDimensionsAndItemSizeUseStoredImageData() throws {
@@ -65,5 +70,25 @@ final class ClipboardAssetStoreTests: XCTestCase {
 
         XCTAssertEqual(assetStore.imageDimensions(for: item), "7x5")
         XCTAssertNotNil(assetStore.itemSize(for: item))
+    }
+
+    func testItemAssetProviderLoadsFileBackedTextMetadataAsynchronously() async throws {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let text = "file-backed clipboard content"
+        let filename = try XCTUnwrap(store.saveText(text))
+        let item = ClipboardItem.largeText(preview: "file-backed", filename: filename)
+        let provider = ClipboardItemAssetProvider(store: store, settings: settings)
+
+        let fullText = await provider.loadFullText(for: item)
+        let chunk = await provider.loadTextChunk(for: item, charCount: 4)
+        let itemSize = await provider.loadItemSize(for: item)
+
+        XCTAssertEqual(fullText, text)
+        XCTAssertEqual(
+            chunk,
+            ClipboardTextChunk(text: "file", totalBytes: text.utf8.count, reachedEOF: false)
+        )
+        XCTAssertEqual(itemSize, text.utf8.count)
     }
 }

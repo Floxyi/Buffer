@@ -16,7 +16,7 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
             selectedItem: item,
             selectedItemsInVisualOrder: [item],
             selectedItemsInActionOrder: [item],
-            searchText: "openai",
+            isQueryActive: true,
             previewState: previewState,
             selectedItemsTotalSizeBytes: 512,
             actionResolver: HistoryActionResolver(),
@@ -28,7 +28,10 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertEqual(state.linkSelectionCount, 1)
         XCTAssertEqual(state.selectedItemsTotalSizeText, "512 bytes")
         XCTAssertTrue(state.canJumpToHistorySelection)
-        XCTAssertEqual(state.actions.map(\.action), [.copy, .openLink, .jumpToHistory, .togglePin, .delete])
+        XCTAssertEqual(
+            state.actions.map(\.action),
+            [.copy, .openLink, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
+        )
     }
 
     func testProjectsImageSelectionIntoImageCapabilities() {
@@ -38,7 +41,7 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
             selectedItem: item,
             selectedItemsInVisualOrder: [item],
             selectedItemsInActionOrder: [item],
-            searchText: "",
+            isQueryActive: false,
             previewState: HistoryPreviewState(),
             selectedItemsTotalSizeBytes: 2_048,
             actionResolver: HistoryActionResolver(),
@@ -60,7 +63,7 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
             selectedItem: item,
             selectedItemsInVisualOrder: [item],
             selectedItemsInActionOrder: [item],
-            searchText: "person",
+            isQueryActive: true,
             previewState: HistoryPreviewState(),
             selectedItemsTotalSizeBytes: 18,
             actionResolver: HistoryActionResolver(),
@@ -70,7 +73,10 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertEqual(state.emailSelectionCount, 1)
         XCTAssertEqual(state.linkSelectionCount, 0)
         XCTAssertEqual(state.firstTextPreview, "person@example.com")
-        XCTAssertEqual(state.actions.map(\.action), [.copy, .composeEmail, .jumpToHistory, .togglePin, .delete])
+        XCTAssertEqual(
+            state.actions.map(\.action),
+            [.copy, .composeEmail, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
+        )
     }
 
     func testDetailScrollResetIDChangesOnlyWithSelectionIdentity() {

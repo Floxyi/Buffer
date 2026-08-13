@@ -9,11 +9,11 @@ enum MenuBarIcon: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .clipboard: return "Clipboard"
-        case .clipboardDocument: return "Clipboard Document"
-        case .stack: return "Stack"
-        case .tray: return "Tray"
-        case .bolt: return "Bolt"
+        case .clipboard: return String(localized: "Clipboard")
+        case .clipboardDocument: return String(localized: "Clipboard Document")
+        case .stack: return String(localized: "Stack")
+        case .tray: return String(localized: "Tray")
+        case .bolt: return String(localized: "Bolt")
         }
     }
 
@@ -56,8 +56,8 @@ enum TextDetailFontStyle: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .regular: return "Regular"
-        case .monospaced: return "Monospaced"
+        case .regular: return String(localized: "Regular")
+        case .monospaced: return String(localized: "Monospaced")
         }
     }
 }
@@ -69,9 +69,9 @@ enum TextDetailFontSize: Int, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .small: return "Small"
-        case .medium: return "Medium"
-        case .large: return "Large"
+        case .small: return String(localized: "Small")
+        case .medium: return String(localized: "Medium")
+        case .large: return String(localized: "Large")
         }
     }
 }
@@ -98,10 +98,10 @@ enum HistoryRetentionPeriod: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .never: return "Never"
-        case .twelveHours: return "Older than 12 hours"
-        case .twentyFourHours: return "Older than 24 hours"
-        case .oneWeek: return "Older than 1 week"
+        case .never: return String(localized: "Never")
+        case .twelveHours: return String(localized: "Older than 12 hours")
+        case .twentyFourHours: return String(localized: "Older than 24 hours")
+        case .oneWeek: return String(localized: "Older than 1 week")
         }
     }
 
@@ -122,9 +122,9 @@ enum HistoryWindowOpenBehavior: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .keepLastSelection: return "Keep last selection"
-        case .selectFirstNonPinnedItem: return "Select first non-pinned item"
-        case .selectAnyFirstItem: return "Select any first item"
+        case .keepLastSelection: return String(localized: "Keep last selection")
+        case .selectFirstNonPinnedItem: return String(localized: "Select first non-pinned item")
+        case .selectAnyFirstItem: return String(localized: "Select any first item")
         }
     }
 }
@@ -135,8 +135,8 @@ enum QuickPasteNumberingStart: String, CaseIterable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .pinnedSection: return "Pinned section"
-        case .normalEntries: return "Normal entries"
+        case .pinnedSection: return String(localized: "Pinned section")
+        case .normalEntries: return String(localized: "Normal entries")
         }
     }
 }

@@ -25,7 +25,8 @@ final class ClipboardAssetCleanup: @unchecked Sendable {
         do {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         } catch {
-            BufferLogger.persistence.error("Failed to create \(label, privacy: .public) directory: \(String(describing: error), privacy: .public)")
+            BufferLogger.persistence.error(
+                "Failed to create \(label, privacy: .public) directory: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -45,7 +46,9 @@ final class ClipboardAssetCleanup: @unchecked Sendable {
         do {
             try fileManager.removeItem(at: url)
         } catch {
-            BufferLogger.persistence.error("Failed to remove \(label, privacy: .public) file \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            BufferLogger.persistence.error(
+                "Failed to remove \(label, privacy: .public) file \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
     }
 }

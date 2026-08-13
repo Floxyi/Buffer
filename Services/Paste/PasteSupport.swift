@@ -38,20 +38,48 @@ struct PasteEventSender: PasteEventSending {
     }
 }
 
-@MainActor
-struct PasteImageExporter: PasteImageExporting {
-    private static let staleSessionAge: TimeInterval = 24 * 60 * 60
+enum PasteImageDataEncoder {
+    static func pngData(from sourceData: Data) -> Data? {
+        convertedData(from: sourceData, contentType: .png)
+    }
 
-    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL? {
-        guard let sessionDirectory = sessionDirectory(for: sessionID, createIfNeeded: true) else { return nil }
-        let fileURL = sessionDirectory.appendingPathComponent(fileName, isDirectory: false)
+    static func tiffData(from sourceData: Data) -> Data? {
+        convertedData(from: sourceData, contentType: .tiff)
+    }
 
-        guard let tiffData = image.tiffRepresentation,
-            let bitmapImage = NSBitmapImageRep(data: tiffData),
-            let pngData = bitmapImage.representation(using: .png, properties: [:])
+    private static func convertedData(from sourceData: Data, contentType: UTType) -> Data? {
+        guard let source = CGImageSourceCreateWithData(sourceData as CFData, nil),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else {
             return nil
         }
+
+        let output = NSMutableData()
+        guard
+            let destination = CGImageDestinationCreateWithData(
+                output,
+                contentType.identifier as CFString,
+                1,
+                nil
+            )
+        else {
+            return nil
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+}
+
+actor PasteImageExporter: PasteTemporaryAssetExporting {
+    private static let staleSessionAge: TimeInterval = 24 * 60 * 60
+
+    func saveImageDataToTemp(_ data: Data, sessionID: UUID, fileName: String) -> URL? {
+        guard let sessionDirectory = sessionDirectory(for: sessionID, createIfNeeded: true) else { return nil }
+        let fileURL = sessionDirectory.appendingPathComponent(fileName, isDirectory: false)
+
+        guard let pngData = PasteImageDataEncoder.pngData(from: data) else { return nil }
 
         do {
             try pngData.write(to: fileURL, options: .atomic)
@@ -99,34 +127,7 @@ struct PasteImageExporter: PasteImageExporting {
         }
     }
 
-    func saveImageToDisk(_ image: NSImage) {
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        panel.nameFieldStringValue = "Image-\(formatter.string(from: Date()))"
-        panel.canCreateDirectories = true
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let tiffData = image.tiffRepresentation,
-            let bitmapRep = NSBitmapImageRep(data: tiffData),
-            let pngData = bitmapRep.representation(using: .png, properties: [:])
-        else {
-            BufferLogger.clipboard.error("Failed to create PNG data from image")
-            return
-        }
-
-        do {
-            try pngData.write(to: url, options: .atomic)
-        } catch {
-            BufferLogger.clipboard.error(
-                "Failed to save image to disk: \(String(describing: error), privacy: .public)"
-            )
-        }
-    }
-
-    private var pasteRootDirectory: URL {
+    nonisolated private var pasteRootDirectory: URL {
         URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("BufferPaste", isDirectory: true)
     }
@@ -156,6 +157,29 @@ struct PasteImageExporter: PasteImageExporting {
 @MainActor
 enum PasteImageSupport {
     static func saveImageToDisk(_ image: NSImage) {
-        PasteImageExporter().saveImageToDisk(image)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        panel.nameFieldStringValue = "Image-\(formatter.string(from: Date()))"
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let tiffData = image.tiffRepresentation,
+            let bitmapRep = NSBitmapImageRep(data: tiffData),
+            let pngData = bitmapRep.representation(using: .png, properties: [:])
+        else {
+            BufferLogger.clipboard.error("Failed to create PNG data from image")
+            return
+        }
+
+        do {
+            try pngData.write(to: url, options: .atomic)
+        } catch {
+            BufferLogger.clipboard.error(
+                "Failed to save image to disk: \(String(describing: error), privacy: .public)"
+            )
+        }
     }
 }

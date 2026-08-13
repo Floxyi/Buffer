@@ -6,4 +6,3 @@ struct HistorySelectionViewState {
     var selectedIndex = 0
     var selectedID: UUID?
 }
-

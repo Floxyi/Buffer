@@ -62,6 +62,37 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         XCTAssertEqual(viewModel.keyboardScrollRequest?.generation, 10)
     }
 
+    func testRapidArrowEventsDispatchEveryCommittedScrollRequestSynchronously() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let items = (0..<12).map { index in
+            ClipboardItem(
+                type: .text,
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                textContent: "item-\(index)"
+            )
+        }
+        await populateStore(store, with: items)
+
+        let router = HistoryKeyboardScrollRouter()
+        var receivedRequests: [HistoryKeyboardScrollRequest] = []
+        router.register { receivedRequests.append($0) }
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: ""),
+            keyboardScrollRouter: router
+        )
+
+        for _ in 0..<10 {
+            viewModel.navigateDown()
+        }
+
+        XCTAssertEqual(receivedRequests.map(\.generation), (1...10).map(UInt.init))
+        XCTAssertEqual(receivedRequests.last?.itemID, viewModel.selectedID)
+        XCTAssertEqual(receivedRequests.last?.targetIndex, viewModel.selectedIndex)
+    }
+
     func testAlternatingArrowNavigationUsesLatestCommittedIndex() async {
         let viewModel = await makeSelectionHistoryViewModel()
 

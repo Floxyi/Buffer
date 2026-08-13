@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 final class HistoryContextMenuControllerTests: XCTestCase {
@@ -9,7 +10,7 @@ final class HistoryContextMenuControllerTests: XCTestCase {
 
         let targets = controller.targetItems(
             for: first.id,
-            filteredItems: [first, second],
+            itemByID: [first.id: first, second.id: second],
             selectedIDs: [first.id, second.id],
             selectedItemsInActionOrder: [second, first]
         )
@@ -24,7 +25,7 @@ final class HistoryContextMenuControllerTests: XCTestCase {
 
         let targets = controller.targetItems(
             for: second.id,
-            filteredItems: [first, second],
+            itemByID: [first.id: first, second.id: second],
             selectedIDs: [first.id],
             selectedItemsInActionOrder: [first]
         )
@@ -32,28 +33,17 @@ final class HistoryContextMenuControllerTests: XCTestCase {
         XCTAssertEqual(targets.map(\.id), [second.id])
     }
 
-    func testShouldShowUnpinRequiresAllTargetsPinned() {
+    func testUnknownClickedItemProducesNoTargets() {
         let controller = HistoryContextMenuController()
-        var pinned = ClipboardItem.text("pinned")
-        pinned.isPinned = true
-        pinned.pinnedAt = Date()
-        let plain = ClipboardItem.text("plain")
+        let item = ClipboardItem.text("known")
 
         XCTAssertTrue(
-            controller.shouldShowUnpin(
-                for: pinned.id,
-                filteredItems: [pinned],
+            controller.targetItems(
+                for: UUID(),
+                itemByID: [item.id: item],
                 selectedIDs: [],
                 selectedItemsInActionOrder: []
-            )
-        )
-        XCTAssertFalse(
-            controller.shouldShowUnpin(
-                for: plain.id,
-                filteredItems: [pinned, plain],
-                selectedIDs: [pinned.id, plain.id],
-                selectedItemsInActionOrder: [pinned, plain]
-            )
+            ).isEmpty
         )
     }
 }

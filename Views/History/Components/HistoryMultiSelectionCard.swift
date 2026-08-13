@@ -1,8 +1,9 @@
+import AppKit
 import SwiftUI
 
 struct HistoryMultiSelectionCard: View {
     let item: ClipboardItem
-    let store: ClipboardStore
+    let assetProvider: any ClipboardItemAssetProviding
     let isCollapsed: Bool
     let isTextExpanded: Bool
     let textDetailFontStyle: TextDetailFontStyle
@@ -37,7 +38,7 @@ struct HistoryMultiSelectionCard: View {
             if !isCollapsed {
                 HistoryMultiSelectionCardContent(
                     item: item,
-                    store: store,
+                    assetProvider: assetProvider,
                     isTextExpanded: isTextExpanded,
                     textDetailFontStyle: textDetailFontStyle,
                     textDetailFontSize: textDetailFontSize,
@@ -126,35 +127,35 @@ private struct HistoryMultiSelectionCardHeader: View {
     private var primaryMetadata: String {
         switch item.kind {
         case .text, .image:
-            return item.sourceAppDisplayName ?? "Unknown App"
+            return item.sourceAppDisplayName ?? String(localized: "Unknown App")
         case .color:
-            return item.colorPayload?.originalText ?? "Color"
+            return item.colorPayload?.originalText ?? String(localized: "Color")
         case .link:
-            return item.linkPayload?.websiteName ?? "Website"
+            return item.linkPayload?.websiteName ?? String(localized: "Website")
         case .email:
-            return item.emailPayload?.address ?? "Email"
+            return item.emailPayload?.address ?? String(localized: "Email")
         }
     }
 
     private var itemTypeLabel: String {
         switch item.kind {
         case .text:
-            return "Text"
+            return String(localized: "Text")
         case .image:
-            return "Image"
+            return String(localized: "Image")
         case .color:
-            return "Color"
+            return String(localized: "Color")
         case .link:
-            return "Link"
+            return String(localized: "Link")
         case .email:
-            return "Email"
+            return String(localized: "Email")
         }
     }
 }
 
 private struct HistoryMultiSelectionCardContent: View {
     let item: ClipboardItem
-    let store: ClipboardStore
+    let assetProvider: any ClipboardItemAssetProviding
     let isTextExpanded: Bool
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
@@ -163,52 +164,92 @@ private struct HistoryMultiSelectionCardContent: View {
     let onCopyOCRText: (String) -> Void
     let onCopyColorVariant: (String) -> Void
 
+    @State private var loadedText: String?
+    @State private var previewImage: NSImage?
+    @State private var loadedItemID: UUID?
+
     var body: some View {
+        Group {
+            switch ClipboardItemPresentation.definition(for: item).detailContentKind {
+            case .text:
+                HistoryMultiSelectionTextPreview(
+                    text: currentLoadedText ?? item.textContent ?? "",
+                    isExpanded: isTextExpanded,
+                    textDetailFontStyle: textDetailFontStyle,
+                    textDetailFontSize: textDetailFontSize,
+                    onToggleExpanded: onToggleExpandedText
+                )
+                .padding(.top, 16)
+
+            case .image:
+                HistoryImageDetailContent(
+                    item: item,
+                    previewImage: currentPreviewImage ?? assetProvider.cachedPreviewImage(for: item),
+                    isExtractingText: false,
+                    onCopyOCRText: onCopyOCRText
+                )
+                .padding(.top, 16)
+                .frame(maxHeight: 420)
+
+            case .color:
+                HistoryColorDetailContent(
+                    item: item,
+                    textDetailFontStyle: textDetailFontStyle,
+                    textDetailFontSize: textDetailFontSize,
+                    onCopyColorVariant: onCopyColorVariant
+                )
+                .padding(.top, 16)
+
+            case .link:
+                HistoryLinkDetailContent(
+                    item: item,
+                    enableWebsitePreviews: enableWebsitePreviews
+                )
+                .padding(.top, 16)
+                .frame(minHeight: 220, maxHeight: 320)
+
+            case .email:
+                HistoryEmailDetailContent(
+                    item: item,
+                    textDetailFontStyle: textDetailFontStyle,
+                    textDetailFontSize: textDetailFontSize
+                )
+                .padding(.top, 16)
+            }
+        }
+        .task(id: item.id) {
+            await loadPreviewAssets()
+        }
+    }
+
+    private func loadPreviewAssets() async {
+        loadedText = nil
+        previewImage = nil
+        loadedItemID = nil
+
         switch ClipboardItemPresentation.definition(for: item).detailContentKind {
-        case .text:
-            HistoryMultiSelectionTextPreview(
-                text: store.fullText(for: item) ?? item.textContent ?? "",
-                isExpanded: isTextExpanded,
-                textDetailFontStyle: textDetailFontStyle,
-                textDetailFontSize: textDetailFontSize,
-                onToggleExpanded: onToggleExpandedText
-            )
-            .padding(.top, 16)
+        case .text where item.isFileBacked:
+            let text = await assetProvider.loadFullText(for: item)
+            guard !Task.isCancelled else { return }
+            loadedText = text
+            loadedItemID = item.id
 
         case .image:
-            HistoryImageDetailContent(
-                item: item,
-                previewImage: store.image(for: item),
-                isExtractingText: false,
-                onCopyOCRText: onCopyOCRText
-            )
-            .padding(.top, 16)
-            .frame(maxHeight: 420)
+            let image = await assetProvider.loadPreviewImage(for: item)
+            guard !Task.isCancelled else { return }
+            previewImage = image
+            loadedItemID = item.id
 
-        case .color:
-            HistoryColorDetailContent(
-                item: item,
-                textDetailFontStyle: textDetailFontStyle,
-                textDetailFontSize: textDetailFontSize,
-                onCopyColorVariant: onCopyColorVariant
-            )
-            .padding(.top, 16)
-
-        case .link:
-            HistoryLinkDetailContent(
-                item: item,
-                enableWebsitePreviews: enableWebsitePreviews
-            )
-            .padding(.top, 16)
-            .frame(minHeight: 220, maxHeight: 320)
-
-        case .email:
-            HistoryEmailDetailContent(
-                item: item,
-                textDetailFontStyle: textDetailFontStyle,
-                textDetailFontSize: textDetailFontSize
-            )
-            .padding(.top, 16)
+        case .text, .color, .link, .email:
+            break
         }
+    }
+
+    private var currentLoadedText: String? {
+        loadedItemID == item.id ? loadedText : nil
+    }
+
+    private var currentPreviewImage: NSImage? {
+        loadedItemID == item.id ? previewImage : nil
     }
 }

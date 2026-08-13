@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-final class ClipboardIconImageValue: @unchecked Sendable {
+private final class ClipboardWebsiteIconImageValue: @unchecked Sendable {
     let image: NSImage?
 
     init(_ image: NSImage?) {
@@ -9,16 +9,16 @@ final class ClipboardIconImageValue: @unchecked Sendable {
     }
 }
 
-enum ClipboardIconImageCodec {
-    nonisolated static func decode(_ data: Data) async -> ClipboardIconImageValue {
+private enum ClipboardWebsiteIconImageCodec {
+    nonisolated static func decode(_ data: Data) async -> ClipboardWebsiteIconImageValue {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: ClipboardIconImageValue(NSImage(data: data)))
+                continuation.resume(returning: ClipboardWebsiteIconImageValue(NSImage(data: data)))
             }
         }
     }
 
-    nonisolated static func pngData(from value: ClipboardIconImageValue) async -> Data? {
+    nonisolated static func pngData(from value: ClipboardWebsiteIconImageValue) async -> Data? {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 guard let image = value.image,
@@ -45,7 +45,7 @@ enum ClipboardWebsiteIconCache {
     }()
 
     private static var missingKeys = Set<String>()
-    private static var diskStore = ClipboardIconDiskStore.defaultWebsiteStore()
+    private static var diskStore = ClipboardWebsiteIconDiskStore.defaultStore()
     private static var hasHydratedPersistedIcons = false
 
     static func cachedIcon(for url: URL) -> NSImage? {
@@ -83,9 +83,11 @@ enum ClipboardWebsiteIconCache {
 
         let currentDiskStore = diskStore
         Task {
-            guard let data = await ClipboardIconImageCodec.pngData(
-                from: ClipboardIconImageValue(normalizedImage)
-            ) else { return }
+            guard
+                let data = await ClipboardWebsiteIconImageCodec.pngData(
+                    from: ClipboardWebsiteIconImageValue(normalizedImage)
+                )
+            else { return }
             await currentDiskStore.store(data, forKey: key)
         }
     }
@@ -97,7 +99,7 @@ enum ClipboardWebsiteIconCache {
 
         let entries = await diskStore.loadAll(limit: limit)
         for entry in entries {
-            guard let image = await ClipboardIconImageCodec.decode(entry.data).image else {
+            guard let image = await ClipboardWebsiteIconImageCodec.decode(entry.data).image else {
                 continue
             }
 
@@ -109,7 +111,7 @@ enum ClipboardWebsiteIconCache {
     static func loadPersistedIcon(for url: URL) async -> NSImage? {
         guard let key = cacheKey(for: url),
             let data = await diskStore.loadData(forKey: key),
-            let image = await ClipboardIconImageCodec.decode(data).image
+            let image = await ClipboardWebsiteIconImageCodec.decode(data).image
         else {
             return nil
         }
@@ -126,7 +128,7 @@ enum ClipboardWebsiteIconCache {
     }
 
     static func configureDiskStoreForTesting(directory: URL) {
-        diskStore = ClipboardIconDiskStore(directory: directory)
+        diskStore = ClipboardWebsiteIconDiskStore(directory: directory)
         hasHydratedPersistedIcons = false
         clear()
     }
@@ -177,23 +179,23 @@ enum ClipboardWebsiteIconCache {
 
 }
 
-struct ClipboardIconDiskEntry: Sendable {
+struct ClipboardWebsiteIconDiskEntry: Sendable {
     let key: String
     let data: Data
 }
 
-actor ClipboardIconDiskStore {
+actor ClipboardWebsiteIconDiskStore {
     private let directory: URL
 
     init(directory: URL) {
         self.directory = directory
     }
 
-    static func defaultWebsiteStore() -> ClipboardIconDiskStore {
+    static func defaultStore() -> ClipboardWebsiteIconDiskStore {
         let cachesDirectory =
             FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        return ClipboardIconDiskStore(
+        return ClipboardWebsiteIconDiskStore(
             directory:
                 cachesDirectory
                 .appendingPathComponent("Buffer", isDirectory: true)
@@ -216,7 +218,7 @@ actor ClipboardIconDiskStore {
         try? Data(contentsOf: fileURL(forKey: key))
     }
 
-    func loadAll(limit: Int) -> [ClipboardIconDiskEntry] {
+    func loadAll(limit: Int) -> [ClipboardWebsiteIconDiskEntry] {
         guard limit > 0,
             let fileURLs = try? FileManager.default.contentsOfDirectory(
                 at: directory,
@@ -243,7 +245,7 @@ actor ClipboardIconDiskStore {
                     return nil
                 }
 
-                return ClipboardIconDiskEntry(key: key, data: data)
+                return ClipboardWebsiteIconDiskEntry(key: key, data: data)
             }
     }
 

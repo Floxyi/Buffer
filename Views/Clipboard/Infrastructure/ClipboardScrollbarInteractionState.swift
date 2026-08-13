@@ -112,7 +112,8 @@ struct ScrollbarThumbInteractionState {
             )
         }
 
-        let visualWidth = isHovering || isDraggingThumb
+        let visualWidth =
+            isHovering || isDraggingThumb
             ? expandedWidth
             : collapsedWidth
 
@@ -144,7 +145,8 @@ struct ScrollbarThumbInteractionState {
         metrics: ScrollbarMetrics
     ) -> CGFloat {
         let clampedOrigin = originY.clamped(to: 0...metrics.availableTravel)
-        let progress = metrics.availableTravel > 0
+        let progress =
+            metrics.availableTravel > 0
             ? clampedOrigin / metrics.availableTravel
             : 0
 

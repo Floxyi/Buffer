@@ -55,7 +55,7 @@ enum ClipboardItemPresentation {
             displayName: "Email",
             detailContentKind: .email,
             detailActions: [.composeEmail]
-        )
+        ),
     ]
 
     static func definition(for item: ClipboardItem) -> ClipboardItemPresentationDefinition {
@@ -87,7 +87,8 @@ enum ClipboardItemPresentation {
             return definition(for: item).displayName
         case .text, .color, .link, .email:
             let rawText = previewText(for: item)
-            let collapsed = rawText
+            let collapsed =
+                rawText
                 .split(whereSeparator: \.isWhitespace)
                 .joined(separator: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)

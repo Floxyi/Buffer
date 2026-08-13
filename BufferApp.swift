@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 struct BufferApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
+
     var body: some Scene {
         Settings {
             EmptyView()

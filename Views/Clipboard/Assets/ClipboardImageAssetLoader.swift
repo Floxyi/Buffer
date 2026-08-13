@@ -2,6 +2,19 @@ import AppKit
 
 @MainActor
 enum ClipboardImageAssetLoader {
+    private final class ImageValue: @unchecked Sendable {
+        let image: NSImage
+
+        init(_ image: NSImage) {
+            self.image = image
+        }
+    }
+
+    private struct ActiveLoad<Value: Sendable> {
+        let id: UUID
+        let task: Task<Value?, Never>
+    }
+
     private static let defaultThumbnailScale = CGFloat(2)
     private static let thumbnailCache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
@@ -15,6 +28,9 @@ enum ClipboardImageAssetLoader {
         cache.countLimit = 128
         return cache
     }()
+    private static var activeThumbnailLoads: [String: ActiveLoad<ImageValue>] = [:]
+    private static var activePreviewLoads: [String: ActiveLoad<ImageValue>] = [:]
+    private static var activeDimensionsLoads: [UUID: ActiveLoad<String>] = [:]
 
     static func loadThumbnail(
         for item: ClipboardItem,
@@ -31,15 +47,27 @@ enum ClipboardImageAssetLoader {
             return cachedThumbnail
         }
 
-        guard !Task.isCancelled,
-            let thumbnail = await store.thumbnailAsync(for: item, maxPixelSize: pixelSize),
-            !Task.isCancelled
-        else {
-            return nil
+        if let activeLoad = activeThumbnailLoads[key] {
+            let value = await activeLoad.task.value
+            return Task.isCancelled ? nil : value?.image
         }
 
-        thumbnailCache.setObject(thumbnail, forKey: key as NSString)
-        return thumbnail
+        let loadID = UUID()
+        let task: Task<ImageValue?, Never> = Task { @MainActor in
+            guard !Task.isCancelled,
+                let thumbnail = await store.thumbnailAsync(for: item, maxPixelSize: pixelSize),
+                !Task.isCancelled
+            else { return nil }
+
+            thumbnailCache.setObject(thumbnail, forKey: key as NSString)
+            return ImageValue(thumbnail)
+        }
+        activeThumbnailLoads[key] = ActiveLoad(id: loadID, task: task)
+        let value = await task.value
+        if activeThumbnailLoads[key]?.id == loadID {
+            activeThumbnailLoads.removeValue(forKey: key)
+        }
+        return Task.isCancelled ? nil : value?.image
     }
 
     static func cachedThumbnail(
@@ -66,15 +94,27 @@ enum ClipboardImageAssetLoader {
             return cachedImage
         }
 
-        guard !Task.isCancelled,
-            let image = await store.imageAsync(for: item),
-            !Task.isCancelled
-        else {
-            return nil
+        if let activeLoad = activePreviewLoads[filename] {
+            let value = await activeLoad.task.value
+            return Task.isCancelled ? nil : value?.image
         }
 
-        previewImageCache.setObject(image, forKey: filename as NSString)
-        return image
+        let loadID = UUID()
+        let task: Task<ImageValue?, Never> = Task { @MainActor in
+            guard !Task.isCancelled,
+                let image = await store.imageAsync(for: item),
+                !Task.isCancelled
+            else { return nil }
+
+            previewImageCache.setObject(image, forKey: filename as NSString)
+            return ImageValue(image)
+        }
+        activePreviewLoads[filename] = ActiveLoad(id: loadID, task: task)
+        let value = await task.value
+        if activePreviewLoads[filename]?.id == loadID {
+            activePreviewLoads.removeValue(forKey: filename)
+        }
+        return Task.isCancelled ? nil : value?.image
     }
 
     static func cachedPreviewImage(for item: ClipboardItem) -> NSImage? {
@@ -93,15 +133,27 @@ enum ClipboardImageAssetLoader {
             return cachedText
         }
 
-        guard !Task.isCancelled,
-            let dimensionsText = await store.imageDimensionsAsync(for: item),
-            !Task.isCancelled
-        else {
-            return nil
+        if let activeLoad = activeDimensionsLoads[item.id] {
+            let dimensionsText = await activeLoad.task.value
+            return Task.isCancelled ? nil : dimensionsText
         }
 
-        imageDimensionsTextCache[item.id] = dimensionsText
-        return dimensionsText
+        let loadID = UUID()
+        let task: Task<String?, Never> = Task { @MainActor in
+            guard !Task.isCancelled,
+                let dimensionsText = await store.imageDimensionsAsync(for: item),
+                !Task.isCancelled
+            else { return nil }
+
+            imageDimensionsTextCache[item.id] = dimensionsText
+            return dimensionsText
+        }
+        activeDimensionsLoads[item.id] = ActiveLoad(id: loadID, task: task)
+        let dimensionsText = await task.value
+        if activeDimensionsLoads[item.id]?.id == loadID {
+            activeDimensionsLoads.removeValue(forKey: item.id)
+        }
+        return Task.isCancelled ? nil : dimensionsText
     }
 
     static func cachedImageDimensionsText(for item: ClipboardItem) -> String? {
@@ -141,6 +193,18 @@ enum ClipboardImageAssetLoader {
     }
 
     static func clearCaches() {
+        for load in activeThumbnailLoads.values {
+            load.task.cancel()
+        }
+        for load in activePreviewLoads.values {
+            load.task.cancel()
+        }
+        for load in activeDimensionsLoads.values {
+            load.task.cancel()
+        }
+        activeThumbnailLoads.removeAll()
+        activePreviewLoads.removeAll()
+        activeDimensionsLoads.removeAll()
         thumbnailCache.removeAllObjects()
         previewImageCache.removeAllObjects()
         imageDimensionsTextCache.removeAll()

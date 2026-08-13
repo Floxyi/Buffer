@@ -13,9 +13,11 @@ struct SettingsBehaviourHistoryWindowSection: View {
                 }
             }
 
-            Text("Choose whether Buffer restores the previous selection or selects a fresh item when the history window reopens.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Choose whether Buffer restores the previous selection or selects a fresh item when the history window reopens."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -31,9 +33,11 @@ struct SettingsBehaviourSearchSection: View {
 
             Toggle("Keep the search text after closing", isOn: bindings.searchBehavior.keepSearchTextAfterClosing)
 
-            Text("Choose whether the search field is preserved after pasting or copying an item, and after closing the history window.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Choose whether the search field is preserved after pasting or copying an item, and after closing the history window."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -45,7 +49,9 @@ struct SettingsBehaviourItemActionsSection: View {
 
     var body: some View {
         Section("Item Actions") {
-            Toggle("Confirm before deleting with keyboard shortcut", isOn: bindings.searchBehavior.confirmDeleteWithKeyboardShortcut)
+            Toggle(
+                "Confirm before deleting with keyboard shortcut",
+                isOn: bindings.searchBehavior.confirmDeleteWithKeyboardShortcut)
 
             Text("Choose whether Delete or Command-Delete asks for confirmation.")
                 .font(.caption)
@@ -78,9 +84,11 @@ struct SettingsBehaviourQuickPasteSection: View {
             }
             .disabled(!settings.quickPasteEnabled)
 
-            Text("Choose whether Command-number quick paste starts in the pinned section or at the first normal history item, and how many entries it can address.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Choose whether Command-number quick paste starts in the pinned section or at the first normal history item, and how many entries it can address."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -104,9 +112,11 @@ struct SettingsBehaviourWhitespaceSection: View {
             )
             .disabled(settings.clipboardWhitespaceMode.showsSpacesAndTabs)
 
-            Text("Visible whitespace changes only Buffer's text detail display. Trimming applies only to new history entries and leaves the system clipboard unchanged.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Visible whitespace changes only Buffer's text detail display. Trimming applies only to new history entries and leaves the system clipboard unchanged."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }

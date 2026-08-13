@@ -5,25 +5,65 @@ struct HistoryContentView: View {
     @ObservedObject var viewModel: HistoryViewModel
     @ObservedObject var settings: SettingsManager
     @ObservedObject var pasteState: HistoryPasteStateController
-    let store: ClipboardStore
-    let onCopyToClipboard: (ClipboardItem) -> Bool
-    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Bool
-    let onPaste: (ClipboardItem) -> Void
-    let onPasteMultiple: ([ClipboardItem]) -> Void
+    let contentReader: any ClipboardPasteContentReading
+    let itemAssetProvider: any ClipboardItemAssetProviding
+    let listAssetPrewarmer: ClipboardListAssetPrewarmer
+    let keyboardScrollRouter: HistoryKeyboardScrollRouter
+    let onCopy: ([ClipboardItem]) async -> Bool
+    let onPaste: ([ClipboardItem]) -> Void
+    let presentingWindow: () -> NSWindow?
     let onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
-    let onRetryPaste: () -> Void
-    let onDismissPasteFailure: () -> Void
-    let onRequestPastePermission: () -> Void
 
     @StateObject private var searchFocusController = HistorySearchFocusController()
     @StateObject private var deleteConfirmationController = HistoryDeleteConfirmationController()
 
     var body: some View {
+        content
+            .frame(minWidth: 800, minHeight: 500)
+            .background(BufferWindowBackdrop())
+            .clipShape(RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(HistoryWindowStyle.panelBorderOpacity), lineWidth: 1)
+            }
+            .shadow(color: Color.black.opacity(0.18), radius: 24, y: 10)
+            .ignoresSafeArea(.container, edges: .top)
+            .onAppear {
+                searchFocusController.handleAppear(isAppActive: NSApp.isActive)
+            }
+            .onChange(of: viewModel.windowOpenToken) { _ in
+                searchFocusController.handleWindowOpen(shouldFocusSearch: viewModel.shouldFocusSearchOnOpen)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                searchFocusController.handleDidBecomeActive()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+                viewModel.handleAppResignActive()
+            }
+            .background(
+                HistoryWindowKeyMonitor(
+                    onCommand: handleKeyboardCommand(_:)
+                )
+            )
+            .allowsHitTesting(!pasteState.isPasteInProgress)
+            .alert(item: $viewModel.mutationFailure) { failure in
+                Alert(
+                    title: Text("Couldn’t Update History"),
+                    message: Text(failure.message),
+                    dismissButton: .default(Text("OK"), action: viewModel.dismissMutationFailure)
+                )
+            }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             HistorySearchBar(
-                searchText: $viewModel.searchText,
+                searchText: Binding(
+                    get: { viewModel.searchText },
+                    set: { viewModel.searchText = $0 }
+                ),
                 filteredItemCount: viewModel.filteredItems.count,
                 isSearchFocused: $searchFocusController.isSearchFocused,
                 searchSelectionToken: viewModel.searchSelectionToken
@@ -57,78 +97,20 @@ struct HistoryContentView: View {
                 onPaste: actionHandler.performPrimaryPasteAction
             )
         }
-        .frame(minWidth: 800, minHeight: 500)
-        .background(BufferWindowBackdrop())
-        .clipShape(RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(HistoryWindowStyle.panelBorderOpacity), lineWidth: 1)
-        }
-        .shadow(color: Color.black.opacity(0.18), radius: 24, y: 10)
-        .ignoresSafeArea(.container, edges: .top)
-        .onAppear {
-            searchFocusController.handleAppear(isAppActive: NSApp.isActive)
-        }
-        .onChange(of: viewModel.windowOpenToken) { _ in
-            searchFocusController.handleWindowOpen(shouldFocusSearch: viewModel.shouldFocusSearchOnOpen)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            searchFocusController.handleDidBecomeActive()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            viewModel.handleAppResignActive()
-        }
-        .background(
-            HistoryWindowKeyMonitor(
-                onCommand: handleKeyboardCommand(_:)
-            )
-        )
-        .disabled(pasteState.isPasteInProgress)
-        .alert(item: $pasteState.failure) { failure in
-            pasteFailureAlert(failure)
-        }
     }
 
     private func handleKeyboardCommand(_ command: HistoryKeyboardCommand) {
-        guard !pasteState.isPasteInProgress else { return }
+        guard !pasteState.blocksPasteAttempt else { return }
         keyboardCommandHandler.handle(command)
-    }
-
-    private func pasteFailureAlert(_ failure: HistoryPasteFailurePresentation) -> Alert {
-        switch failure.recovery {
-        case .cancelOnly:
-            return Alert(
-                title: Text(failure.title),
-                message: Text(failure.message),
-                dismissButton: .default(Text("OK"), action: onDismissPasteFailure)
-            )
-
-        case .retry:
-            return Alert(
-                title: Text(failure.title),
-                message: Text(failure.message),
-                primaryButton: .default(Text("Retry"), action: onRetryPaste),
-                secondaryButton: .cancel(onDismissPasteFailure)
-            )
-
-        case .requestPermission:
-            return Alert(
-                title: Text(failure.title),
-                message: Text(failure.message),
-                primaryButton: .default(
-                    Text("Open System Settings"),
-                    action: onRequestPastePermission
-                ),
-                secondaryButton: .cancel(onDismissPasteFailure)
-            )
-        }
     }
 
     private var listPane: some View {
         HistoryClipboardListPane(
             viewModel: viewModel,
             settings: settings,
-            store: store,
+            assetProvider: itemAssetProvider,
+            assetPrewarmer: listAssetPrewarmer,
+            keyboardScrollRouter: keyboardScrollRouter,
             actionHandler: actionHandler,
             onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
             onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
@@ -142,7 +124,7 @@ struct HistoryContentView: View {
             textDetailFontSize: settings.textDetailFontSize,
             showsSpacesAndTabs: settings.clipboardWhitespaceMode.showsSpacesAndTabs,
             enableWebsitePreviews: settings.enableWebsitePreviews,
-            store: store,
+            assetProvider: itemAssetProvider,
             actionsForItem: { item in
                 viewModel.contextMenuActions(for: item.id)
             },
@@ -164,12 +146,12 @@ struct HistoryContentView: View {
     private var actionHandler: HistoryActionHandler {
         HistoryActionHandler(
             viewModel: viewModel,
-            store: store,
-            onCopyToClipboard: onCopyToClipboard,
-            onCopyMultipleToClipboard: onCopyMultipleToClipboard,
+            contentReader: contentReader,
+            assetProvider: itemAssetProvider,
+            onCopy: onCopy,
             onPaste: onPaste,
-            onPasteMultiple: onPasteMultiple,
-            onDismiss: onDismiss
+            onDismiss: onDismiss,
+            presentingWindow: presentingWindow
         )
     }
 
@@ -203,13 +185,11 @@ struct HistoryContentView: View {
                 },
                 togglePinned: viewModel.togglePinForSelectedItem,
                 saveImage: {
-                    if let image = viewModel.detailViewState.previewImage {
-                        PasteImageSupport.saveImageToDisk(image)
-                    }
+                    actionHandler.performDetailAction(.saveImage)
                 },
                 quickPaste: { index in
                     if let item = viewModel.performQuickPaste(at: index) {
-                        onPaste(item)
+                        onPaste([item])
                     }
                 },
                 presentDeleteConfirmation: { request in

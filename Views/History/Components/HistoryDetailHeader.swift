@@ -7,19 +7,21 @@ enum HistoryItemAction: Hashable {
     case jumpToHistory
     case saveImage
     case extractImageText
+    case toggleBookmark
     case togglePin
     case delete
 
     var label: String {
         switch self {
-        case .copy: return "Copy"
-        case .openLink: return "Open Website"
-        case .composeEmail: return "Compose Email"
-        case .jumpToHistory: return "Jump to History"
-        case .saveImage: return "Save Image"
-        case .extractImageText: return "Extract Text"
-        case .togglePin: return "Pin"
-        case .delete: return "Delete"
+        case .copy: return String(localized: "Copy")
+        case .openLink: return String(localized: "Open Website")
+        case .composeEmail: return String(localized: "Compose Email")
+        case .jumpToHistory: return String(localized: "Jump to History")
+        case .saveImage: return String(localized: "Save Image")
+        case .extractImageText: return String(localized: "Extract Text")
+        case .toggleBookmark: return String(localized: "Bookmark")
+        case .togglePin: return String(localized: "Pin")
+        case .delete: return String(localized: "Delete")
         }
     }
 
@@ -31,6 +33,7 @@ enum HistoryItemAction: Hashable {
         case .jumpToHistory: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
         case .saveImage: return "arrow.down.to.line"
         case .extractImageText: return "text.viewfinder"
+        case .toggleBookmark: return "bookmark"
         case .togglePin: return "pin"
         case .delete: return "trash"
         }
@@ -44,6 +47,7 @@ struct HistoryItemActionDescriptor: Identifiable, Hashable {
     let isEnabled: Bool
     let isDestructive: Bool
     let isPinnedVariant: Bool
+    let isBookmarkedVariant: Bool
 
     var id: HistoryItemAction { action }
 
@@ -53,7 +57,8 @@ struct HistoryItemActionDescriptor: Identifiable, Hashable {
         systemImage: String? = nil,
         isEnabled: Bool = true,
         isDestructive: Bool = false,
-        isPinnedVariant: Bool = false
+        isPinnedVariant: Bool = false,
+        isBookmarkedVariant: Bool = false
     ) {
         self.action = action
         self.title = title ?? action.label
@@ -61,6 +66,7 @@ struct HistoryItemActionDescriptor: Identifiable, Hashable {
         self.isEnabled = isEnabled
         self.isDestructive = isDestructive
         self.isPinnedVariant = isPinnedVariant
+        self.isBookmarkedVariant = isBookmarkedVariant
     }
 }
 

@@ -7,14 +7,16 @@ enum ClipboardColorHSLConverter {
         lightness: Double,
         alpha: Double
     ) -> ClipboardColorValue {
-        let normalizedHue = ((hue.truncatingRemainder(dividingBy: 360)) + 360)
+        let normalizedHue =
+            ((hue.truncatingRemainder(dividingBy: 360)) + 360)
             .truncatingRemainder(dividingBy: 360) / 360.0
 
         if saturation == 0 {
             return ClipboardColorValue(red: lightness, green: lightness, blue: lightness, alpha: alpha)
         }
 
-        let q = lightness < 0.5
+        let q =
+            lightness < 0.5
             ? lightness * (1 + saturation)
             : lightness + saturation - lightness * saturation
         let p = 2 * lightness - q
@@ -52,7 +54,8 @@ enum ClipboardColorHSLConverter {
             return (0, 0, lightness)
         }
 
-        let saturation = lightness > 0.5
+        let saturation =
+            lightness > 0.5
             ? delta / (2.0 - maxComponent - minComponent)
             : delta / (maxComponent + minComponent)
 
@@ -69,4 +72,3 @@ enum ClipboardColorHSLConverter {
         return (hue, saturation, lightness)
     }
 }
-

@@ -83,7 +83,8 @@ final class ScrollViewConfiguratorView: NSView {
             }
 
             if searchStrategy == .nearestOrFallback,
-               let scrollView = view.firstDescendant(of: NSScrollView.self) {
+                let scrollView = view.firstDescendant(of: NSScrollView.self)
+            {
                 return scrollView
             }
 
@@ -98,8 +99,8 @@ final class ScrollViewConfiguratorView: NSView {
     }
 }
 
-private extension NSView {
-    func firstDescendant<T: NSView>(of type: T.Type) -> T? {
+extension NSView {
+    fileprivate func firstDescendant<T: NSView>(of type: T.Type) -> T? {
         if let match = self as? T {
             return match
         }

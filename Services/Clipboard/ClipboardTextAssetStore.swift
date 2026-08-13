@@ -47,17 +47,25 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
         }
     }
 
-    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+    func textChunk(for item: ClipboardItem, charCount: Int) -> ClipboardTextChunk? {
         if let colorPayload = item.colorPayload {
             let content = colorPayload.originalText
             let prefix = String(content.prefix(charCount))
-            return (prefix, content.utf8.count, content.count <= charCount)
+            return ClipboardTextChunk(
+                text: prefix,
+                totalBytes: content.utf8.count,
+                reachedEOF: content.count <= charCount
+            )
         }
 
         if let filename = item.textFilename {
             if let cachedText = fullTextCache.object(forKey: filename as NSString) as String? {
                 let prefix = String(cachedText.prefix(charCount))
-                return (prefix, cachedText.utf8.count, cachedText.count <= charCount)
+                return ClipboardTextChunk(
+                    text: prefix,
+                    totalBytes: cachedText.utf8.count,
+                    reachedEOF: cachedText.count <= charCount
+                )
             }
 
             let url = directory.appendingPathComponent(filename)
@@ -66,7 +74,11 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
                 let text = try String(contentsOf: url, encoding: .utf8)
                 fullTextCache.setObject(text as NSString, forKey: filename as NSString)
                 let prefix = String(text.prefix(charCount))
-                return (prefix, text.utf8.count, text.count <= charCount)
+                return ClipboardTextChunk(
+                    text: prefix,
+                    totalBytes: text.utf8.count,
+                    reachedEOF: text.count <= charCount
+                )
             } catch {
                 BufferLogger.persistence.error(
                     "Failed to read text chunk: \(String(describing: error), privacy: .public)")
@@ -78,7 +90,11 @@ final class ClipboardTextAssetStore: @unchecked Sendable {
         let totalBytes = item.originalSizeBytes ?? content.utf8.count
         let prefix = String(content.prefix(charCount))
         let reachedEOF = content.count <= charCount
-        return (prefix, totalBytes, reachedEOF)
+        return ClipboardTextChunk(
+            text: prefix,
+            totalBytes: totalBytes,
+            reachedEOF: reachedEOF
+        )
     }
 
     func itemSize(for item: ClipboardItem) -> Int? {

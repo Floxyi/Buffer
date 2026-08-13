@@ -1,8 +1,9 @@
 import XCTest
+
 @testable import Buffer
 
 final class HistoryActionResolverTests: XCTestCase {
-    func testResolveActionsForMultipleItemsReturnsCopyPinDelete() {
+    func testResolveActionsForMultipleItemsReturnsOrganizationActionsAndDelete() {
         let resolver = HistoryActionResolver()
         let actions = resolver.resolveActions(
             for: [ClipboardItem.text("one"), ClipboardItem.text("two")],
@@ -10,7 +11,7 @@ final class HistoryActionResolverTests: XCTestCase {
             isExtractingText: false
         )
 
-        XCTAssertEqual(actions.map(\.action), [.copy, .togglePin, .delete])
+        XCTAssertEqual(actions.map(\.action), [.copy, .toggleBookmark, .togglePin, .delete])
     }
 
     func testResolveActionsForLinkIncludesOpenAndJump() {
@@ -26,7 +27,10 @@ final class HistoryActionResolverTests: XCTestCase {
             isExtractingText: false
         )
 
-        XCTAssertEqual(actions.map(\.action), [.copy, .openLink, .jumpToHistory, .togglePin, .delete])
+        XCTAssertEqual(
+            actions.map(\.action),
+            [.copy, .openLink, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
+        )
     }
 
     func testResolveActionsForEmailIncludesComposeButNotOpenWebsite() throws {
@@ -41,6 +45,28 @@ final class HistoryActionResolverTests: XCTestCase {
             isExtractingText: false
         )
 
-        XCTAssertEqual(actions.map(\.action), [.copy, .composeEmail, .jumpToHistory, .togglePin, .delete])
+        XCTAssertEqual(
+            actions.map(\.action),
+            [.copy, .composeEmail, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
+        )
+    }
+
+    func testProtectedItemsDoNotOfferDelete() {
+        let pinned = ClipboardItem(
+            isPinned: true,
+            content: .text(TextItemContent(inlineText: "pinned"))
+        )
+        let bookmarked = ClipboardItem(
+            isBookmarked: true,
+            content: .text(TextItemContent(inlineText: "bookmarked"))
+        )
+
+        let actions = HistoryActionResolver().resolveActions(
+            for: [pinned, bookmarked],
+            allowsJumpToHistory: false,
+            isExtractingText: false
+        )
+
+        XCTAssertFalse(actions.map(\.action).contains(.delete))
     }
 }

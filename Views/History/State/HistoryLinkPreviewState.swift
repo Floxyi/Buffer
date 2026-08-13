@@ -1,5 +1,5 @@
-@preconcurrency import LinkPresentation
 import Foundation
+@preconcurrency import LinkPresentation
 
 struct HistoryLinkPreviewState {
     var metadata: LPLinkMetadata?
@@ -17,9 +17,11 @@ struct HistoryLinkPreviewState {
 
     func statusText(previewsEnabled: Bool) -> String {
         if !previewsEnabled {
-            return "Website previews disabled"
+            return String(localized: "Website previews disabled")
         }
 
-        return isLoadingMetadata ? "Loading preview…" : "Preview unavailable"
+        return isLoadingMetadata
+            ? String(localized: "Loading preview…")
+            : String(localized: "Preview unavailable")
     }
 }

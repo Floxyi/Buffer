@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -93,11 +94,12 @@ final class ClipboardCaptureClassificationTests: XCTestCase {
             "openai.com/research",
             sourceApp: nil,
             enableWebsitePreviews: true,
-            websiteReachability: { _ in true }
-        ) { _ in
-            XCTFail("Expected inline link item")
-            return nil
-        }
+            websiteReachability: { _ in true },
+            saveText: { _ in
+                XCTFail("Expected inline link item")
+                return nil
+            }
+        )
 
         XCTAssertEqual(httpsItem.kind, .link)
         XCTAssertEqual(httpsItem.linkPayload?.websiteName, "Youtube")
@@ -114,11 +116,12 @@ final class ClipboardCaptureClassificationTests: XCTestCase {
             websiteReachability: { _ in
                 XCTFail("Email classification must not perform website reachability checks")
                 return true
+            },
+            saveText: { _ in
+                XCTFail("Expected inline email item")
+                return nil
             }
-        ) { _ in
-            XCTFail("Expected inline email item")
-            return nil
-        }
+        )
         let localOnlyItem = await ClipboardCaptureSupport.classifyTextItem(
             "person@example.com",
             sourceApp: nil,
@@ -151,11 +154,12 @@ final class ClipboardCaptureClassificationTests: XCTestCase {
                 input,
                 sourceApp: nil,
                 enableWebsitePreviews: true,
-                websiteReachability: { _ in false }
-            ) { _ in
-                XCTFail("Expected inline text item")
-                return nil
-            }
+                websiteReachability: { _ in false },
+                saveText: { _ in
+                    XCTFail("Expected inline text item")
+                    return nil
+                }
+            )
 
             XCTAssertEqual(item.kind, .text, "Unexpected email classification for: \(input)")
         }
@@ -200,21 +204,23 @@ final class ClipboardCaptureClassificationTests: XCTestCase {
             "youtube.com",
             sourceApp: nil,
             enableWebsitePreviews: true,
-            websiteReachability: { _ in true }
-        ) { _ in
-            XCTFail("Expected inline link item")
-            return nil
-        }
+            websiteReachability: { _ in true },
+            saveText: { _ in
+                XCTFail("Expected inline link item")
+                return nil
+            }
+        )
 
         let unreachableItem = await ClipboardCaptureSupport.classifyTextItem(
             "bla.bla",
             sourceApp: nil,
             enableWebsitePreviews: true,
-            websiteReachability: { _ in false }
-        ) { _ in
-            XCTFail("Expected inline plain text item")
-            return nil
-        }
+            websiteReachability: { _ in false },
+            saveText: { _ in
+                XCTFail("Expected inline plain text item")
+                return nil
+            }
+        )
 
         XCTAssertEqual(reachableItem.kind, .link)
         XCTAssertEqual(reachableItem.linkPayload?.url.absoluteString, "https://youtube.com")

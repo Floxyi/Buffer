@@ -13,9 +13,10 @@ enum ClipboardWebsiteIconFallbackFetcher {
 
     static func faviconURL(for url: URL) -> URL? {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let scheme = components.scheme,
-              (scheme == "http" || scheme == "https"),
-              components.host != nil else {
+            let scheme = components.scheme,
+            scheme == "http" || scheme == "https",
+            components.host != nil
+        else {
             return nil
         }
 
@@ -37,8 +38,9 @@ enum ClipboardWebsiteIconFallbackFetcher {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode),
-                  let iconImage = NSImage(data: data) else {
+                (200..<300).contains(httpResponse.statusCode),
+                let iconImage = NSImage(data: data)
+            else {
                 return nil
             }
 

@@ -4,58 +4,57 @@ import SwiftUI
 /// Single row displaying a clipboard item - optimized for smooth scrolling.
 struct ClipboardItemRow: View {
     private let leadingVisualSize = CGFloat(28)
-    private let appIconScale = CGFloat(1.16)
 
     let item: ClipboardItem
-    let store: ClipboardStore
-    let settings: SettingsManager
+    let websitePreviewsEnabled: Bool
     let primaryLabelText: String
     let isMultiSelected: Bool
     let joinsSelectionAbove: Bool
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
+    let matchedQueryText: String?
     let isHovered: Bool
+    private let assetProvider: any ClipboardItemAssetProviding
     @State private var thumbnail: NSImage?
-    @State private var sourceAppIcon: NSImage?
+    @State private var leadingIcon: NSImage?
     @State private var imageDimensionsText: String?
 
     init(
         item: ClipboardItem,
-        store: ClipboardStore,
-        settings: SettingsManager,
+        websitePreviewsEnabled: Bool,
         primaryLabelText: String,
         isMultiSelected: Bool,
         joinsSelectionAbove: Bool,
         joinsSelectionBelow: Bool,
         selectionJoinOverlap: CGFloat,
         quickPasteNumber: Int?,
-        isHovered: Bool
+        matchedQueryText: String? = nil,
+        isHovered: Bool,
+        assetProvider: any ClipboardItemAssetProviding
     ) {
         self.item = item
-        self.store = store
-        self.settings = settings
+        self.websitePreviewsEnabled = websitePreviewsEnabled
         self.primaryLabelText = primaryLabelText
         self.isMultiSelected = isMultiSelected
         self.joinsSelectionAbove = joinsSelectionAbove
         self.joinsSelectionBelow = joinsSelectionBelow
         self.selectionJoinOverlap = selectionJoinOverlap
         self.quickPasteNumber = quickPasteNumber
+        self.matchedQueryText = matchedQueryText
         self.isHovered = isHovered
+        self.assetProvider = assetProvider
         self._thumbnail = State(
-            initialValue: ClipboardItemRowAssetLoader.cachedThumbnail(
+            initialValue: assetProvider.cachedThumbnail(
                 for: item,
                 leadingVisualSize: leadingVisualSize
             )
         )
-        self._sourceAppIcon = State(
-            initialValue: ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
-                for: item,
-                settings: settings
-            )
+        self._leadingIcon = State(
+            initialValue: assetProvider.cachedLeadingIcon(for: item)
         )
         self._imageDimensionsText = State(
-            initialValue: ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
+            initialValue: assetProvider.cachedImageDimensionsText(for: item)
         )
     }
 
@@ -85,7 +84,7 @@ struct ClipboardItemRow: View {
         }
 
         if let imageDimensionsText {
-            return "Image (\(imageDimensionsText))"
+            return String(localized: "Image (\(imageDimensionsText))")
         }
 
         return primaryLabelText
@@ -93,18 +92,14 @@ struct ClipboardItemRow: View {
 
     private var displayedThumbnail: NSImage? {
         thumbnail
-            ?? ClipboardItemRowAssetLoader.cachedThumbnail(
+            ?? assetProvider.cachedThumbnail(
                 for: item,
                 leadingVisualSize: leadingVisualSize
             )
     }
 
-    private var displayedSourceAppIcon: NSImage? {
-        sourceAppIcon
-    }
-
     private var assetLoadToken: String {
-        "\(item.id.uuidString)-\(settings.enableWebsitePreviews)"
+        "\(item.id.uuidString)-\(websitePreviewsEnabled)"
     }
 
     var body: some View {
@@ -125,18 +120,27 @@ struct ClipboardItemRow: View {
 
             ClipboardLeadingVisual(
                 item: item,
-                sourceAppIcon: displayedSourceAppIcon,
+                leadingIcon: leadingIcon,
                 thumbnail: displayedThumbnail,
                 secondaryForegroundColor: secondaryForegroundColor,
-                leadingVisualSize: leadingVisualSize,
-                appIconScale: appIconScale
+                leadingVisualSize: leadingVisualSize
             )
             .frame(width: leadingVisualSize, height: leadingVisualSize)
 
-            Text(displayedPrimaryLabelText)
-                .font(.system(size: 13))
-                .foregroundColor(foregroundColor)
-                .lineLimit(1)
+            ClipboardMatchedText(
+                text: displayedPrimaryLabelText,
+                query: matchedQueryText
+            )
+            .font(.system(size: 13))
+            .foregroundColor(foregroundColor)
+            .lineLimit(1)
+
+            if item.isBookmarked {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(secondaryForegroundColor)
+                    .accessibilityLabel(String(localized: "Bookmarked"))
+            }
 
             Spacer(minLength: 0)
         }
@@ -149,21 +153,18 @@ struct ClipboardItemRow: View {
         }
         .task(id: assetLoadToken) {
             if thumbnail == nil, ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
-                thumbnail = ClipboardItemRowAssetLoader.cachedThumbnail(
+                thumbnail = assetProvider.cachedThumbnail(
                     for: item,
                     leadingVisualSize: leadingVisualSize
                 )
             }
 
             if imageDimensionsText == nil, ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
-                imageDimensionsText = ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
+                imageDimensionsText = assetProvider.cachedImageDimensionsText(for: item)
             }
 
-            if sourceAppIcon == nil {
-                sourceAppIcon = ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
-                    for: item,
-                    settings: settings
-                )
+            if leadingIcon == nil {
+                leadingIcon = assetProvider.cachedLeadingIcon(for: item)
             }
 
             await Task.yield()
@@ -173,15 +174,12 @@ struct ClipboardItemRow: View {
             await loadAssetsIfNeeded()
         }
         .onChange(of: item.id) { _ in
-            thumbnail = ClipboardItemRowAssetLoader.cachedThumbnail(
+            thumbnail = assetProvider.cachedThumbnail(
                 for: item,
                 leadingVisualSize: leadingVisualSize
             )
-            sourceAppIcon = ClipboardItemRowAssetLoader.cachedDisplaySourceApplicationIcon(
-                for: item,
-                settings: settings
-            )
-            imageDimensionsText = ClipboardItemRowAssetLoader.cachedImageDimensionsText(for: item)
+            leadingIcon = assetProvider.cachedLeadingIcon(for: item)
+            imageDimensionsText = assetProvider.cachedImageDimensionsText(for: item)
         }
     }
 
@@ -199,9 +197,8 @@ struct ClipboardItemRow: View {
 
     private func loadAssetsIfNeeded() async {
         if ClipboardItemTypeRegistry.supportsImageAssets(for: item), thumbnail == nil {
-            let loadedThumbnail = await ClipboardItemRowAssetLoader.loadThumbnail(
+            let loadedThumbnail = await assetProvider.loadThumbnail(
                 for: item,
-                store: store,
                 leadingVisualSize: leadingVisualSize
             )
 
@@ -209,36 +206,27 @@ struct ClipboardItemRow: View {
 
             thumbnail = loadedThumbnail
 
-            let loadedDimensionsText = await ClipboardItemRowAssetLoader.loadImageDimensionsText(
-                for: item,
-                store: store
-            )
+            let loadedDimensionsText = await assetProvider.loadImageDimensionsText(for: item)
 
             guard !Task.isCancelled else { return }
 
             imageDimensionsText = loadedDimensionsText
         }
 
-        if sourceAppIcon == nil, item.kind != .email {
-            let fallbackIcon = await ClipboardSourceApplicationIconLoader.loadLocalSourceApplicationIcon(
-                for: item,
-                settings: settings
-            )
+        if leadingIcon == nil, item.kind != .email {
+            let fallbackIcon = await assetProvider.loadApplicationIcon(for: item)
             guard !Task.isCancelled else { return }
-            sourceAppIcon = fallbackIcon
+            leadingIcon = fallbackIcon
         }
 
-        if item.kind == .link, settings.enableWebsitePreviews {
-            let websiteIcon = await ClipboardItemRowAssetLoader.loadSourceApplicationIcon(
-                for: item,
-                settings: settings
-            )
+        if item.kind == .link, websitePreviewsEnabled {
+            let websiteIcon = await assetProvider.loadPreferredLeadingIcon(for: item)
             guard !Task.isCancelled else { return }
             if let websiteIcon {
                 var transaction = Transaction()
                 transaction.animation = nil
                 withTransaction(transaction) {
-                    sourceAppIcon = websiteIcon
+                    leadingIcon = websiteIcon
                 }
             }
         }

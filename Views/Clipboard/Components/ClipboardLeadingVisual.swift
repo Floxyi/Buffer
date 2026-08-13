@@ -3,11 +3,10 @@ import SwiftUI
 
 struct ClipboardLeadingVisual: View {
     let item: ClipboardItem
-    let sourceAppIcon: NSImage?
+    let leadingIcon: NSImage?
     let thumbnail: NSImage?
     let secondaryForegroundColor: Color
     let leadingVisualSize: CGFloat
-    let appIconScale: CGFloat
 
     var body: some View {
         switch ClipboardItemPresentation.leadingVisualStyle(for: item) {
@@ -26,13 +25,12 @@ struct ClipboardLeadingVisual: View {
 
     @ViewBuilder
     private var textVisual: some View {
-        if let sourceAppIcon {
-            Image(nsImage: sourceAppIcon)
+        if let leadingIcon {
+            Image(nsImage: leadingIcon)
                 .resizable()
                 .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
                 .frame(width: leadingVisualSize, height: leadingVisualSize)
-                .scaleEffect(appIconScale)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .help(item.sourceApp ?? "Source App")
         } else if item.sourceApp != nil || item.sourceAppBundleIdentifier != nil || item.sourceAppBundlePath != nil {
             Image(systemName: "app.fill")
@@ -58,21 +56,22 @@ struct ClipboardLeadingVisual: View {
     private var linkVisual: some View {
         let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
 
-        return shape
+        return
+            shape
             .fill(
                 LinearGradient(
                     colors: [
                         Color.accentColor.opacity(0.24),
-                        Color.accentColor.opacity(0.14)
+                        Color.accentColor.opacity(0.14),
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
             .overlay {
-                if let sourceAppIcon {
+                if let leadingIcon {
                     ZStack {
-                        Image(nsImage: sourceAppIcon)
+                        Image(nsImage: leadingIcon)
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fill)
@@ -84,13 +83,13 @@ struct ClipboardLeadingVisual: View {
                         LinearGradient(
                             colors: [
                                 Color.white.opacity(0.12),
-                                Color.clear
+                                Color.clear,
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         )
 
-                        Image(nsImage: sourceAppIcon)
+                        Image(nsImage: leadingIcon)
                             .resizable()
                             .interpolation(.high)
                             .aspectRatio(contentMode: .fit)

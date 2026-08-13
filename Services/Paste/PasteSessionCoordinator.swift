@@ -20,17 +20,20 @@ enum PasteFailure: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingDestination:
-            "Buffer could not determine which application should receive the paste."
+            String(localized: "Buffer could not determine which application should receive the paste.")
         case .destinationTerminated:
-            "The destination application is no longer running."
+            String(localized: "The destination application is no longer running.")
         case .eventPermissionDenied:
-            "Enable Buffer in Accessibility settings, return to the application you want to paste into, then open Buffer again."
+            String(
+                localized:
+                    "Enable Buffer in Accessibility settings, return to the application you want to paste into, then open Buffer again."
+            )
         case .focusTimeout:
-            "The destination application did not regain keyboard focus in time."
+            String(localized: "The destination application did not regain keyboard focus in time.")
         case .pasteboardWrite(let message):
             message
         case .eventCreationFailed:
-            "Buffer could not send the paste shortcut."
+            String(localized: "Buffer could not send the paste shortcut.")
         }
     }
 }

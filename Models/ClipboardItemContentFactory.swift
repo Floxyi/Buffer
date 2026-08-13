@@ -28,13 +28,15 @@ enum ClipboardItemContentFactory {
             return .color(ColorItemContent(value: parsedValue, originalText: originalText))
         case .link:
             let originalText = textContent ?? ""
-            let parsedURL = ClipboardLinkValue.parseExplicit(originalText)
+            let parsedURL =
+                ClipboardLinkValue.parseExplicit(originalText)
                 ?? ClipboardLinkValue.parseImplicitWebsiteCandidate(originalText)
                 ?? URL(string: "https://example.com")!
             return .link(LinkItemContent(url: parsedURL, originalText: originalText))
         case .email:
             let originalText = textContent ?? ""
-            let payload = ClipboardEmailValue.parse(originalText)
+            let payload =
+                ClipboardEmailValue.parse(originalText)
                 ?? EmailItemContent(
                     address: originalText.trimmingCharacters(in: .whitespacesAndNewlines),
                     originalText: originalText

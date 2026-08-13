@@ -39,8 +39,9 @@ struct SelectableMonospacedTextView: NSViewRepresentable {
         context: Context
     ) -> CGSize? {
         guard let proposedWidth = proposal.width,
-              proposedWidth.isFinite,
-              proposedWidth > 0 else {
+            proposedWidth.isFinite,
+            proposedWidth > 0
+        else {
             return nil
         }
 
@@ -105,8 +106,9 @@ final class MeasuringSelectableTextView: NSTextView {
         let selection = selectedRange()
         let content = string as NSString
         guard selection.location != NSNotFound,
-              selection.length > 0,
-              NSMaxRange(selection) <= content.length else {
+            selection.length > 0,
+            NSMaxRange(selection) <= content.length
+        else {
             return
         }
 
@@ -132,7 +134,8 @@ final class MeasuringSelectableTextView: NSTextView {
     }
 
     func configure(fontSize: CGFloat, usesMonospacedFont: Bool) {
-        let configuredFont: NSFont = usesMonospacedFont
+        let configuredFont: NSFont =
+            usesMonospacedFont
             ? .monospacedSystemFont(ofSize: fontSize, weight: .regular)
             : .systemFont(ofSize: fontSize, weight: .regular)
 
@@ -215,9 +218,10 @@ final class WhitespaceVisualizingLayoutManager: NSLayoutManager {
         super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
 
         guard showsSpacesAndTabs,
-              let textStorage,
-              let textContainer = textContainers.first,
-              glyphsToShow.length > 0 else {
+            let textStorage,
+            let textContainer = textContainers.first,
+            glyphsToShow.length > 0
+        else {
             return
         }
 
@@ -237,7 +241,8 @@ final class WhitespaceVisualizingLayoutManager: NSLayoutManager {
                 actualCharacterRange: nil
             )
             guard characterGlyphRange.length > 0,
-                  NSIntersectionRange(characterGlyphRange, glyphsToShow).length > 0 else {
+                NSIntersectionRange(characterGlyphRange, glyphsToShow).length > 0
+            else {
                 continue
             }
 
@@ -278,11 +283,12 @@ final class WhitespaceVisualizingLayoutManager: NSLayoutManager {
         textContainer: NSTextContainer,
         origin: NSPoint
     ) {
-        let font = textStorage.attribute(
-            .font,
-            at: characterIndex,
-            effectiveRange: nil
-        ) as? NSFont ?? .systemFont(ofSize: NSFont.systemFontSize)
+        let font =
+            textStorage.attribute(
+                .font,
+                at: characterIndex,
+                effectiveRange: nil
+            ) as? NSFont ?? .systemFont(ofSize: NSFont.systemFontSize)
 
         let markerFont = NSFont.systemFont(
             ofSize: max(7, font.pointSize * scale),
@@ -290,7 +296,7 @@ final class WhitespaceVisualizingLayoutManager: NSLayoutManager {
         )
         let attributes: [NSAttributedString.Key: Any] = [
             .font: markerFont,
-            .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.90)
+            .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.90),
         ]
         let markerSize = marker.size(withAttributes: attributes)
         let glyphBounds = boundingRect(forGlyphRange: glyphRange, in: textContainer)

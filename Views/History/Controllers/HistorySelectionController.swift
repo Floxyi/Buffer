@@ -29,8 +29,9 @@ struct HistorySelectionController {
         nextState.selectedActionOrderIDs.removeAll { !validIDs.contains($0) }
 
         if let preferredID,
-           validIDs.contains(preferredID),
-           let index = filteredItems.firstIndex(where: { $0.id == preferredID }) {
+            validIDs.contains(preferredID),
+            let index = filteredItems.firstIndex(where: { $0.id == preferredID })
+        {
             return applySingleSelection(
                 preferredID,
                 index: index,
@@ -48,26 +49,30 @@ struct HistorySelectionController {
             }
 
             if let currentSelectedID = nextState.selectedID,
-               validIDs.contains(currentSelectedID),
-               let index = filteredItems.firstIndex(where: { $0.id == currentSelectedID }) {
+                validIDs.contains(currentSelectedID),
+                let index = filteredItems.firstIndex(where: { $0.id == currentSelectedID })
+            {
                 nextState.selectedIndex = index
             } else if let fallbackID = nextState.selectedActionOrderIDs.first
-                        ?? selectedItems(in: filteredItems, selectedIDs: nextState.selectedIDs).first?.id,
-                      let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID }) {
+                ?? selectedItems(in: filteredItems, selectedIDs: nextState.selectedIDs).first?.id,
+                let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID })
+            {
                 nextState.selectedID = fallbackID
                 nextState.selectedIndex = fallbackIndex
             }
 
-            nextState.selectionAnchor = nextState.selectionAnchor.flatMap {
-                validIDs.contains($0) ? $0 : nil
-            } ?? nextState.selectedID
+            nextState.selectionAnchor =
+                nextState.selectionAnchor.flatMap {
+                    validIDs.contains($0) ? $0 : nil
+                } ?? nextState.selectedID
 
             return nextState
         }
 
         let targetID = nextState.selectedID.flatMap { validIDs.contains($0) ? $0 : nil } ?? preferredTopSelectionID
         guard let targetID,
-              let index = filteredItems.firstIndex(where: { $0.id == targetID }) else {
+            let index = filteredItems.firstIndex(where: { $0.id == targetID })
+        else {
             return nextState
         }
 
@@ -131,7 +136,8 @@ struct HistorySelectionController {
                 )
                 nextState.selectionAnchor = nextState.selectedID
                 if let selectedID = nextState.selectedID,
-                   let selectedIndex = filteredItems.firstIndex(where: { $0.id == selectedID }) {
+                    let selectedIndex = filteredItems.firstIndex(where: { $0.id == selectedID })
+                {
                     nextState.selectedIndex = selectedIndex
                 }
             }
@@ -164,7 +170,8 @@ struct HistorySelectionController {
         guard !filteredItems.isEmpty else { return clearSelection() }
 
         var nextState = state
-        let focusedIndex = filteredItems.indices.contains(state.selectedIndex)
+        let focusedIndex =
+            filteredItems.indices.contains(state.selectedIndex)
             ? state.selectedIndex
             : 0
         let focusedID = filteredItems[focusedIndex].id

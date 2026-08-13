@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -46,7 +47,7 @@ final class ClipboardItemTypeRegistryTests: XCTestCase {
         XCTAssertFalse(ClipboardItemTypeRegistry.supportsTextChunks(for: item))
     }
 
-    func testEmailRegistrySearchPasteAndSizeUseOriginalText() throws {
+    func testEmailRegistrySearchPasteAndSizeUseOriginalText() async throws {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
@@ -60,8 +61,12 @@ final class ClipboardItemTypeRegistryTests: XCTestCase {
             try XCTUnwrap(ClipboardEmailValue.parse(originalText))
         )
 
-        XCTAssertEqual(ClipboardItemTypeRegistry.searchableText(for: item, store: store), originalText)
-        XCTAssertEqual(ClipboardItemTypeRegistry.pastedText(for: item, store: store), originalText)
+        XCTAssertEqual(
+            ClipboardSearchContentExtractor.searchableText(for: item) { nil },
+            originalText
+        )
+        let pasteText = await store.pasteText(for: item)
+        XCTAssertEqual(pasteText, originalText)
         XCTAssertEqual(store.itemSize(for: item), originalText.utf8.count)
     }
 
@@ -81,12 +86,12 @@ final class ClipboardItemTypeRegistryTests: XCTestCase {
         )
 
         XCTAssertNil(
-            ClipboardSourceApplicationIconLoader.cachedDisplayIcon(
+            ClipboardItemIconLoader.cachedLeadingIcon(
                 for: item,
                 settings: settings
             )
         )
-        let loadedIcon = await ClipboardSourceApplicationIconLoader.loadSourceApplicationIcon(
+        let loadedIcon = await ClipboardItemIconLoader.loadPreferredLeadingIcon(
             for: item,
             settings: settings
         )

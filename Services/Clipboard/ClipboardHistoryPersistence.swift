@@ -8,7 +8,8 @@ private struct ClipboardHistoryEnvelope: Codable, Sendable {
 }
 
 protocol ClipboardHistoryPersisting: Sendable {
-    func saveHistory(_ items: [ClipboardItem])
+    func loadHistory() throws -> [ClipboardItem]
+    func saveHistory(_ items: [ClipboardItem]) throws
 }
 
 final class ClipboardHistoryPersistence: ClipboardHistoryPersisting, @unchecked Sendable {
@@ -20,35 +21,26 @@ final class ClipboardHistoryPersistence: ClipboardHistoryPersisting, @unchecked 
         self.paths = paths
     }
 
-    func loadHistory() -> [ClipboardItem] {
+    func loadHistory() throws -> [ClipboardItem] {
         guard fileManager.fileExists(atPath: paths.historyFileURL.path) else {
             return []
         }
 
-        do {
-            let data = try Data(contentsOf: paths.historyFileURL)
+        let data = try Data(contentsOf: paths.historyFileURL)
 
-            if let envelope = try? JSONDecoder().decode(ClipboardHistoryEnvelope.self, from: data) {
-                return envelope.items
-            }
-
-            return try JSONDecoder().decode([ClipboardItem].self, from: data)
-        } catch {
-            BufferLogger.persistence.error("Failed to load history: \(String(describing: error), privacy: .public)")
-            return []
+        if let envelope = try? JSONDecoder().decode(ClipboardHistoryEnvelope.self, from: data) {
+            return envelope.items
         }
+
+        return try JSONDecoder().decode([ClipboardItem].self, from: data)
     }
 
-    func saveHistory(_ items: [ClipboardItem]) {
-        do {
-            let envelope = ClipboardHistoryEnvelope(
-                version: ClipboardHistoryEnvelope.currentVersion,
-                items: items
-            )
-            let data = try JSONEncoder().encode(envelope)
-            try data.write(to: paths.historyFileURL, options: .atomic)
-        } catch {
-            BufferLogger.persistence.error("Failed to save history: \(String(describing: error), privacy: .public)")
-        }
+    func saveHistory(_ items: [ClipboardItem]) throws {
+        let envelope = ClipboardHistoryEnvelope(
+            version: ClipboardHistoryEnvelope.currentVersion,
+            items: items
+        )
+        let data = try JSONEncoder().encode(envelope)
+        try data.write(to: paths.historyFileURL, options: .atomic)
     }
 }

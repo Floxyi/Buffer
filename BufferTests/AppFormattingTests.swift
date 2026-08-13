@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 final class AppFormattingTests: XCTestCase {
@@ -20,10 +21,17 @@ final class AppFormattingTests: XCTestCase {
         let thisWeek = calendar.date(byAdding: .day, value: -2, to: referenceDate)!
         let lastWeek = calendar.date(byAdding: .day, value: -8, to: referenceDate)!
 
-        XCTAssertEqual(AppFormatting.historySectionTitle(for: today, calendar: calendar, referenceDate: referenceDate), "TODAY")
-        XCTAssertEqual(AppFormatting.historySectionTitle(for: yesterday, calendar: calendar, referenceDate: referenceDate), "YESTERDAY")
-        XCTAssertEqual(AppFormatting.historySectionTitle(for: thisWeek, calendar: calendar, referenceDate: referenceDate), "THIS WEEK")
-        XCTAssertEqual(AppFormatting.historySectionTitle(for: lastWeek, calendar: calendar, referenceDate: referenceDate), "LAST WEEK")
+        XCTAssertEqual(
+            AppFormatting.historySectionTitle(for: today, calendar: calendar, referenceDate: referenceDate), "TODAY")
+        XCTAssertEqual(
+            AppFormatting.historySectionTitle(for: yesterday, calendar: calendar, referenceDate: referenceDate),
+            "YESTERDAY")
+        XCTAssertEqual(
+            AppFormatting.historySectionTitle(for: thisWeek, calendar: calendar, referenceDate: referenceDate),
+            "THIS WEEK")
+        XCTAssertEqual(
+            AppFormatting.historySectionTitle(for: lastWeek, calendar: calendar, referenceDate: referenceDate),
+            "LAST WEEK")
     }
 
     func testShortcutDisplayUsesMappedKeyNameAndModifierSymbols() {

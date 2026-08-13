@@ -3,7 +3,10 @@ import SwiftUI
 
 @MainActor
 protocol BufferEffectView: AnyObject {
-    func updateBufferAppearance(cornerRadius: CGFloat)
+    func updateBufferAppearance(
+        _ appearance: BufferAppearanceConfiguration,
+        cornerRadius: CGFloat
+    )
 }
 
 typealias BufferEffectHostView = NSView & BufferEffectView
@@ -14,6 +17,17 @@ enum HistoryWindowStyle {
     static let panelBorderOpacity = 0.18
 }
 
+struct HistoryWindowConfiguration: Equatable, Sendable {
+    var contentSize = HistoryWindowStyle.panelSize
+    var minimumSize = HistoryWindowStyle.panelSize
+    var maximumSize = HistoryWindowStyle.panelSize
+    var allowsResizing = false
+    var allowsMoving = false
+    var appearance = BufferAppearanceConfiguration.systemGlass
+
+    static let standard = HistoryWindowConfiguration()
+}
+
 @MainActor
 struct HistoryPanelContentConfiguration {
     let containerView: NSView
@@ -22,14 +36,21 @@ struct HistoryPanelContentConfiguration {
 
 @MainActor
 struct HistoryPanelConfigurator {
+    let configuration: HistoryWindowConfiguration
+
+    init(configuration: HistoryWindowConfiguration = .standard) {
+        self.configuration = configuration
+    }
+
     func makePanel() -> HistoryPanel {
         HistoryPanel(
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: HistoryWindowStyle.panelSize.width,
-                height: HistoryWindowStyle.panelSize.height
-            )
+                width: configuration.contentSize.width,
+                height: configuration.contentSize.height
+            ),
+            allowsResizing: configuration.allowsResizing
         )
     }
 
@@ -52,15 +73,16 @@ struct HistoryPanelConfigurator {
             .ignoresCycle,
         ]
 
-        panel.setContentSize(HistoryWindowStyle.panelSize)
-        panel.minSize = HistoryWindowStyle.panelSize
-        panel.maxSize = HistoryWindowStyle.panelSize
+        panel.setContentSize(configuration.contentSize)
+        panel.minSize = configuration.minimumSize
+        panel.maxSize = configuration.maximumSize
+        panel.appearance = configuration.appearance.mode.appKitAppearance
 
         panel.isOpaque = false
         panel.backgroundColor = .clear
 
-        panel.isMovable = false
-        panel.isMovableByWindowBackground = false
+        panel.isMovable = configuration.allowsMoving
+        panel.isMovableByWindowBackground = configuration.allowsMoving
         panel.hasShadow = true
 
         panel.contentView?.wantsLayer = true
@@ -91,7 +113,7 @@ struct HistoryPanelConfigurator {
         containerView.layer?.backgroundColor = NSColor.clear.cgColor
         containerView.layer?.masksToBounds = false
 
-        let effectView = makeBufferEffectView()
+        let effectView = makeBufferEffectView(appearance: configuration.appearance)
         effectView.frame = containerView.bounds
         effectView.autoresizingMask = [.width, .height]
         effectView.wantsLayer = true
@@ -100,7 +122,11 @@ struct HistoryPanelConfigurator {
         effectView.layer?.masksToBounds = true
         effectView.layer?.allowsEdgeAntialiasing = true
 
-        let hostingView = NSHostingView(rootView: rootView)
+        let configuredRootView =
+            rootView
+            .environment(\.bufferAppearance, configuration.appearance)
+            .preferredColorScheme(configuration.appearance.mode.colorScheme)
+        let hostingView = NSHostingView(rootView: configuredRootView)
         hostingView.frame = effectView.bounds
         hostingView.autoresizingMask = [.width, .height]
         hostingView.wantsLayer = true
@@ -134,11 +160,21 @@ private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffe
         wantsLayer = true
     }
 
-    func updateBufferAppearance(cornerRadius: CGFloat) {
-        material =
-            NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? .hudWindow
-            : .popover
+    func updateBufferAppearance(
+        _ appearance: BufferAppearanceConfiguration,
+        cornerRadius: CGFloat
+    ) {
+        switch appearance.surfaceStyle {
+        case .glass:
+            material =
+                NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? .hudWindow
+                : .popover
+        case .transparent:
+            material = .underWindowBackground
+        case .opaque:
+            material = .contentBackground
+        }
 
         updateRoundedCorners(cornerRadius)
     }
@@ -175,8 +211,13 @@ private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffe
 }
 
 @MainActor
-private func makeBufferEffectView() -> BufferEffectHostView {
+private func makeBufferEffectView(
+    appearance: BufferAppearanceConfiguration
+) -> BufferEffectHostView {
     let effectView = BufferFrostedGlassEffectView(frame: .zero)
-    effectView.updateBufferAppearance(cornerRadius: HistoryWindowStyle.panelCornerRadius)
+    effectView.updateBufferAppearance(
+        appearance,
+        cornerRadius: HistoryWindowStyle.panelCornerRadius
+    )
     return effectView
 }

@@ -177,7 +177,7 @@ private final class HistoryLinkPreviewContainerView: NSView {
         let nextIdentifier = [
             metadata.originalURL?.absoluteString,
             metadata.url?.absoluteString,
-            metadata.title
+            metadata.title,
         ]
         .compactMap { $0 }
         .joined(separator: "|")
@@ -198,7 +198,7 @@ private final class HistoryLinkPreviewContainerView: NSView {
             nextLinkView.leadingAnchor.constraint(equalTo: leadingAnchor),
             nextLinkView.trailingAnchor.constraint(equalTo: trailingAnchor),
             nextLinkView.topAnchor.constraint(equalTo: topAnchor),
-            nextLinkView.bottomAnchor.constraint(equalTo: bottomAnchor)
+            nextLinkView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
 
         linkView = nextLinkView

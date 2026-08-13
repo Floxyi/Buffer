@@ -8,6 +8,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
     let sourceAppBundlePath: String?
     var isPinned: Bool
     var pinnedAt: Date?
+    var isBookmarked: Bool
+    var bookmarkedAt: Date?
     var content: ClipboardItemContent
 
     init(
@@ -18,6 +20,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         sourceAppBundlePath: String? = nil,
         isPinned: Bool = false,
         pinnedAt: Date? = nil,
+        isBookmarked: Bool = false,
+        bookmarkedAt: Date? = nil,
         content: ClipboardItemContent
     ) {
         self.id = id
@@ -27,6 +31,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         self.sourceAppBundlePath = sourceAppBundlePath
         self.isPinned = isPinned
         self.pinnedAt = pinnedAt
+        self.isBookmarked = isBookmarked
+        self.bookmarkedAt = bookmarkedAt
         self.content = content
     }
 
@@ -42,6 +48,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         imageFilename: String? = nil,
         isPinned: Bool = false,
         pinnedAt: Date? = nil,
+        isBookmarked: Bool = false,
+        bookmarkedAt: Date? = nil,
         ocrText: String? = nil,
         isTruncated: Bool = false,
         originalSizeBytes: Int? = nil
@@ -54,6 +62,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
             sourceAppBundlePath: sourceAppBundlePath,
             isPinned: isPinned,
             pinnedAt: pinnedAt,
+            isBookmarked: isBookmarked,
+            bookmarkedAt: bookmarkedAt,
             content: ClipboardItemContentFactory.makeContent(
                 type: type,
                 textContent: textContent,
@@ -69,7 +79,7 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, timestamp, sourceApp, sourceAppBundleIdentifier, sourceAppBundlePath, content
         case type, textContent, textFilename, imageFilename
-        case isBookmarked, isPinned, pinnedAt, ocrText, isTruncated, originalSizeBytes
+        case isBookmarked, bookmarkedAt, isPinned, pinnedAt, ocrText, isTruncated, originalSizeBytes
     }
 
     init(from decoder: Decoder) throws {
@@ -80,10 +90,10 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         sourceAppBundleIdentifier = try container.decodeIfPresent(String.self, forKey: .sourceAppBundleIdentifier)
         sourceAppBundlePath = try container.decodeIfPresent(String.self, forKey: .sourceAppBundlePath)
 
-        let legacyBookmarked = try container.decodeIfPresent(Bool.self, forKey: .isBookmarked) ?? false
-        let pinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
-        isPinned = pinned || legacyBookmarked
+        isPinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) ?? false
         pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
+        isBookmarked = try container.decodeIfPresent(Bool.self, forKey: .isBookmarked) ?? false
+        bookmarkedAt = try container.decodeIfPresent(Date.self, forKey: .bookmarkedAt)
 
         if let content = try container.decodeIfPresent(ClipboardItemContent.self, forKey: .content) {
             self.content = content
@@ -118,6 +128,8 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         try container.encodeIfPresent(sourceAppBundlePath, forKey: .sourceAppBundlePath)
         try container.encode(isPinned, forKey: .isPinned)
         try container.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
+        try container.encode(isBookmarked, forKey: .isBookmarked)
+        try container.encodeIfPresent(bookmarkedAt, forKey: .bookmarkedAt)
         try container.encode(content, forKey: .content)
     }
 
@@ -131,7 +143,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         )
     }
 
-    static func color(_ value: ClipboardColorValue, originalText: String, sourceApp: SourceApplicationInfo? = nil) -> ClipboardItem {
+    static func color(_ value: ClipboardColorValue, originalText: String, sourceApp: SourceApplicationInfo? = nil)
+        -> ClipboardItem
+    {
         let sourceApplication = sourceApplicationValues(from: sourceApp)
         return ClipboardItem(
             sourceApp: sourceApplication.name,
@@ -181,7 +195,9 @@ struct ClipboardItem: Identifiable, Codable, Equatable, Sendable {
         )
     }
 
-    static func truncatedText(_ preview: String, originalSizeBytes: Int, sourceApp: SourceApplicationInfo?) -> ClipboardItem {
+    static func truncatedText(_ preview: String, originalSizeBytes: Int, sourceApp: SourceApplicationInfo?)
+        -> ClipboardItem
+    {
         let sourceApplication = sourceApplicationValues(from: sourceApp)
         return ClipboardItem(
             sourceApp: sourceApplication.name,

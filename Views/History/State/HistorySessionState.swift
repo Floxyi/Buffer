@@ -1,10 +1,5 @@
 import Foundation
 
-struct HistorySessionState {
-    var isApplyingProgrammaticSearchChange = false
-    var pendingPreferredSelectionID: UUID?
-}
-
 struct HistoryWindowOpenPlan {
     var shouldIncrementSearchSelectionToken: Bool
     var shouldFocusSearchOnOpen: Bool
@@ -19,8 +14,5 @@ struct HistoryWindowOpenPlan {
 
 struct HistoryJumpToHistoryPlan {
     var searchText: String?
-    var shouldRebuildFilteredItems: Bool
     var preferredSelectionID: UUID?
-    var state: HistorySessionState
 }
-

@@ -54,10 +54,12 @@ final class ClipboardListHoverCoordinator {
 struct ClipboardListRowsSection: View {
     let rows: [ClipboardListStructure.DisplayRow]
     let items: [ClipboardItem]
-    let store: ClipboardStore
-    let settings: SettingsManager
+    let websitePreviewsEnabled: Bool
+    let assetProvider: any ClipboardItemAssetProviding
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
+    let searchResultsByItemID: [UUID: ClipboardSearchResult]
+    let queryText: String
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
@@ -99,14 +101,17 @@ struct ClipboardListRowsSection: View {
         return ClipboardInteractiveItemRow(
             item: item,
             index: index,
-            store: store,
-            settings: settings,
+            websitePreviewsEnabled: websitePreviewsEnabled,
+            assetProvider: assetProvider,
             primaryLabelText: primaryLabelText(item),
             isMultiSelected: selectedIDs.contains(item.id),
             joinsSelectionAbove: previousItemID.map { selectedIDs.contains($0) } ?? false,
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
+            matchedQueryText: searchResultsByItemID[item.id]?.matches.contains {
+                $0.field == .content
+            } == true ? queryText : nil,
             isContextMenuHighlighted: contextMenuState.highlightedItemID == item.id,
             contextMenuIsActive: contextMenuState.highlightedItemID != nil,
             onCommitSelection: onCommitSelection,
@@ -159,14 +164,15 @@ struct ClipboardListRowsSection: View {
 private struct ClipboardInteractiveItemRow: View {
     let item: ClipboardItem
     let index: Int
-    let store: ClipboardStore
-    let settings: SettingsManager
+    let websitePreviewsEnabled: Bool
+    let assetProvider: any ClipboardItemAssetProviding
     let primaryLabelText: String
     let isMultiSelected: Bool
     let joinsSelectionAbove: Bool
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
+    let matchedQueryText: String?
     let isContextMenuHighlighted: Bool
     let contextMenuIsActive: Bool
     let onCommitSelection: () -> Void
@@ -184,15 +190,16 @@ private struct ClipboardInteractiveItemRow: View {
     var body: some View {
         ClipboardItemRow(
             item: item,
-            store: store,
-            settings: settings,
+            websitePreviewsEnabled: websitePreviewsEnabled,
             primaryLabelText: primaryLabelText,
             isMultiSelected: isMultiSelected,
             joinsSelectionAbove: joinsSelectionAbove,
             joinsSelectionBelow: joinsSelectionBelow,
             selectionJoinOverlap: selectionJoinOverlap,
             quickPasteNumber: quickPasteNumber,
-            isHovered: isHovered || isContextMenuHighlighted
+            matchedQueryText: matchedQueryText,
+            isHovered: isHovered || isContextMenuHighlighted,
+            assetProvider: assetProvider
         )
         .contentShape(Rectangle())
         .overlay {

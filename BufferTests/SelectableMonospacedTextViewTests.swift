@@ -188,8 +188,8 @@ private struct TextSizingTestHarness: View {
     }
 }
 
-private extension NSView {
-    func firstDescendant<T: NSView>(of type: T.Type) -> T? {
+extension NSView {
+    fileprivate func firstDescendant<T: NSView>(of type: T.Type) -> T? {
         if let match = self as? T {
             return match
         }

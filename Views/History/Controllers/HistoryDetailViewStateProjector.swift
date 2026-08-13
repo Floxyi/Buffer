@@ -6,7 +6,7 @@ struct HistoryDetailViewStateProjector {
         selectedItem: ClipboardItem?,
         selectedItemsInVisualOrder: [ClipboardItem],
         selectedItemsInActionOrder: [ClipboardItem],
-        searchText: String,
+        isQueryActive: Bool,
         previewState: HistoryPreviewState,
         selectedItemsTotalSizeBytes: Int?,
         actionResolver: HistoryActionResolver,
@@ -23,7 +23,7 @@ struct HistoryDetailViewStateProjector {
             && ClipboardItemTypeRegistry.canExtractImageText(for: selectedItem)
             && selectedItem?.ocrText == nil
             && !previewState.isExtractingText
-        let canJumpToHistorySelection = selectionCount == 1 && selectedItem != nil && !searchText.isEmpty
+        let canJumpToHistorySelection = selectionCount == 1 && selectedItem != nil && isQueryActive
 
         return HistoryDetailViewState(
             selectionCount: selectionCount,

@@ -4,6 +4,31 @@ import XCTest
 
 @MainActor
 final class ClipboardKeyboardNavigationCoordinatorTests: XCTestCase {
+    func testRouterDeliversRequestSynchronously() {
+        let router = HistoryKeyboardScrollRouter()
+        let request = HistoryKeyboardScrollRequest(itemID: UUID(), targetIndex: 4, generation: 7)
+        var receivedRequest: HistoryKeyboardScrollRequest?
+        router.register { receivedRequest = $0 }
+
+        router.submit(request)
+
+        XCTAssertEqual(receivedRequest, request)
+    }
+
+    func testStaleRegistrationCannotUnregisterReplacement() {
+        let router = HistoryKeyboardScrollRouter()
+        let staleRegistrationID = router.register { _ in }
+        var receivedGeneration: UInt?
+        router.register { receivedGeneration = $0.generation }
+
+        router.unregister(staleRegistrationID)
+        router.submit(
+            HistoryKeyboardScrollRequest(itemID: UUID(), targetIndex: 0, generation: 3)
+        )
+
+        XCTAssertEqual(receivedGeneration, 3)
+    }
+
     func testAlreadyVisibleRequestCompletesViewportOperationWithoutScrolling() {
         let coordinator = ClipboardKeyboardNavigationCoordinator()
         let item = ClipboardItem.text("item")

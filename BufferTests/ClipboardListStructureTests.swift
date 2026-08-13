@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 final class ClipboardListStructureTests: XCTestCase {

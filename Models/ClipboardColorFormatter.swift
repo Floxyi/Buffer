@@ -61,4 +61,3 @@ enum ClipboardColorFormatter {
             .replacingOccurrences(of: #"\.$"#, with: "", options: .regularExpression)
     }
 }
-

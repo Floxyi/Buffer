@@ -75,66 +75,9 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         }
     }
 
-    func handleSelectionNavigation(
-        to itemID: UUID,
-        using scrollProxy: ScrollViewProxy,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
-        scrollController: ScrollController,
-        context: ClipboardListScrollContext
-    ) {
-        scheduleMeasuredScroll(
-            request: ClipboardMeasuredScrollRequest(
-                itemID: itemID,
-                alignment: .centered,
-                requestID: nextRequestID()
-            ),
-            using: scrollProxy,
-            measuredScrollCoordinator: measuredScrollCoordinator,
-            scrollController: scrollController,
-            context: context
-        )
-    }
-
-    func handleSelectedIndexChange(
-        selectedIndex: Int,
-        itemCount: Int,
-        itemID: UUID?,
-        scrollTrigger: inout Bool,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
-        scrollController: ScrollController,
-        context: ClipboardListScrollContext
-    ) {
-        guard scrollTrigger else { return }
-
-        scrollTrigger = false
-
-        if selectedIndex == 0 {
-            scheduleSettledScroll(
-                .top,
-                measuredScrollCoordinator: measuredScrollCoordinator,
-                scrollController: scrollController
-            )
-        } else if selectedIndex == itemCount - 1 {
-            scheduleSettledScroll(
-                .bottom,
-                measuredScrollCoordinator: measuredScrollCoordinator,
-                scrollController: scrollController
-            )
-        } else if let itemID {
-            scheduleKeyboardNavigationScroll(
-                to: itemID,
-                measuredScrollCoordinator: measuredScrollCoordinator,
-                scrollController: scrollController,
-                context: context
-            )
-        }
-    }
-
     func handleKeyboardScrollRequestChange(
         _ newRequest: HistoryKeyboardScrollRequest?,
         items: [ClipboardItem],
-        store: ClipboardStore,
-        settings: SettingsManager,
         assetPrewarmer: ClipboardListAssetPrewarmer,
         scrollController: ScrollController,
         context: ClipboardListScrollContext
@@ -164,9 +107,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         )
         assetPrewarmer.prewarmAssetsForKeyboardNavigation(
             request: newRequest,
-            items: items,
-            store: store,
-            settings: settings
+            items: items
         )
     }
 
@@ -399,24 +340,6 @@ final class ClipboardListScrollCoordinator: ObservableObject {
 
         activeJumpScrollRequest = nil
         context.onJumpScrollCompleted(request, succeeded)
-    }
-
-    private func scheduleKeyboardNavigationScroll(
-        to itemID: UUID,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
-        scrollController: ScrollController,
-        context: ClipboardListScrollContext
-    ) {
-        let requestID = nextRequestID()
-
-        measuredScrollCoordinator.cancel()
-        guard requestID == scrollRequestID,
-            let metrics = keyboardNavigationMetrics(for: itemID, context: context),
-            abs(metrics.targetOffset - metrics.currentOffset) > 0.5
-        else {
-            return
-        }
-        scrollController.scrollTo(offset: metrics.targetOffset)
     }
 
     private func keyboardNavigationMetrics(

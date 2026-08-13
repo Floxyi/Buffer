@@ -4,7 +4,8 @@ import Foundation
 @MainActor
 struct StatusBarClearHistoryConfirmationPresenter {
     func confirmClearHistory(
-        runAlert: @MainActor () -> NSApplication.ModalResponse = StatusBarClearHistoryConfirmationPresenter.runDefaultAlert
+        runAlert: @MainActor () -> NSApplication.ModalResponse = StatusBarClearHistoryConfirmationPresenter
+            .runDefaultAlert
     ) -> Bool {
         runAlert() == .alertFirstButtonReturn
     }

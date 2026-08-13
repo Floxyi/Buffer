@@ -2,10 +2,15 @@ import Foundation
 
 actor ClipboardRepository {
     private var items: [ClipboardItem]
-    private let persistence: ClipboardHistoryPersistence
+    private let persistence: any ClipboardHistoryPersisting
     private let assetStore: ClipboardAssetStore
+    private let deletionPolicy = ClipboardDeletionPolicy()
 
-    init(initialItems: [ClipboardItem], persistence: ClipboardHistoryPersistence, assetStore: ClipboardAssetStore) {
+    init(
+        initialItems: [ClipboardItem],
+        persistence: any ClipboardHistoryPersisting,
+        assetStore: ClipboardAssetStore
+    ) {
         self.items = initialItems
         self.persistence = persistence
         self.assetStore = assetStore
@@ -15,130 +20,184 @@ actor ClipboardRepository {
         items
     }
 
-    func add(_ item: ClipboardItem, maxItems: Int) -> [ClipboardItem] {
-        items.insert(item, at: 0)
+    func add(
+        _ item: ClipboardItem,
+        maxItems: Int,
+        expirationCutoff: Date?
+    ) throws -> [ClipboardItem] {
+        var nextItems = items
+        nextItems.insert(item, at: 0)
 
-        if items.count > maxItems {
-            if let indexToRemove = items.lastIndex(where: { !$0.isPinned }) {
-                let removed = items.remove(at: indexToRemove)
-                assetStore.deleteAssociatedFiles(for: removed)
-            } else if let removed = items.popLast() {
-                assetStore.deleteAssociatedFiles(for: removed)
+        var removedItems: [ClipboardItem] = []
+        if let expirationCutoff {
+            let expiredItems = nextItems.filter {
+                $0.timestamp < expirationCutoff && deletionPolicy.canDelete($0)
             }
+            let expiredIDs = Set(expiredItems.map(\.id))
+            nextItems.removeAll { expiredIDs.contains($0.id) }
+            removedItems.append(contentsOf: expiredItems)
         }
 
-        persist()
-        return items
-    }
-
-    func delete(_ item: ClipboardItem) -> [ClipboardItem] {
-        items.removeAll { $0.id == item.id }
-        assetStore.deleteAssociatedFiles(for: item)
-        persist()
-        return items
-    }
-
-    func delete(_ itemsToDelete: [ClipboardItem]) -> [ClipboardItem] {
-        let idsToDelete = Set(itemsToDelete.map(\.id))
-        guard !idsToDelete.isEmpty else { return items }
-
-        items.removeAll { item in
-            let shouldDelete = idsToDelete.contains(item.id)
-            if shouldDelete {
-                assetStore.deleteAssociatedFiles(for: item)
-            }
-            return shouldDelete
-        }
-
-        persist()
-        return items
-    }
-
-    func togglePin(for item: ClipboardItem) -> [ClipboardItem] {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
-
-        items[index].isPinned.toggle()
-        items[index].pinnedAt = items[index].isPinned ? Date() : nil
-        persist()
-        return items
-    }
-
-    func updatePinState(_ pinState: ClipboardPinState, for targetItems: [ClipboardItem]) -> [ClipboardItem] {
-        let ids = Set(targetItems.map(\.id))
-        guard !ids.isEmpty else { return items }
-
-        let timestamp = pinState.isPinned ? Date() : nil
-        var didChange = false
-
-        for index in items.indices where ids.contains(items[index].id) {
-            if items[index].isPinned != pinState.isPinned || items[index].pinnedAt != timestamp {
-                items[index].isPinned = pinState.isPinned
-                items[index].pinnedAt = timestamp
-                didChange = true
-            }
-        }
-
-        if didChange {
-            persist()
-        }
-
-        return items
-    }
-
-    func setOCRText(_ text: String, for item: ClipboardItem) -> [ClipboardItem] {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
-        items[index] = items[index].updatingOCRText(text)
-        persist()
-        return items
-    }
-
-    func moveToTop(_ item: ClipboardItem) -> [ClipboardItem] {
-        guard let index = items.firstIndex(where: { $0.id == item.id }), index != 0 else { return items }
-        let removed = items.remove(at: index)
-        items.insert(removed, at: 0)
-        persist()
-        return items
-    }
-
-    func clear() -> [ClipboardItem] {
-        for item in items {
-            assetStore.deleteAssociatedFiles(for: item)
-        }
-        items.removeAll()
-        persist()
-        return items
-    }
-
-    func trim(to maxItems: Int) -> [ClipboardItem] {
-        guard items.count > maxItems else { return items }
-
-        while items.count > maxItems {
-            if let index = items.lastIndex(where: { !$0.isPinned }) {
-                let removed = items.remove(at: index)
-                assetStore.deleteAssociatedFiles(for: removed)
+        while nextItems.count > maxItems {
+            if let indexToRemove = nextItems.lastIndex(where: deletionPolicy.canDelete) {
+                removedItems.append(nextItems.remove(at: indexToRemove))
             } else {
                 break
             }
         }
 
-        persist()
-        return items
+        do {
+            return try commit(nextItems, removingAssetsFor: removedItems)
+        } catch {
+            assetStore.deleteAssociatedFiles(for: item)
+            throw error
+        }
     }
 
-    func pruneExpired(before cutoff: Date) -> [ClipboardItem] {
-        let expiredItems = items.filter { $0.timestamp < cutoff }
-        guard !expiredItems.isEmpty else { return items }
-
-        for item in expiredItems {
-            assetStore.deleteAssociatedFiles(for: item)
+    func delete(_ item: ClipboardItem) throws -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }),
+            deletionPolicy.canDelete(items[index])
+        else {
+            return items
         }
 
-        items.removeAll { $0.timestamp < cutoff }
-        persist()
-        return items
+        var nextItems = items
+        let removed = nextItems.remove(at: index)
+        return try commit(nextItems, removingAssetsFor: [removed])
     }
 
-    private func persist() {
-        persistence.saveHistory(items)
+    func delete(_ itemsToDelete: [ClipboardItem]) throws -> [ClipboardItem] {
+        let requestedIDs = Set(itemsToDelete.map(\.id))
+        guard !requestedIDs.isEmpty else { return items }
+
+        let removedItems = items.filter {
+            requestedIDs.contains($0.id) && deletionPolicy.canDelete($0)
+        }
+        let removedIDs = Set(removedItems.map(\.id))
+        let nextItems = items.filter { !removedIDs.contains($0.id) }
+        return try commit(nextItems, removingAssetsFor: removedItems)
+    }
+
+    func togglePin(for item: ClipboardItem) throws -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
+
+        var nextItems = items
+        nextItems[index].isPinned.toggle()
+        nextItems[index].pinnedAt = nextItems[index].isPinned ? Date() : nil
+        return try commit(nextItems)
+    }
+
+    func updatePinState(_ pinState: ClipboardPinState, for targetItems: [ClipboardItem]) throws -> [ClipboardItem] {
+        let ids = Set(targetItems.map(\.id))
+        guard !ids.isEmpty else { return items }
+
+        let timestamp = Date()
+        var nextItems = items
+
+        for index in nextItems.indices where ids.contains(nextItems[index].id) {
+            let needsUpdate =
+                nextItems[index].isPinned != pinState.isPinned
+                || (pinState.isPinned && nextItems[index].pinnedAt == nil)
+                || (!pinState.isPinned && nextItems[index].pinnedAt != nil)
+            guard needsUpdate else { continue }
+
+            nextItems[index].isPinned = pinState.isPinned
+            nextItems[index].pinnedAt = pinState.isPinned ? timestamp : nil
+        }
+
+        guard nextItems != items else { return items }
+        return try commit(nextItems)
+    }
+
+    func toggleBookmark(for item: ClipboardItem) throws -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
+
+        var nextItems = items
+        nextItems[index].isBookmarked.toggle()
+        nextItems[index].bookmarkedAt = nextItems[index].isBookmarked ? Date() : nil
+        return try commit(nextItems)
+    }
+
+    func updateBookmarkState(
+        _ bookmarkState: ClipboardBookmarkState,
+        for targetItems: [ClipboardItem]
+    ) throws -> [ClipboardItem] {
+        let ids = Set(targetItems.map(\.id))
+        guard !ids.isEmpty else { return items }
+
+        let timestamp = Date()
+        var nextItems = items
+
+        for index in nextItems.indices where ids.contains(nextItems[index].id) {
+            let needsUpdate =
+                nextItems[index].isBookmarked != bookmarkState.isBookmarked
+                || (bookmarkState.isBookmarked && nextItems[index].bookmarkedAt == nil)
+                || (!bookmarkState.isBookmarked && nextItems[index].bookmarkedAt != nil)
+            guard needsUpdate else { continue }
+
+            nextItems[index].isBookmarked = bookmarkState.isBookmarked
+            nextItems[index].bookmarkedAt = bookmarkState.isBookmarked ? timestamp : nil
+        }
+
+        guard nextItems != items else { return items }
+        return try commit(nextItems)
+    }
+
+    func setOCRText(_ text: String, for item: ClipboardItem) throws -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return items }
+        var nextItems = items
+        nextItems[index] = nextItems[index].updatingOCRText(text)
+        return try commit(nextItems)
+    }
+
+    func moveToTop(_ item: ClipboardItem) throws -> [ClipboardItem] {
+        guard let index = items.firstIndex(where: { $0.id == item.id }), index != 0 else { return items }
+        var nextItems = items
+        let removed = nextItems.remove(at: index)
+        nextItems.insert(removed, at: 0)
+        return try commit(nextItems)
+    }
+
+    func clear() throws -> [ClipboardItem] {
+        let partition = deletionPolicy.partition(items)
+        return try commit(partition.protected, removingAssetsFor: partition.deletable)
+    }
+
+    func trim(to maxItems: Int) throws -> [ClipboardItem] {
+        var nextItems = items
+        var removedItems: [ClipboardItem] = []
+        while nextItems.count > maxItems {
+            if let index = nextItems.lastIndex(where: deletionPolicy.canDelete) {
+                removedItems.append(nextItems.remove(at: index))
+            } else {
+                break
+            }
+        }
+
+        guard nextItems != items else { return items }
+        return try commit(nextItems, removingAssetsFor: removedItems)
+    }
+
+    func pruneExpired(before cutoff: Date) throws -> [ClipboardItem] {
+        let expiredItems = items.filter {
+            $0.timestamp < cutoff && deletionPolicy.canDelete($0)
+        }
+        guard !expiredItems.isEmpty else { return items }
+
+        let expiredIDs = Set(expiredItems.map(\.id))
+        let nextItems = items.filter { !expiredIDs.contains($0.id) }
+        return try commit(nextItems, removingAssetsFor: expiredItems)
+    }
+
+    private func commit(
+        _ nextItems: [ClipboardItem],
+        removingAssetsFor removedItems: [ClipboardItem] = []
+    ) throws -> [ClipboardItem] {
+        try persistence.saveHistory(nextItems)
+        items = nextItems
+        for item in removedItems {
+            assetStore.deleteAssociatedFiles(for: item)
+        }
+        return items
     }
 }

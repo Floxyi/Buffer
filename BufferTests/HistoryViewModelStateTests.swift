@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class HistoryViewModelStateTests: XCTestCase {
-    func testJumpToHistoryClearsSearchAndEntersPendingState() async {
+    func testJumpToHistoryClearsSearchAndEntersPendingState() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
@@ -12,7 +12,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         )
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
         let item = ClipboardItem.text("needle")
-        store.add(item)
+        try await store.add(item)
         await eventually { store.items.count == 1 }
 
         let viewModel = HistoryViewModel(
@@ -28,7 +28,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         XCTAssertEqual(viewModel.activeJumpToHistoryRequest?.itemID, item.id)
     }
 
-    func testPendingJumpToHistoryRetriesThenAbandonsAfterLimit() async {
+    func testPendingJumpToHistoryRetriesThenAbandonsAfterLimit() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
@@ -36,7 +36,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         )
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
         let item = ClipboardItem.text("jump")
-        store.add(item)
+        try await store.add(item)
         await eventually { store.items.count == 1 }
 
         let viewModel = HistoryViewModel(
@@ -92,7 +92,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         let filename = try XCTUnwrap(store.saveText(body))
         let item = ClipboardItem.largeText(preview: "preview", filename: filename)
 
-        store.add(item)
+        try await store.add(item)
         await eventually { store.items.count == 1 }
 
         let viewModel = HistoryViewModel(
@@ -118,8 +118,8 @@ final class HistoryViewModelStateTests: XCTestCase {
         let secondFilename = try XCTUnwrap(store.saveText(String(repeating: "second-", count: 2_000)))
         let firstItem = ClipboardItem.largeText(preview: "first", filename: firstFilename)
         let secondItem = ClipboardItem.largeText(preview: "second", filename: secondFilename)
-        store.add(firstItem)
-        store.add(secondItem)
+        try await store.add(firstItem)
+        try await store.add(secondItem)
         await eventually { store.items.count == 2 }
 
         let viewModel = HistoryViewModel(
@@ -146,7 +146,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
         let item = ClipboardItem.image(filename: filename)
-        store.add(item)
+        try await store.add(item)
         await eventually { store.items.count == 1 }
 
         let viewModel = HistoryViewModel(
@@ -172,8 +172,8 @@ final class HistoryViewModelStateTests: XCTestCase {
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
         let firstItem = ClipboardItem.image(filename: try XCTUnwrap(store.saveImage(makePNGData())))
         let secondItem = ClipboardItem.image(filename: try XCTUnwrap(store.saveImage(makePNGData())))
-        store.add(firstItem)
-        store.add(secondItem)
+        try await store.add(firstItem)
+        try await store.add(secondItem)
         await eventually { store.items.count == 2 }
 
         let ocrService = ControlledOCRService()
@@ -182,11 +182,13 @@ final class HistoryViewModelStateTests: XCTestCase {
             settingsManager: settings,
             ocrService: ocrService
         )
+        viewModel.selectSingle(firstItem.id)
         let firstTask = Task {
             await viewModel.extractImageText(for: firstItem)
         }
         await eventually { ocrService.pendingRequestCount == 1 }
 
+        viewModel.selectSingle(secondItem.id)
         let secondTask = Task {
             await viewModel.extractImageText(for: secondItem)
         }

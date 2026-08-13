@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HistoryMultiSelectionSummary: View {
     let items: [ClipboardItem]
-    let store: ClipboardStore
+    let assetProvider: any ClipboardItemAssetProviding
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
     let enableWebsitePreviews: Bool
@@ -19,7 +19,7 @@ struct HistoryMultiSelectionSummary: View {
             ForEach(items) { item in
                 HistoryMultiSelectionCard(
                     item: item,
-                    store: store,
+                    assetProvider: assetProvider,
                     isCollapsed: collapsedItemIDs.contains(item.id),
                     isTextExpanded: expandedTextItemIDs.contains(item.id),
                     textDetailFontStyle: textDetailFontStyle,

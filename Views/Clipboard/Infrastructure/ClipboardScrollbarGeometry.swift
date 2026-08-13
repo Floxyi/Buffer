@@ -29,7 +29,8 @@ struct ScrollbarMetrics {
         if let dragProgress {
             progress = dragProgress.clamped(to: 0...1)
         } else {
-            progress = maxScrollOffset > 0
+            progress =
+                maxScrollOffset > 0
                 ? (scrollOffset / maxScrollOffset).clamped(to: 0...1)
                 : 0
         }

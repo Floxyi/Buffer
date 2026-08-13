@@ -8,10 +8,8 @@ struct ClipboardKeyboardNavigationMetrics: Equatable {
 struct ClipboardKeyboardNavigationResolver {
     private static let comfortPadding = ClipboardListStructure.LayoutMetrics.itemRowHeight
     private static let topSnapThreshold =
-        ClipboardListStructure.LayoutMetrics.contentPadding +
-        ClipboardListStructure.LayoutMetrics.sectionHeaderHeight +
-        ClipboardListStructure.LayoutMetrics.rowSpacing +
-        ClipboardListStructure.LayoutMetrics.itemRowHeight
+        ClipboardListStructure.LayoutMetrics.contentPadding + ClipboardListStructure.LayoutMetrics.sectionHeaderHeight
+        + ClipboardListStructure.LayoutMetrics.rowSpacing + ClipboardListStructure.LayoutMetrics.itemRowHeight
 
     func resolveMetrics(
         for itemID: UUID,

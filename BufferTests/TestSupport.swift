@@ -1,6 +1,7 @@
-import Foundation
 import AppKit
+import Foundation
 import XCTest
+
 @testable import Buffer
 
 struct TestStorageFactory {

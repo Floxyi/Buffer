@@ -29,7 +29,8 @@ struct ClipboardListLayoutIndex {
         for (rowIndex, row) in rows.enumerated() {
             let height = ClipboardListRowGeometry.estimatedRowHeight(for: row)
             if case .item(let item) = row.kind,
-               let itemIndex = itemIndexByID[item.id] {
+                let itemIndex = itemIndexByID[item.id]
+            {
                 let frame = CGRect(x: 0, y: currentY, width: 0, height: height)
                 entries.append(ItemEntry(id: item.id, itemIndex: itemIndex, frame: frame))
                 frames[item.id] = frame
@@ -43,7 +44,8 @@ struct ClipboardListLayoutIndex {
 
         self.entries = entries
         self.frameByItemID = frames
-        self.contentHeight = rows.isEmpty
+        self.contentHeight =
+            rows.isEmpty
             ? 2 * ClipboardListStructure.LayoutMetrics.contentPadding
             : currentY + ClipboardListStructure.LayoutMetrics.contentPadding
     }
@@ -121,7 +123,8 @@ enum ClipboardListRowGeometry {
             let rowMaxY = currentY + rowHeight
 
             if rowMaxY >= visibleMinY, rowMinY <= visibleMaxY,
-               case .item(let item) = row.kind {
+                case .item(let item) = row.kind
+            {
                 result.append(item.id)
             }
 

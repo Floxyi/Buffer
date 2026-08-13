@@ -7,19 +7,27 @@ struct HistoryDeleteRequest: Equatable, Sendable {
     var selectionCount: Int { items.count }
 }
 
+struct HistoryMutationFailure: Identifiable, Equatable {
+    let id = UUID()
+    let message: String
+}
+
 @MainActor
 struct HistoryItemMutationController {
+    private let deletionPolicy = ClipboardDeletionPolicy()
+
     func makeDeleteRequest(
         for items: [ClipboardItem],
         in filteredItems: [ClipboardItem],
         selectionController: HistorySelectionController
     ) -> HistoryDeleteRequest? {
-        guard !items.isEmpty else { return nil }
+        let deletableItems = deletionPolicy.partition(items).deletable
+        guard !deletableItems.isEmpty else { return nil }
 
         return HistoryDeleteRequest(
-            items: items,
+            items: deletableItems,
             preferredSelectionID: selectionController.preferredSelectionID(
-                afterDeleting: items,
+                afterDeleting: deletableItems,
                 from: filteredItems
             )
         )
@@ -27,93 +35,34 @@ struct HistoryItemMutationController {
 
     func delete(
         _ request: HistoryDeleteRequest,
-        store: ClipboardStore,
-        setPendingPreferredSelectionID: (UUID?) -> Void
-    ) {
-        guard !request.items.isEmpty else { return }
+        store: ClipboardStore
+    ) async throws -> UUID? {
+        guard !request.items.isEmpty else { return nil }
 
-        setPendingPreferredSelectionID(request.preferredSelectionID)
-        store.delete(request.items)
+        try await store.delete(request.items)
+        return request.preferredSelectionID
     }
 
     func togglePinForSelectedItems(
         _ items: [ClipboardItem],
-        selectedID: UUID?,
-        store: ClipboardStore,
-        syncSelection: (UUID?) -> Void
-    ) {
+        store: ClipboardStore
+    ) async throws {
         guard !items.isEmpty else { return }
 
         let pinState: ClipboardPinState = items.allSatisfy(\.isPinned) ? .unpinned : .pinned
-        let preferredID = selectedID ?? items.first?.id
-        store.updatePinState(pinState, for: items)
-        syncSelection(preferredID)
+        try await store.updatePinState(pinState, for: items)
     }
 
-    func togglePin(
-        for item: ClipboardItem,
-        selectSingle: (UUID) -> Void,
-        store: ClipboardStore,
-        syncSelection: (UUID?) -> Void
-    ) {
-        selectSingle(item.id)
-        store.togglePin(for: item)
-        syncSelection(item.id)
-    }
+    func toggleBookmarkForSelectedItems(
+        _ items: [ClipboardItem],
+        store: ClipboardStore
+    ) async throws {
+        guard !items.isEmpty else { return }
 
-    func delete(
-        _ item: ClipboardItem,
-        filteredItems: [ClipboardItem],
-        selectionController: HistorySelectionController,
-        selectSingle: (UUID) -> Void,
-        store: ClipboardStore,
-        setPendingPreferredSelectionID: (UUID?) -> Void
-    ) {
-        selectSingle(item.id)
-        guard let request = makeDeleteRequest(
-            for: [item],
-            in: filteredItems,
-            selectionController: selectionController
-        ) else { return }
-        delete(
-            request,
-            store: store,
-            setPendingPreferredSelectionID: setPendingPreferredSelectionID
-        )
-    }
-
-    func deleteContextMenuTarget(
-        _ targets: [ClipboardItem],
-        filteredItems: [ClipboardItem],
-        selectionController: HistorySelectionController,
-        store: ClipboardStore,
-        setPendingPreferredSelectionID: (UUID?) -> Void
-    ) {
-        guard let request = makeDeleteRequest(
-            for: targets,
-            in: filteredItems,
-            selectionController: selectionController
-        ) else { return }
-        delete(
-            request,
-            store: store,
-            setPendingPreferredSelectionID: setPendingPreferredSelectionID
-        )
-    }
-
-    func togglePinForContextMenuTarget(
-        _ targets: [ClipboardItem],
-        clickedItemID: UUID,
-        selectedIDs: Set<UUID>,
-        selectedID: UUID?,
-        store: ClipboardStore,
-        syncSelection: (UUID?) -> Void
-    ) {
-        guard !targets.isEmpty else { return }
-
-        let pinState: ClipboardPinState = targets.allSatisfy(\.isPinned) ? .unpinned : .pinned
-        let preferredID = selectedIDs.contains(clickedItemID) ? (selectedID ?? clickedItemID) : clickedItemID
-        store.updatePinState(pinState, for: targets)
-        syncSelection(preferredID)
+        let bookmarkState: ClipboardBookmarkState =
+            items.allSatisfy(\.isBookmarked)
+            ? .notBookmarked
+            : .bookmarked
+        try await store.updateBookmarkState(bookmarkState, for: items)
     }
 }

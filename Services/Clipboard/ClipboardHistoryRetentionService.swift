@@ -7,10 +7,12 @@ protocol ClipboardHistoryRetentionServicing {
         retentionPeriod: HistoryRetentionPeriod,
         persistence: any ClipboardHistoryPersisting,
         now: Date
-    ) -> [ClipboardItem]
+    ) throws -> [ClipboardItem]
 }
 
 struct ClipboardHistoryRetentionService: ClipboardHistoryRetentionServicing {
+    private let deletionPolicy = ClipboardDeletionPolicy()
+
     func cutoff(for retentionPeriod: HistoryRetentionPeriod, now: Date = Date()) -> Date? {
         guard let maxAge = retentionPeriod.maxAge else { return nil }
         return now.addingTimeInterval(-maxAge)
@@ -21,15 +23,17 @@ struct ClipboardHistoryRetentionService: ClipboardHistoryRetentionServicing {
         retentionPeriod: HistoryRetentionPeriod,
         persistence: any ClipboardHistoryPersisting,
         now: Date = Date()
-    ) -> [ClipboardItem] {
+    ) throws -> [ClipboardItem] {
         guard let cutoff = cutoff(for: retentionPeriod, now: now) else {
             return items
         }
 
-        let retainedItems = items.filter { $0.timestamp >= cutoff }
+        let retainedItems = items.filter {
+            $0.timestamp >= cutoff || !deletionPolicy.canDelete($0)
+        }
 
         if retainedItems.count != items.count {
-            persistence.saveHistory(retainedItems)
+            try persistence.saveHistory(retainedItems)
         }
 
         return retainedItems

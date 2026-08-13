@@ -49,10 +49,13 @@ enum ClipboardListStructure {
             referenceDate: Date = Date(),
             calendar: Calendar = .current
         ) -> Bool {
-            guard sectionGroupingSignature == SectionGroupingSignature(
-                referenceDate: referenceDate,
-                calendar: calendar
-            ) else {
+            guard
+                sectionGroupingSignature
+                    == SectionGroupingSignature(
+                        referenceDate: referenceDate,
+                        calendar: calendar
+                    )
+            else {
                 return false
             }
 
@@ -71,8 +74,9 @@ enum ClipboardListStructure {
 
         func index(for item: ClipboardItem, in items: [ClipboardItem]) -> Int {
             if let cachedIndex = itemIndexByID[item.id],
-               items.indices.contains(cachedIndex),
-               items[cachedIndex].id == item.id {
+                items.indices.contains(cachedIndex),
+                items[cachedIndex].id == item.id
+            {
                 return cachedIndex
             }
 
@@ -81,8 +85,9 @@ enum ClipboardListStructure {
 
         func itemExists(_ itemID: UUID, in items: [ClipboardItem]) -> Bool {
             if let cachedIndex = itemIndexByID[itemID],
-               items.indices.contains(cachedIndex),
-               items[cachedIndex].id == itemID {
+                items.indices.contains(cachedIndex),
+                items[cachedIndex].id == itemID
+            {
                 return true
             }
 

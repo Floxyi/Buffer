@@ -27,16 +27,16 @@ enum ClipboardEmailValue {
         let matches = detector.matches(in: trimmed, options: [], range: fullRange)
 
         guard matches.count == 1,
-              let match = matches.first,
-              match.range == fullRange,
-              let detectedURL = match.url,
-              detectedURL.scheme?.lowercased() == "mailto",
-              let address = URLComponents(
+            let match = matches.first,
+            match.range == fullRange,
+            let detectedURL = match.url,
+            detectedURL.scheme?.lowercased() == "mailto",
+            let address = URLComponents(
                 url: detectedURL,
                 resolvingAgainstBaseURL: false
-              )?.path,
-              !address.isEmpty,
-              address == trimmed
+            )?.path,
+            !address.isEmpty,
+            address == trimmed
         else {
             return nil
         }

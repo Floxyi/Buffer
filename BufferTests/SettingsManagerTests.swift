@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -23,15 +24,19 @@ final class SettingsManagerTests: XCTestCase {
             launchAtLoginController: FakeLaunchAtLoginController()
         )
 
-        settings.addExcludedApp(ExcludedApp(name: "Zed", bundleIdentifier: "app.zed", bundlePath: "/Applications/Zed.app"))
-        settings.addExcludedApp(ExcludedApp(name: "Alpha", bundleIdentifier: "app.alpha", bundlePath: "/Applications/Alpha.app"))
+        settings.addExcludedApp(
+            ExcludedApp(name: "Zed", bundleIdentifier: "app.zed", bundlePath: "/Applications/Zed.app"))
+        settings.addExcludedApp(
+            ExcludedApp(name: "Alpha", bundleIdentifier: "app.alpha", bundlePath: "/Applications/Alpha.app"))
 
         XCTAssertEqual(settings.excludedApps.map(\.name), ["Alpha", "Zed"])
-        XCTAssertTrue(settings.shouldExcludeCapture(from: SourceApplicationInfo(
-            name: "Alpha",
-            bundleIdentifier: "app.alpha",
-            bundlePath: "/Applications/Other.app"
-        )))
+        XCTAssertTrue(
+            settings.shouldExcludeCapture(
+                from: SourceApplicationInfo(
+                    name: "Alpha",
+                    bundleIdentifier: "app.alpha",
+                    bundlePath: "/Applications/Other.app"
+                )))
     }
 
     func testBehaviourPreferencesPersistChanges() {
@@ -89,9 +94,13 @@ final class SettingsManagerTests: XCTestCase {
             defaults.string(forKey: SettingsKey.quickPasteNumberingStart.rawValue),
             QuickPasteNumberingStart.normalEntries.rawValue
         )
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.upperBound)
-        XCTAssertEqual(defaults.string(forKey: SettingsKey.textDetailFontStyle.rawValue), TextDetailFontStyle.regular.rawValue)
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.textDetailFontSize.rawValue), TextDetailFontSize.large.rawValue)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue),
+            SettingsDefaults.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.textDetailFontStyle.rawValue), TextDetailFontStyle.regular.rawValue)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.textDetailFontSize.rawValue), TextDetailFontSize.large.rawValue)
         XCTAssertFalse(defaults.bool(forKey: SettingsKey.enableWebsitePreviews.rawValue))
     }
 
@@ -132,7 +141,9 @@ final class SettingsManagerTests: XCTestCase {
 
     func testLegacyKeepLastSelectionValueMigratesToUnifiedReopenBehavior() {
         let defaults = makeTestDefaults()
-        defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
+        defaults.set(
+            HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue
+        )
 
         let settings = SettingsManager(
             defaults: defaults,
@@ -145,7 +156,9 @@ final class SettingsManagerTests: XCTestCase {
     func testLegacyDedicatedToggleMigratesToUnifiedReopenBehavior() {
         let defaults = makeTestDefaults()
         defaults.set(true, forKey: SettingsKey.keepHistoryWindowSelectionOnReopen.rawValue)
-        defaults.set(HistoryWindowOpenBehavior.selectAnyFirstItem.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
+        defaults.set(
+            HistoryWindowOpenBehavior.selectAnyFirstItem.rawValue,
+            forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
 
         let settings = SettingsManager(
             defaults: defaults,
@@ -170,7 +183,9 @@ final class SettingsManagerTests: XCTestCase {
         )
 
         XCTAssertEqual(settings.historyRetentionPeriod, .oneWeek)
-        XCTAssertEqual(defaults.string(forKey: SettingsKey.historyRetentionPeriod.rawValue), HistoryRetentionPeriod.oneWeek.rawValue)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.historyRetentionPeriod.rawValue),
+            HistoryRetentionPeriod.oneWeek.rawValue)
     }
 
     func testHistoryLimitIsClampedAndPersistedAsInteger() {
@@ -182,11 +197,13 @@ final class SettingsManagerTests: XCTestCase {
 
         settings.setHistoryLimit(0)
         XCTAssertEqual(settings.historyLimit, SettingsDefaults.historyLimitRange.lowerBound)
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.lowerBound)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.lowerBound)
 
         settings.setHistoryLimit(25_000)
         XCTAssertEqual(settings.historyLimit, SettingsDefaults.historyLimitRange.upperBound)
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.upperBound)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.historyLimit.rawValue), SettingsDefaults.historyLimitRange.upperBound)
     }
 
     func testQuickPasteEntryCountIsClamped() {
@@ -204,7 +221,9 @@ final class SettingsManagerTests: XCTestCase {
             )
         )
         XCTAssertEqual(settings.quickPasteEntryCount, SettingsDefaults.quickPasteEntryCountRange.lowerBound)
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.lowerBound)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue),
+            SettingsDefaults.quickPasteEntryCountRange.lowerBound)
 
         settings.setQuickPasteSettings(
             QuickPasteSettings(
@@ -214,7 +233,9 @@ final class SettingsManagerTests: XCTestCase {
             )
         )
         XCTAssertEqual(settings.quickPasteEntryCount, SettingsDefaults.quickPasteEntryCountRange.upperBound)
-        XCTAssertEqual(defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue), SettingsDefaults.quickPasteEntryCountRange.upperBound)
+        XCTAssertEqual(
+            defaults.integer(forKey: SettingsKey.quickPasteEntryCount.rawValue),
+            SettingsDefaults.quickPasteEntryCountRange.upperBound)
     }
 
     func testInvalidHistoryWindowBehaviorFallsBackToDefault() {

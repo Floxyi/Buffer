@@ -5,13 +5,13 @@ protocol PasteControlling: AnyObject {
     var hasPostEventAccess: Bool { get }
 
     func applicationTarget(for application: NSRunningApplication?) -> ApplicationTarget?
-    func preparePastePlan(for items: [ClipboardItem]) throws -> PastePlan
+    func preparePastePlan(for items: [ClipboardItem]) async throws -> PastePlan
     func executePaste(
         _ plan: PastePlan,
         target: ApplicationTarget?,
         suppressCapture: @escaping @MainActor (PasteboardWriteReceipt) -> Void
     ) async -> PasteOutcome
-    func copyToClipboard(_ items: [ClipboardItem]) throws -> PasteboardWriteReceipt
+    func copyToClipboard(_ items: [ClipboardItem]) async throws -> PasteboardWriteReceipt
     func cancelPaste()
     func completePastePlan(_ plan: PastePlan)
     func discardPastePlan(_ plan: PastePlan)
@@ -27,20 +27,20 @@ final class PasteController: PasteControlling {
 
     private let payloadBuilder: PastePayloadBuilder
     private let sessionCoordinator: PasteSessionCoordinator
-    private let imageExporter: PasteImageExporting
+    private let imageExporter: any PasteTemporaryAssetExporting
     private let payloadWriter: PastePayloadWriting
     private let targetResolver: @MainActor (NSRunningApplication?) -> ApplicationTarget?
 
     init(
         store: ClipboardStore,
-        imageExporter: PasteImageExporting = PasteImageExporter(),
+        imageExporter: any PasteTemporaryAssetExporting = PasteImageExporter(),
         payloadWriter: PastePayloadWriting = PasteboardPayloadWriter(),
         focusRestorer: PasteFocusRestoring = PasteFocusRestorer(),
         eventSender: PasteEventSending = PasteEventSender(),
         sleeper: PasteSleeping = SystemPasteSleeper(),
         targetResolver: (@MainActor (NSRunningApplication?) -> ApplicationTarget?)? = nil
     ) {
-        self.payloadBuilder = PastePayloadBuilder(store: store, imageExporter: imageExporter)
+        self.payloadBuilder = PastePayloadBuilder(contentReader: store, imageExporter: imageExporter)
         self.payloadWriter = payloadWriter
         self.imageExporter = imageExporter
         self.targetResolver = targetResolver ?? Self.makeApplicationTarget
@@ -51,7 +51,9 @@ final class PasteController: PasteControlling {
             sleeper: sleeper
         )
 
-        imageExporter.removeStalePasteSessions()
+        Task {
+            await imageExporter.removeStalePasteSessions()
+        }
     }
 
     var hasPostEventAccess: Bool {
@@ -62,8 +64,8 @@ final class PasteController: PasteControlling {
         targetResolver(application)
     }
 
-    func preparePastePlan(for items: [ClipboardItem]) throws -> PastePlan {
-        try payloadBuilder.makePastePlan(for: items)
+    func preparePastePlan(for items: [ClipboardItem]) async throws -> PastePlan {
+        try await payloadBuilder.makePastePlan(for: items)
     }
 
     func executePaste(
@@ -78,14 +80,14 @@ final class PasteController: PasteControlling {
         )
     }
 
-    func copyToClipboard(_ items: [ClipboardItem]) throws -> PasteboardWriteReceipt {
-        let preparation = try payloadBuilder.prepareCopyPayload(for: items)
+    func copyToClipboard(_ items: [ClipboardItem]) async throws -> PasteboardWriteReceipt {
+        let preparation = try await payloadBuilder.prepareCopyPayload(for: items)
         do {
             let receipt = try payloadWriter.write(preparation.payload)
             scheduleCleanup(for: preparation.temporaryAssetSessionID)
             return receipt
         } catch {
-            removeTemporaryAssets(for: preparation.temporaryAssetSessionID)
+            await removeTemporaryAssets(for: preparation.temporaryAssetSessionID)
             throw error
         }
     }
@@ -99,7 +101,10 @@ final class PasteController: PasteControlling {
     }
 
     func discardPastePlan(_ plan: PastePlan) {
-        removeTemporaryAssets(for: plan.temporaryAssetSessionID)
+        guard let sessionID = plan.temporaryAssetSessionID else { return }
+        Task {
+            await imageExporter.removePasteSession(sessionID)
+        }
     }
 
     @discardableResult
@@ -108,23 +113,23 @@ final class PasteController: PasteControlling {
     }
 
     func saveImageToDisk(_ image: NSImage) {
-        imageExporter.saveImageToDisk(image)
+        PasteImageSupport.saveImageToDisk(image)
     }
 
     private func scheduleCleanup(for sessionID: UUID?) {
         guard let sessionID else { return }
         let imageExporter = imageExporter
-        Task { @MainActor in
+        Task {
             try? await Task.sleep(
                 nanoseconds: UInt64(Timing.temporaryAssetCleanupDelay * 1_000_000_000)
             )
-            imageExporter.removePasteSession(sessionID)
+            await imageExporter.removePasteSession(sessionID)
         }
     }
 
-    private func removeTemporaryAssets(for sessionID: UUID?) {
+    private func removeTemporaryAssets(for sessionID: UUID?) async {
         guard let sessionID else { return }
-        imageExporter.removePasteSession(sessionID)
+        await imageExporter.removePasteSession(sessionID)
     }
 
     private static func makeApplicationTarget(

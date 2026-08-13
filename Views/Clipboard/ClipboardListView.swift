@@ -9,59 +9,31 @@ struct ClipboardListView: View {
     @StateObject private var contextMenuState = ClipboardListContextMenuState()
     @State private var hoverCoordinator = ClipboardListHoverCoordinator()
     @State private var listCache = ClipboardListStructure.DisplayCache.empty
-    @State private var assetPrewarmer = ClipboardListAssetPrewarmer()
+    @State private var keyboardScrollRegistrationID: UUID?
     private let lifecycleCoordinator = ClipboardListLifecycleCoordinator()
     private let displayStateProjector = ClipboardListDisplayStateProjector()
 
-    let items: [ClipboardItem]
+    let state: ClipboardListViewState
+    let navigation: ClipboardListNavigationState
+    let actions: ClipboardListActions
 
-    @Binding var selectedIndex: Int
-    @Binding var scrollTrigger: Bool
+    let websitePreviewsEnabled: Bool
+    let assetProvider: any ClipboardItemAssetProviding
+    let assetPrewarmer: ClipboardListAssetPrewarmer
+    let keyboardScrollRouter: HistoryKeyboardScrollRouter
 
-    let store: ClipboardStore
-    let settings: SettingsManager
-    let quickPasteBadgeNumberByItemID: [UUID: Int]
-    let onCommitSelection: () -> Void
-    let onDismiss: () -> Void
-
-    @Binding var selectedIDs: Set<UUID>
-
-    var onSelectSingle: (UUID, Int) -> Void = { _, _ in }
-    var onSelectPreferredTopItem: () -> UUID? = { nil }
-    var onToggleSelection: (UUID) -> Void = { _ in }
-    var onExtendSelectionTo: (UUID) -> Void = { _ in }
-    var contextMenuActions: (UUID) -> [HistoryItemActionDescriptor] = { _ in [] }
-    var onContextMenuAction: (UUID, HistoryItemAction) -> Void = { _, _ in }
-    var selectionNavigationToken: Int = 0
-    var selectedItemID: UUID? = nil
-    var openScrollRequest: HistoryViewModel.OpenListScrollRequest? = nil
-    var openScrollRequestToken: Int = 0
-    var isShowingFullHistory = false
-    var keyboardScrollRequest: HistoryViewModel.KeyboardScrollRequest? = nil
-
-    /// Dedicated jump-to-history request. This must stay separate from open/keyboard scrolling.
-    var jumpScrollRequest: HistoryViewModel.JumpToHistoryRequest? = nil
-    var onJumpScrollStarted: (HistoryViewModel.JumpToHistoryRequest) -> Void = { _ in }
-    var onJumpScrollCompleted: (HistoryViewModel.JumpToHistoryRequest, Bool) -> Void = { _, _ in }
-
-    var onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void) = { _ in }
-    var onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void) = { _ in }
-
-    private var itemIDs: [UUID] {
-        items.map(\.id)
-    }
+    private var items: [ClipboardItem] { state.items }
 
     private var jumpScrollTaskKey: ClipboardListJumpScrollTaskKey {
         scrollCoordinator.jumpScrollTaskKey(
-            request: jumpScrollRequest,
+            request: navigation.jumpScrollRequest,
             itemCount: items.count,
-            isShowingFullHistory: isShowingFullHistory
+            isShowingFullHistory: navigation.isShowingFullHistory
         )
     }
 
     private var displayState: ClipboardListDisplayState {
         displayStateProjector.project(
-            items: items,
             cache: listCache,
             viewportHeight: scrollController.viewportHeight
         )
@@ -77,17 +49,19 @@ struct ClipboardListView: View {
             items: items,
             displayRowsForRendering: displayState.displayRows,
             contentTrailingPadding: displayState.contentTrailingPadding,
-            store: store,
-            settings: settings,
-            quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
-            selectedIDs: selectedIDs,
+            websitePreviewsEnabled: websitePreviewsEnabled,
+            assetProvider: assetProvider,
+            quickPasteBadgeNumberByItemID: state.quickPasteBadgeNumberByItemID,
+            selectedIDs: state.selectedIDs,
+            searchResultsByItemID: state.searchResultsByItemID,
+            queryText: state.queryText,
             isAwaitingInitialOpenScroll: scrollCoordinator.isAwaitingInitialOpenScroll,
-            onCommitSelection: onCommitSelection,
-            onSelectSingle: onSelectSingle,
-            onToggleSelection: onToggleSelection,
-            onExtendSelectionTo: onExtendSelectionTo,
-            contextMenuActions: contextMenuActions,
-            onContextMenuAction: onContextMenuAction,
+            onCommitSelection: actions.commitSelection,
+            onSelectSingle: actions.selectSingle,
+            onToggleSelection: actions.toggleSelection,
+            onExtendSelectionTo: actions.extendSelection,
+            contextMenuActions: actions.contextMenuActions,
+            onContextMenuAction: actions.performContextMenuAction,
             primaryLabelText: primaryLabelText(for:),
             indexForItem: index(for:),
             onScrollViewReady: configureScrollView(_:),
@@ -97,53 +71,19 @@ struct ClipboardListView: View {
             onAppear: handleAppear(using:)
         )
         .onDisappear(perform: handleDisappear)
-        .onChange(of: itemIDs) { _ in
+        .onChange(of: state.itemsRevision) { _ in
             rebuildListCache()
+            installKeyboardScrollHandler()
             configureMetricsCallback()
             updateVisibleAssetPrewarm()
         }
         .onChange(of: scrollController.viewportHeight) { _ in
             updateVisibleAssetPrewarm()
         }
-        .onChange(of: openScrollRequestToken) { _ in
+        .onChange(of: navigation.openScrollRequestToken) { _ in
             applyOpenScrollRequestIfPossible()
         }
-        .onChange(of: selectedIndex) { newValue in
-            scrollCoordinator.handleSelectedIndexChange(
-                selectedIndex: newValue,
-                itemCount: items.count,
-                itemID: items[safe: newValue]?.id,
-                scrollTrigger: &scrollTrigger,
-                measuredScrollCoordinator: measuredScrollCoordinator,
-                scrollController: scrollController,
-                context: scrollContext
-            )
-        }
-        .onChange(of: selectionNavigationToken) { _ in
-            guard let selectedItemID else { return }
-            guard jumpScrollRequest?.itemID != selectedItemID else { return }
-            guard let pendingScrollProxy else { return }
-
-            scrollCoordinator.handleSelectionNavigation(
-                to: selectedItemID,
-                using: pendingScrollProxy,
-                measuredScrollCoordinator: measuredScrollCoordinator,
-                scrollController: scrollController,
-                context: scrollContext
-            )
-        }
-        .onChange(of: keyboardScrollRequest) { newRequest in
-            scrollCoordinator.handleKeyboardScrollRequestChange(
-                newRequest,
-                items: items,
-                store: store,
-                settings: settings,
-                assetPrewarmer: assetPrewarmer,
-                scrollController: scrollController,
-                context: scrollContext
-            )
-        }
-        .onChange(of: jumpScrollRequest) { newRequest in
+        .onChange(of: navigation.jumpScrollRequest) { newRequest in
             scrollCoordinator.syncJumpScrollRequest(newRequest)
         }
         .task(id: jumpScrollTaskKey) {
@@ -158,8 +98,8 @@ struct ClipboardListView: View {
             layoutIndex: displayState.layoutIndex,
             itemExists: itemExists(_:),
             scrollMetrics: { scrollController.currentMetrics() },
-            onJumpScrollStarted: onJumpScrollStarted,
-            onJumpScrollCompleted: onJumpScrollCompleted,
+            onJumpScrollStarted: actions.jumpScrollStarted,
+            onJumpScrollCompleted: actions.jumpScrollCompleted,
             log: { message in
                 logScrollDiagnostics(message)
             }
@@ -183,9 +123,7 @@ struct ClipboardListView: View {
                 in: items,
                 layoutIndex: displayState.layoutIndex,
                 scrollOffset: metrics.scrollOffset,
-                viewportHeight: metrics.viewportHeight,
-                store: store,
-                settings: settings
+                viewportHeight: metrics.viewportHeight
             )
         }
     }
@@ -193,7 +131,7 @@ struct ClipboardListView: View {
     private func handleScrollToTopRequest(using scrollProxy: ScrollViewProxy) {
         pendingScrollProxy = scrollProxy
         scrollCoordinator.selectFirstItemAndScrollToTop(
-            preferredTopItemID: onSelectPreferredTopItem(),
+            preferredTopItemID: actions.selectPreferredTopItem(),
             firstItemID: items.first?.id,
             using: scrollProxy,
             measuredScrollCoordinator: measuredScrollCoordinator,
@@ -218,11 +156,11 @@ struct ClipboardListView: View {
     private func handleAppear(using scrollProxy: ScrollViewProxy) {
         pendingScrollProxy = scrollProxy
         rebuildListCache()
+        installKeyboardScrollHandler()
         lifecycleCoordinator.handleAppear(
             items: items,
-            settings: settings,
-            prewarmVisibleAssets: { items, settings in
-                assetPrewarmer.prewarmVisibleAssets(in: items, store: store, settings: settings)
+            prewarmVisibleAssets: { items in
+                assetPrewarmer.prewarmVisibleAssets(in: items)
             },
             currentScrollOffsetSnapshot: {
                 scrollController.currentScrollOffsetSnapshot()
@@ -230,8 +168,8 @@ struct ClipboardListView: View {
             syncScrollMetrics: {
                 scrollController.syncMetricsImmediately()
             },
-            onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
-            onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
+            onScrollOffsetProviderChanged: actions.scrollOffsetProviderChanged,
+            onScrollOffsetRestorerChanged: actions.scrollOffsetRestorerChanged,
             restoreScrollOffset: restoreScrollOffset(_:),
             applyOpenScrollRequestIfPossible: applyOpenScrollRequestIfPossible
         )
@@ -239,6 +177,10 @@ struct ClipboardListView: View {
     }
 
     private func handleDisappear() {
+        if let keyboardScrollRegistrationID {
+            keyboardScrollRouter.unregister(keyboardScrollRegistrationID)
+            self.keyboardScrollRegistrationID = nil
+        }
         scrollController.onMetricsChanged = nil
         hoverCoordinator.reset()
         lifecycleCoordinator.handleDisappear(
@@ -248,8 +190,8 @@ struct ClipboardListView: View {
             cancelScrolling: {
                 scrollCoordinator.cancelAll(measuredScrollCoordinator: measuredScrollCoordinator)
             },
-            onScrollOffsetProviderChanged: onScrollOffsetProviderChanged,
-            onScrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
+            onScrollOffsetProviderChanged: actions.scrollOffsetProviderChanged,
+            onScrollOffsetRestorerChanged: actions.scrollOffsetRestorerChanged
         )
         pendingScrollProxy = nil
     }
@@ -265,8 +207,8 @@ struct ClipboardListView: View {
     private func applyOpenScrollRequestIfPossible() {
         guard let pendingScrollProxy else { return }
         scrollCoordinator.applyOpenScrollRequestIfNeeded(
-            request: openScrollRequest,
-            requestToken: openScrollRequestToken,
+            request: navigation.openScrollRequest,
+            requestToken: navigation.openScrollRequestToken,
             using: pendingScrollProxy,
             measuredScrollCoordinator: measuredScrollCoordinator,
             scrollController: scrollController,
@@ -279,21 +221,19 @@ struct ClipboardListView: View {
             in: items,
             layoutIndex: displayState.layoutIndex,
             scrollOffset: scrollController.scrollOffset,
-            viewportHeight: scrollController.viewportHeight,
-            store: store,
-            settings: settings
+            viewportHeight: scrollController.viewportHeight
         )
     }
 
     private func runJumpScrollTaskIfNeeded() async {
-        guard let jumpScrollRequest, let pendingScrollProxy else {
+        guard let jumpScrollRequest = navigation.jumpScrollRequest, let pendingScrollProxy else {
             return
         }
 
         await scrollCoordinator.waitAndStartJumpScrollIfReady(
             jumpScrollRequest,
-            currentJumpScrollRequest: { self.jumpScrollRequest },
-            isShowingFullHistory: { self.isShowingFullHistory },
+            currentJumpScrollRequest: { self.navigation.jumpScrollRequest },
+            isShowingFullHistory: { self.navigation.isShowingFullHistory },
             using: pendingScrollProxy,
             measuredScrollCoordinator: measuredScrollCoordinator,
             scrollController: scrollController,
@@ -304,6 +244,22 @@ struct ClipboardListView: View {
 
     private func rebuildListCache() {
         listCache = ClipboardListStructure.makeDisplayCache(from: items)
+    }
+
+    private func installKeyboardScrollHandler() {
+        let currentItems = items
+        let currentContext = scrollContext
+        keyboardScrollRegistrationID = keyboardScrollRouter.register {
+            [weak scrollCoordinator, weak scrollController, weak assetPrewarmer] request in
+            guard let scrollCoordinator, let scrollController, let assetPrewarmer else { return }
+            scrollCoordinator.handleKeyboardScrollRequestChange(
+                request,
+                items: currentItems,
+                assetPrewarmer: assetPrewarmer,
+                scrollController: scrollController,
+                context: currentContext
+            )
+        }
     }
 
     private func primaryLabelText(for item: ClipboardItem) -> String {

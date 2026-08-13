@@ -45,7 +45,7 @@ final class ClipboardWebsiteIconCacheTests: XCTestCase {
 
     func testDiskStoreRoundTripsCacheKeysAndData() async throws {
         let directory = isolatedDiskDirectory()
-        let diskStore = ClipboardIconDiskStore(directory: directory)
+        let diskStore = ClipboardWebsiteIconDiskStore(directory: directory)
         let key = "website:openai.com"
         let data = Data([0x01, 0x02, 0x03])
 

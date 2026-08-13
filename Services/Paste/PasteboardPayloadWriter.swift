@@ -26,9 +26,9 @@ enum PasteboardWriteError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .encodeFailed:
-            "Buffer could not encode the selected clipboard content."
+            String(localized: "Buffer could not encode the selected clipboard content.")
         case .writeRejected:
-            "macOS rejected the clipboard write."
+            String(localized: "macOS rejected the clipboard write.")
         }
     }
 }

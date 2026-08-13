@@ -43,7 +43,7 @@ final class StatusBarController: NSObject {
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
-    
+
     private func observeSettings() {
         settingsManager.$menuBarIcon
             .removeDuplicates()
@@ -99,8 +99,19 @@ final class StatusBarController: NSObject {
     }
 
     @objc private func clearHistory() {
-        if clearHistoryConfirmationPresenter.confirmClearHistory() {
-            store.clear()
+        guard clearHistoryConfirmationPresenter.confirmClearHistory() else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await store.clear()
+            } catch {
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = String(localized: "Couldn’t Clear History")
+                alert.informativeText = error.localizedDescription
+                alert.runModal()
+            }
         }
     }
 

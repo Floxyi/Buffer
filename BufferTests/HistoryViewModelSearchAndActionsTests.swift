@@ -4,6 +4,57 @@ import XCTest
 
 @MainActor
 final class HistoryViewModelSearchAndActionsTests: XCTestCase {
+    func testSearchPublishesEachRapidQueryChangeSynchronously() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let alpha = ClipboardItem.text("alpha needle")
+        let beta = ClipboardItem.text("beta haystack")
+        await populateStore(store, with: [alpha, beta])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        let expectations: [(query: String, itemIDs: Set<UUID>)] = [
+            ("a", [alpha.id, beta.id]),
+            ("al", [alpha.id]),
+            ("alpha n", [alpha.id]),
+            ("alpha needle", [alpha.id]),
+            ("beta", [beta.id]),
+        ]
+
+        var previousRevision = viewModel.filteredItemsRevision
+        for expectation in expectations {
+            viewModel.searchText = expectation.query
+
+            XCTAssertEqual(Set(viewModel.filteredItems.map(\.id)), expectation.itemIDs)
+            XCTAssertEqual(Set(viewModel.searchResultsByItemID.keys), expectation.itemIDs)
+            XCTAssertGreaterThan(viewModel.filteredItemsRevision, previousRevision)
+            previousRevision = viewModel.filteredItemsRevision
+        }
+    }
+
+    func testActiveSearchRefreshesWhenDelayedIndexBecomesReady() async throws {
+        let indexer = SuspendedClipboardSearchIndexer()
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings, searchIndexer: indexer)
+        let matchingItem = ClipboardItem.text("delayed needle")
+        let otherItem = ClipboardItem.text("unrelated")
+        try await store.add(matchingItem)
+        try await store.add(otherItem)
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        viewModel.searchText = "needle"
+        XCTAssertEqual(viewModel.searchText, "needle")
+        XCTAssertFalse(store.isSearchIndexReady)
+
+        await indexer.resume()
+        await store.waitForSearchIndex()
+
+        await eventually {
+            viewModel.filteredItems.map(\.id) == [matchingItem.id]
+        }
+        XCTAssertEqual(viewModel.searchText, "needle")
+        XCTAssertEqual(Set(viewModel.searchResultsByItemID.keys), [matchingItem.id])
+    }
+
     func testSearchMatchesInlineFileBackedAndOCRContent() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
@@ -90,14 +141,48 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             originalText: "openai.com/research"
         )
         await populateStore(store, with: [item])
+        XCTAssertNotNil(store.searchResult(for: item, query: ClipboardQuery(text: "openai")))
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
         viewModel.searchText = "openai"
 
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [item.id])
+        XCTAssertEqual(viewModel.selectedID, item.id)
+        XCTAssertEqual(viewModel.detailViewState.selectionCount, 1)
         XCTAssertEqual(
             viewModel.detailViewState.actions.map(\.action),
-            [.copy, .openLink, .jumpToHistory, .togglePin, .delete]
+            [.copy, .openLink, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
         )
+    }
+
+    func testFilterOnlyQueryOffersJumpAndJumpRestoresFullHistory() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let ordinary = ClipboardItem.text("ordinary")
+        let bookmarked = ClipboardItem(
+            isBookmarked: true,
+            bookmarkedAt: Date(),
+            content: .text(TextItemContent(inlineText: "bookmarked"))
+        )
+        await populateStore(store, with: [ordinary, bookmarked])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        viewModel.setFilters(ClipboardFilters(requiresBookmark: true))
+
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [bookmarked.id])
+        XCTAssertFalse(viewModel.isShowingFullHistory)
+        XCTAssertTrue(viewModel.detailViewState.canJumpToHistorySelection)
+        XCTAssertTrue(
+            viewModel.contextMenuActions(for: bookmarked.id).contains {
+                $0.action == .jumpToHistory
+            }
+        )
+
+        viewModel.jumpToHistory(for: bookmarked)
+
+        XCTAssertTrue(viewModel.activeQuery.isEmpty)
+        XCTAssertEqual(Set(viewModel.filteredItems.map(\.id)), [ordinary.id, bookmarked.id])
+        XCTAssertEqual(viewModel.selectedID, bookmarked.id)
     }
 
     func testContextMenuActionsMatchMultiSelection() async {
@@ -113,7 +198,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.contextMenuActions(for: first.id).map(\.action),
-            [.copy, .togglePin, .delete]
+            [.copy, .toggleBookmark, .togglePin, .delete]
         )
     }
 
@@ -154,6 +239,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let actionHandler = makeActionHandler(
             viewModel: viewModel,
             store: store,
+            settings: settings,
             onPaste: { pastedItem = $0 }
         )
 
@@ -184,6 +270,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let actionHandler = makeActionHandler(
             viewModel: viewModel,
             store: store,
+            settings: settings,
             onPasteMultiple: { pastedItems = $0 }
         )
 
@@ -236,6 +323,32 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.id), [newest.id])
     }
 
+    func testMutationKeepsOriginalMultiSelectionAfterSelectionChanges() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let oldest = ClipboardItem.text("oldest")
+        let middle = ClipboardItem.text("middle")
+        let newest = ClipboardItem.text("newest")
+        await populateStore(store, with: [oldest, middle, newest])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        viewModel.selectSingle(middle.id)
+        viewModel.toggleSelection(oldest.id)
+        let mutationTargets = viewModel.selectedItemsInActionOrder
+
+        viewModel.togglePin(for: mutationTargets)
+        viewModel.selectSingle(newest.id)
+
+        await eventually {
+            let itemByID = Dictionary(uniqueKeysWithValues: store.items.map { ($0.id, $0) })
+            return itemByID[middle.id]?.isPinned == true
+                && itemByID[oldest.id]?.isPinned == true
+                && itemByID[newest.id]?.isPinned == false
+        }
+        XCTAssertEqual(Set(mutationTargets.map(\.id)), [middle.id, oldest.id])
+        XCTAssertEqual(viewModel.selectedID, newest.id)
+    }
+
     func testClearSearchAfterClosingClearsTextByDefault() {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
@@ -266,20 +379,54 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
     }
 }
 
+private actor SuspendedClipboardSearchIndexer: ClipboardSearchIndexing {
+    private let indexer = ClipboardSearchIndexer()
+    private var isSuspended = true
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+
+    func makeIndex(
+        for items: [ClipboardItem],
+        assetAccess: any ClipboardAssetAccessing
+    ) async -> ClipboardSearchIndex {
+        if isSuspended {
+            await withCheckedContinuation { continuation in
+                continuations.append(continuation)
+            }
+        }
+        return await indexer.makeIndex(for: items, assetAccess: assetAccess)
+    }
+
+    func resume() {
+        isSuspended = false
+        let pendingContinuations = continuations
+        continuations.removeAll()
+        for continuation in pendingContinuations {
+            continuation.resume()
+        }
+    }
+}
+
 @MainActor
 private func makeActionHandler(
     viewModel: HistoryViewModel,
     store: ClipboardStore,
+    settings: SettingsManager,
     onPaste: @escaping (ClipboardItem) -> Void = { _ in },
     onPasteMultiple: @escaping ([ClipboardItem]) -> Void = { _ in }
 ) -> HistoryActionHandler {
     HistoryActionHandler(
         viewModel: viewModel,
-        store: store,
-        onCopyToClipboard: { _ in true },
-        onCopyMultipleToClipboard: { _ in true },
-        onPaste: onPaste,
-        onPasteMultiple: onPasteMultiple,
-        onDismiss: {}
+        contentReader: store,
+        assetProvider: ClipboardItemAssetProvider(store: store, settings: settings),
+        onCopy: { _ in true },
+        onPaste: { items in
+            if items.count == 1, let item = items.first {
+                onPaste(item)
+            } else {
+                onPasteMultiple(items)
+            }
+        },
+        onDismiss: {},
+        presentingWindow: { nil }
     )
 }

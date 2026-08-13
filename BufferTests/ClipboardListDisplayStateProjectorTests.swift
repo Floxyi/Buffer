@@ -3,13 +3,12 @@ import XCTest
 @testable import Buffer
 
 final class ClipboardListDisplayStateProjectorTests: XCTestCase {
-    func testUsesCachedRowsWhenCacheMatches() {
+    func testUsesCachedRows() {
         let item = ClipboardItem.text("first")
         let cache = ClipboardListStructure.makeDisplayCache(from: [item])
         let projector = ClipboardListDisplayStateProjector()
 
         let state = projector.project(
-            items: [item],
             cache: cache,
             viewportHeight: 400
         )
@@ -23,8 +22,7 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
         let projector = ClipboardListDisplayStateProjector()
 
         let state = projector.project(
-            items: items,
-            cache: .empty,
+            cache: ClipboardListStructure.makeDisplayCache(from: items),
             viewportHeight: 120
         )
 

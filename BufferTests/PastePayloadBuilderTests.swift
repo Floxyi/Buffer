@@ -4,13 +4,13 @@ import XCTest
 
 @MainActor
 final class PastePayloadBuilderTests: XCTestCase {
-    func testCopyPayloadForMultipleTextItemsJoinsWithNewlines() throws {
+    func testCopyPayloadForMultipleTextItemsJoinsWithNewlines() async throws {
         let builder = PastePayloadBuilder(
-            store: makeStore(),
+            contentReader: makeStore(),
             imageExporter: FakePasteImageExporter()
         )
 
-        let preparation = try builder.prepareCopyPayload(for: [
+        let preparation = try await builder.prepareCopyPayload(for: [
             .text("first"),
             .text("second"),
         ])
@@ -22,33 +22,33 @@ final class PastePayloadBuilderTests: XCTestCase {
         XCTAssertNil(preparation.temporaryAssetSessionID)
     }
 
-    func testEmailCopyAndPastePreserveOriginalText() throws {
+    func testEmailCopyAndPastePreserveOriginalText() async throws {
         let builder = PastePayloadBuilder(
-            store: makeStore(),
+            contentReader: makeStore(),
             imageExporter: FakePasteImageExporter()
         )
         let item = ClipboardItem.email(
             try XCTUnwrap(ClipboardEmailValue.parse("  person@example.com\n"))
         )
 
-        let copy = try builder.prepareCopyPayload(for: [item])
-        let paste = try builder.makePastePlan(for: [item])
+        let copy = try await builder.prepareCopyPayload(for: [item])
+        let paste = try await builder.makePastePlan(for: [item])
 
         XCTAssertEqual(copy.payload, .string("  person@example.com\n"))
         XCTAssertEqual(paste.steps.map(\.payload), [.string("  person@example.com\n")])
     }
 
-    func testPastePlanForImagePrefersSessionScopedTempFileURL() throws {
+    func testPastePlanForImagePrefersSessionScopedTempFileURL() async throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
         let item = ClipboardItem.image(filename: filename)
         let expectedURL = URL(fileURLWithPath: "/tmp/image-0001.png")
         let builder = PastePayloadBuilder(
-            store: store,
+            contentReader: store,
             imageExporter: FakePasteImageExporter(tempURLs: ["image-0001.png": expectedURL])
         )
 
-        let plan = try builder.makePastePlan(for: [item])
+        let plan = try await builder.makePastePlan(for: [item])
 
         guard case .fileURLs(let urls) = plan.steps.first?.payload else {
             return XCTFail("Expected file URL payload")
@@ -57,18 +57,18 @@ final class PastePayloadBuilderTests: XCTestCase {
         XCTAssertNotNil(plan.temporaryAssetSessionID)
     }
 
-    func testMixedPastePlanSeparatesTextAndImageFilesInOrder() throws {
+    func testMixedPastePlanSeparatesTextAndImageFilesInOrder() async throws {
         let store = makeStore()
         let filename = try XCTUnwrap(store.saveImage(makePNGData()))
         let item = ClipboardItem.image(filename: filename)
         let builder = PastePayloadBuilder(
-            store: store,
+            contentReader: store,
             imageExporter: FakePasteImageExporter(tempURLs: [
                 "image-0001.png": URL(fileURLWithPath: "/tmp/image-0001.png")
             ])
         )
 
-        let plan = try builder.makePastePlan(for: [.text("hello"), item])
+        let plan = try await builder.makePastePlan(for: [.text("hello"), item])
 
         XCTAssertEqual(
             plan.steps.map(\.payload),
@@ -88,15 +88,13 @@ final class PastePayloadBuilderTests: XCTestCase {
     }
 }
 
-@MainActor
-private struct FakePasteImageExporter: PasteImageExporting {
+private struct FakePasteImageExporter: PasteTemporaryAssetExporting {
     var tempURLs: [String: URL] = [:]
 
-    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL? {
+    func saveImageDataToTemp(_ data: Data, sessionID: UUID, fileName: String) async -> URL? {
         tempURLs[fileName]
     }
 
-    func removePasteSession(_ sessionID: UUID) {}
-    func removeStalePasteSessions() {}
-    func saveImageToDisk(_ image: NSImage) {}
+    func removePasteSession(_ sessionID: UUID) async {}
+    func removeStalePasteSessions() async {}
 }

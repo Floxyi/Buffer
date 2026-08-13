@@ -43,6 +43,34 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertTrue(panel.hasShadow)
     }
 
+    func testConfigurationControlsSizingAndWindowCapabilities() {
+        let minimumSize = NSSize(width: 640, height: 400)
+        let maximumSize = NSSize(width: 1_200, height: 900)
+        let configurator = HistoryPanelConfigurator(
+            configuration: HistoryWindowConfiguration(
+                contentSize: NSSize(width: 900, height: 600),
+                minimumSize: minimumSize,
+                maximumSize: maximumSize,
+                allowsResizing: true,
+                allowsMoving: true,
+                appearance: BufferAppearanceConfiguration(
+                    mode: .dark,
+                    surfaceStyle: .opaque
+                )
+            )
+        )
+        let panel = configurator.makePanel()
+        let observer = configurator.configure(panel) {}
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        XCTAssertTrue(panel.styleMask.contains(.resizable))
+        XCTAssertEqual(panel.minSize, minimumSize)
+        XCTAssertEqual(panel.maxSize, maximumSize)
+        XCTAssertTrue(panel.isMovable)
+        XCTAssertTrue(panel.isMovableByWindowBackground)
+        XCTAssertEqual(panel.appearance?.name, .darkAqua)
+    }
+
     func testCloseOrdersPanelOutForReuse() {
         let panel = HistoryPanelConfigurator().makePanel()
         panel.orderFront(nil)
@@ -63,6 +91,23 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         panel.resignKey()
 
         XCTAssertEqual(clickOutsideCount, 0)
+    }
+
+    func testNativeAlertAttachesToBorderlessHistoryPanel() {
+        let panel = HistoryPanelConfigurator().makePanel()
+        panel.orderFront(nil)
+        defer { panel.close() }
+
+        let alert = NSAlert()
+        alert.messageText = "Permission Required"
+        alert.addButton(withTitle: "OK")
+        alert.beginSheetModal(for: panel)
+
+        let attachedSheet = panel.attachedSheet
+        XCTAssertNotNil(attachedSheet)
+        if let attachedSheet {
+            panel.endSheet(attachedSheet)
+        }
     }
 
     func testMakeContentConfigurationReturnsAnimatedEffectContainer() {

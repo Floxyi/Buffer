@@ -58,7 +58,8 @@ final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
     func showWindow() {
         if let controller = settingsWindowController,
-           let window = controller.windowReference() {
+            let window = controller.windowReference()
+        {
             present(window)
             return
         }
@@ -74,8 +75,9 @@ final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              let existingWindow = settingsWindowController?.windowReference() as? NSWindow,
-              existingWindow === window else {
+            let existingWindow = settingsWindowController?.windowReference() as? NSWindow,
+            existingWindow === window
+        else {
             return
         }
 
@@ -111,7 +113,7 @@ final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         toolbar.displayMode = .iconOnly
         toolbar.showsBaselineSeparator = false
 
-        window.title = "General"
+        window.title = String(localized: "General")
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = false
         window.titleVisibility = .visible

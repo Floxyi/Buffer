@@ -4,18 +4,18 @@ import Foundation
 @MainActor
 struct HistoryActionHandler {
     let viewModel: HistoryViewModel
-    let store: ClipboardStore
-    let onCopyToClipboard: (ClipboardItem) -> Bool
-    let onCopyMultipleToClipboard: ([ClipboardItem]) -> Bool
-    let onPaste: (ClipboardItem) -> Void
-    let onPasteMultiple: ([ClipboardItem]) -> Void
+    let contentReader: any ClipboardPasteContentReading
+    let assetProvider: any ClipboardItemAssetProviding
+    let onCopy: ([ClipboardItem]) async -> Bool
+    let onPaste: ([ClipboardItem]) -> Void
     let onDismiss: () -> Void
+    let presentingWindow: () -> NSWindow?
+    let imageExportService = ClipboardImageExportService()
 
     func performPrimaryPasteAction() {
-        performSelectionAction(
-            onSingle: onPaste,
-            onMultiple: onPasteMultiple
-        )
+        let items = currentSelectionSnapshot()
+        guard !items.isEmpty else { return }
+        onPaste(items)
     }
 
     func performCopyOnlyAction() {
@@ -24,11 +24,14 @@ struct HistoryActionHandler {
 
     func copySelection(dismissAfterCopy: Bool) {
         let items = currentSelectionSnapshot()
-        guard performCopyAction(with: items) else { return }
+        guard !items.isEmpty else { return }
 
-        viewModel.clearSearchAfterCommittedAction()
-        if dismissAfterCopy {
-            onDismiss()
+        Task { @MainActor in
+            guard await onCopy(items) else { return }
+            viewModel.clearSearchAfterCommittedAction()
+            if dismissAfterCopy {
+                onDismiss()
+            }
         }
     }
 
@@ -55,38 +58,22 @@ struct HistoryActionHandler {
         openPanel.canChooseDirectories = true
         openPanel.canChooseFiles = false
         openPanel.canCreateDirectories = true
-        openPanel.title = "Select Folder to Save Images"
-        openPanel.prompt = "Select"
+        openPanel.title = String(localized: "Select Folder to Save Images")
+        openPanel.prompt = String(localized: "Select")
 
-        guard let window = NSApplication.shared.windows.first else { return }
+        guard let window = presentingWindow() else { return }
+        let imageItems = viewModel.selectedItems.filter {
+            ClipboardItemTypeRegistry.supportsImageAssets(for: $0)
+        }
 
         openPanel.beginSheetModal(for: window) { response in
             guard response == .OK, let folderURL = openPanel.url else { return }
-
-            let imageItems = self.viewModel.selectedItems.filter {
-                ClipboardItemTypeRegistry.supportsImageAssets(for: $0)
-            }
-
-            for (index, item) in imageItems.enumerated() {
-                guard let image = self.store.image(for: item) else { continue }
-
-                let paddedNumber = String(format: "%04d", index + 1)
-                let fileURL = folderURL.appendingPathComponent("image-\(paddedNumber).png")
-
-                guard let tiffData = image.tiffRepresentation,
-                    let bitmapImage = NSBitmapImageRep(data: tiffData),
-                    let pngData = bitmapImage.representation(using: .png, properties: [:])
-                else {
-                    continue
-                }
-
-                do {
-                    try pngData.write(to: fileURL, options: .atomic)
-                } catch {
-                    BufferLogger.ui.error(
-                        "Failed to save image to \(fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)"
-                    )
-                }
+            Task {
+                await imageExportService.export(
+                    imageItems,
+                    to: folderURL,
+                    contentReader: contentReader
+                )
             }
         }
     }
@@ -96,7 +83,9 @@ struct HistoryActionHandler {
     }
 
     func copyPlainText(_ text: String) {
-        _ = onCopyToClipboard(.text(text))
+        Task {
+            _ = await onCopy([.text(text)])
+        }
     }
 
     private func performAction(_ action: HistoryItemAction, items: [ClipboardItem]) {
@@ -104,8 +93,10 @@ struct HistoryActionHandler {
 
         switch action {
         case .copy:
-            if performCopyAction(with: items) {
-                viewModel.clearSearchAfterCommittedAction()
+            Task { @MainActor in
+                if await onCopy(items) {
+                    viewModel.clearSearchAfterCommittedAction()
+                }
             }
 
         case .openLink:
@@ -122,12 +113,7 @@ struct HistoryActionHandler {
 
         case .saveImage:
             guard let item = items.first else { return }
-            let image =
-                viewModel.selectedItem?.id == item.id
-                ? (viewModel.previewImage ?? store.image(for: item))
-                : store.image(for: item)
-            guard let image else { return }
-            PasteImageSupport.saveImageToDisk(image)
+            saveImage(item)
 
         case .extractImageText:
             Task {
@@ -136,42 +122,30 @@ struct HistoryActionHandler {
             }
 
         case .togglePin:
-            if items.count == 1, let item = items.first {
-                viewModel.togglePin(for: item)
-            } else if let clickedID = items.first?.id {
-                viewModel.togglePinForContextMenuTarget(clickedID)
-            }
+            viewModel.togglePin(for: items)
+
+        case .toggleBookmark:
+            viewModel.toggleBookmark(for: items)
 
         case .delete:
-            if items.count == 1, let item = items.first {
-                viewModel.delete(item)
-            } else if let clickedID = items.first?.id {
-                viewModel.deleteContextMenuTarget(clickedID)
-            }
+            viewModel.delete(items)
         }
     }
 
-    private func performSelectionAction(
-        onSingle: (ClipboardItem) -> Void,
-        onMultiple: ([ClipboardItem]) -> Void
-    ) {
-        let items = currentSelectionSnapshot()
-        guard !items.isEmpty else { return }
-
-        if items.count == 1 {
-            onSingle(items[0])
-        } else {
-            onMultiple(items)
+    private func saveImage(_ item: ClipboardItem) {
+        let cachedImage =
+            viewModel.selectedItem?.id == item.id
+            ? (viewModel.previewImage ?? assetProvider.cachedPreviewImage(for: item))
+            : assetProvider.cachedPreviewImage(for: item)
+        if let cachedImage {
+            PasteImageSupport.saveImageToDisk(cachedImage)
+            return
         }
-    }
 
-    private func performCopyAction(with items: [ClipboardItem]) -> Bool {
-        guard !items.isEmpty else { return false }
-
-        if items.count == 1 {
-            return onCopyToClipboard(items[0])
+        Task { @MainActor in
+            guard let image = await assetProvider.loadPreviewImage(for: item) else { return }
+            PasteImageSupport.saveImageToDisk(image)
         }
-        return onCopyMultipleToClipboard(items)
     }
 
     private func currentSelectionSnapshot() -> [ClipboardItem] {
@@ -180,5 +154,32 @@ struct HistoryActionHandler {
             return selectedItems
         }
         return viewModel.selectedItem.map { [$0] } ?? []
+    }
+}
+
+actor ClipboardImageExportService {
+    func export(
+        _ items: [ClipboardItem],
+        to folderURL: URL,
+        contentReader: any ClipboardPasteContentReading
+    ) async {
+        for (index, item) in items.enumerated() {
+            guard !Task.isCancelled,
+                let sourceData = await contentReader.pasteImageData(for: item),
+                let pngData = PasteImageDataEncoder.pngData(from: sourceData)
+            else {
+                continue
+            }
+
+            let paddedNumber = String(format: "%04d", index + 1)
+            let fileURL = folderURL.appendingPathComponent("image-\(paddedNumber).png")
+            do {
+                try pngData.write(to: fileURL, options: .atomic)
+            } catch {
+                BufferLogger.ui.error(
+                    "Failed to save image to \(fileURL.path, privacy: .public): \(String(describing: error), privacy: .public)"
+                )
+            }
+        }
     }
 }

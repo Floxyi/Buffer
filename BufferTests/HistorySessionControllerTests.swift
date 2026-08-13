@@ -1,20 +1,8 @@
 import XCTest
+
 @testable import Buffer
 
 final class HistorySessionControllerTests: XCTestCase {
-    func testHandleSearchTextChangeSuppressesProgrammaticRebuildOnce() {
-        let controller = HistorySessionController()
-
-        let suppressed = controller.handleSearchTextChange(
-            state: HistorySessionState(isApplyingProgrammaticSearchChange: true)
-        )
-        XCTAssertFalse(suppressed.shouldRebuildFilteredItems)
-        XCTAssertFalse(suppressed.state.isApplyingProgrammaticSearchChange)
-
-        let normal = controller.handleSearchTextChange(state: suppressed.state)
-        XCTAssertTrue(normal.shouldRebuildFilteredItems)
-    }
-
     func testMakeWindowOpenPlanKeepsSelectionWhenConfigured() {
         let controller = HistorySessionController()
         let selectedID = UUID()
@@ -62,19 +50,17 @@ final class HistorySessionControllerTests: XCTestCase {
         XCTAssertEqual(preferredID, first.id)
     }
 
-    func testMakeJumpToHistoryPlanClearsSearchAndSetsProgrammaticFlag() {
+    func testMakeJumpToHistoryPlanClearsActiveSearch() {
         let controller = HistorySessionController()
         let itemID = UUID()
 
         let plan = controller.makeJumpToHistoryPlan(
             for: itemID,
-            currentSearchText: "needle",
-            state: HistorySessionState()
+            currentSearchText: "needle"
         )
 
         XCTAssertEqual(plan.searchText, "")
-        XCTAssertTrue(plan.shouldRebuildFilteredItems)
         XCTAssertEqual(plan.preferredSelectionID, itemID)
-        XCTAssertTrue(plan.state.isApplyingProgrammaticSearchChange)
     }
+
 }

@@ -9,11 +9,12 @@ final class AppContainer {
     let pasteController: PasteController
     let hotkeyManager: HotkeyManager
     let ocrService: OCRService
+    let historyWindowConfiguration: HistoryWindowConfiguration
 
-    init() {
+    static func make() async -> AppContainer {
         let settingsManager = SettingsManager()
         let activeApplicationMonitor = ActiveApplicationMonitor()
-        let clipboardStore = ClipboardStore(settingsManager: settingsManager)
+        let clipboardStore = await ClipboardStore.makeForApplication(settingsManager: settingsManager)
         let clipboardWatcher = ClipboardWatcher(
             store: clipboardStore,
             settingsManager: settingsManager,
@@ -22,12 +23,35 @@ final class AppContainer {
         let pasteController = PasteController(store: clipboardStore)
         let hotkeyManager = HotkeyManager(settingsManager: settingsManager)
 
+        return AppContainer(
+            settingsManager: settingsManager,
+            activeApplicationMonitor: activeApplicationMonitor,
+            clipboardStore: clipboardStore,
+            clipboardWatcher: clipboardWatcher,
+            pasteController: pasteController,
+            hotkeyManager: hotkeyManager,
+            ocrService: OCRService(),
+            historyWindowConfiguration: .standard
+        )
+    }
+
+    private init(
+        settingsManager: SettingsManager,
+        activeApplicationMonitor: ActiveApplicationMonitor,
+        clipboardStore: ClipboardStore,
+        clipboardWatcher: ClipboardWatcher,
+        pasteController: PasteController,
+        hotkeyManager: HotkeyManager,
+        ocrService: OCRService,
+        historyWindowConfiguration: HistoryWindowConfiguration
+    ) {
         self.settingsManager = settingsManager
         self.activeApplicationMonitor = activeApplicationMonitor
         self.clipboardStore = clipboardStore
         self.clipboardWatcher = clipboardWatcher
         self.pasteController = pasteController
         self.hotkeyManager = hotkeyManager
-        self.ocrService = OCRService()
+        self.ocrService = ocrService
+        self.historyWindowConfiguration = historyWindowConfiguration
     }
 }

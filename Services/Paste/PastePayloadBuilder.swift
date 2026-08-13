@@ -1,17 +1,17 @@
 import AppKit
 
-enum PastePayload: Equatable {
+enum PastePayload: Equatable, Sendable {
     case string(String)
     case fileURLs([URL])
     case tiff(Data)
 }
 
-struct PasteStep: Equatable {
+struct PasteStep: Equatable, Sendable {
     let payload: PastePayload
     let delayBeforeExecution: TimeInterval
 }
 
-struct PastePlan: Equatable {
+struct PastePlan: Equatable, Sendable {
     let id: UUID
     let steps: [PasteStep]
     let temporaryAssetSessionID: UUID?
@@ -42,7 +42,7 @@ struct PastePlan: Equatable {
     }
 }
 
-struct PasteboardPayloadPreparation: Equatable {
+struct PasteboardPayloadPreparation: Equatable, Sendable {
     let payload: PastePayload
     let temporaryAssetSessionID: UUID?
 }
@@ -55,44 +55,52 @@ enum PastePreparationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .emptySelection:
-            "No clipboard item is selected."
+            String(localized: "No clipboard item is selected.")
         case .unavailableContent:
-            "The selected clipboard content is no longer available."
+            String(localized: "The selected clipboard content is no longer available.")
         case .imageExportFailed:
-            "Buffer could not prepare one or more images for pasting."
+            String(localized: "Buffer could not prepare one or more images for pasting.")
         }
     }
 }
 
-@MainActor
-protocol PasteImageExporting {
-    func saveImageToTemp(_ image: NSImage, sessionID: UUID, fileName: String) -> URL?
-    func removePasteSession(_ sessionID: UUID)
-    func removeStalePasteSessions()
-    func saveImageToDisk(_ image: NSImage)
+protocol ClipboardPasteContentReading: Sendable {
+    func pasteText(for item: ClipboardItem) async -> String?
+    func pasteImageData(for item: ClipboardItem) async -> Data?
 }
 
-@MainActor
-struct PastePayloadBuilder {
-    private let store: ClipboardStoreReading
-    private let imageExporter: PasteImageExporting
+protocol PasteTemporaryAssetExporting: Sendable {
+    func saveImageDataToTemp(_ data: Data, sessionID: UUID, fileName: String) async -> URL?
+    func removePasteSession(_ sessionID: UUID) async
+    func removeStalePasteSessions() async
+}
 
-    init(store: ClipboardStoreReading, imageExporter: PasteImageExporting) {
-        self.store = store
+actor PastePayloadBuilder {
+    private let contentReader: any ClipboardPasteContentReading
+    private let imageExporter: any PasteTemporaryAssetExporting
+
+    init(
+        contentReader: any ClipboardPasteContentReading,
+        imageExporter: any PasteTemporaryAssetExporting
+    ) {
+        self.contentReader = contentReader
         self.imageExporter = imageExporter
     }
 
-    func prepareCopyPayload(for items: [ClipboardItem]) throws -> PasteboardPayloadPreparation {
+    func prepareCopyPayload(for items: [ClipboardItem]) async throws -> PasteboardPayloadPreparation {
         guard !items.isEmpty else { throw PastePreparationError.emptySelection }
         guard items.count > 1 else {
             return PasteboardPayloadPreparation(
-                payload: try copyPayload(for: items[0]),
+                payload: try await copyPayload(for: items[0]),
                 temporaryAssetSessionID: nil
             )
         }
 
-        let textItems = items.compactMap {
-            ClipboardItemTypeRegistry.pastedText(for: $0, store: store)
+        var textItems: [String] = []
+        for item in items {
+            if let text = await contentReader.pasteText(for: item) {
+                textItems.append(text)
+            }
         }
         if !textItems.isEmpty {
             return PasteboardPayloadPreparation(
@@ -104,23 +112,23 @@ struct PastePayloadBuilder {
         let sessionID = UUID()
         do {
             return PasteboardPayloadPreparation(
-                payload: .fileURLs(try imageFileURLs(for: items, sessionID: sessionID)),
+                payload: .fileURLs(try await imageFileURLs(for: items, sessionID: sessionID)),
                 temporaryAssetSessionID: sessionID
             )
         } catch {
-            imageExporter.removePasteSession(sessionID)
+            await imageExporter.removePasteSession(sessionID)
             throw error
         }
     }
 
-    private func copyPayload(for item: ClipboardItem) throws -> PastePayload {
-        if let text = ClipboardItemTypeRegistry.pastedText(for: item, store: store) {
+    private func copyPayload(for item: ClipboardItem) async throws -> PastePayload {
+        if let text = await contentReader.pasteText(for: item) {
             return .string(text)
         }
 
         guard ClipboardItemTypeRegistry.supportsImageAssets(for: item),
-            let image = store.image(for: item),
-            let tiffData = image.tiffRepresentation
+            let imageData = await contentReader.pasteImageData(for: item),
+            let tiffData = PasteImageDataEncoder.tiffData(from: imageData)
         else {
             throw PastePreparationError.unavailableContent
         }
@@ -128,17 +136,20 @@ struct PastePayloadBuilder {
         return .tiff(tiffData)
     }
 
-    func makePastePlan(for items: [ClipboardItem]) throws -> PastePlan {
+    func makePastePlan(for items: [ClipboardItem]) async throws -> PastePlan {
         guard !items.isEmpty else { throw PastePreparationError.emptySelection }
 
         if items.count == 1 {
-            return try singleItemPlan(for: items[0])
+            return try await singleItemPlan(for: items[0])
         }
 
-        let text =
-            items
-            .compactMap { ClipboardItemTypeRegistry.pastedText(for: $0, store: store) }
-            .joined(separator: "\n")
+        var textItems: [String] = []
+        for item in items {
+            if let text = await contentReader.pasteText(for: item) {
+                textItems.append(text)
+            }
+        }
+        let text = textItems.joined(separator: "\n")
         let imageItems = items.filter { ClipboardItemTypeRegistry.supportsImageAssets(for: $0) }
         let sessionID = imageItems.isEmpty ? nil : UUID()
 
@@ -149,7 +160,7 @@ struct PastePayloadBuilder {
 
         if let sessionID {
             do {
-                let urls = try imageFileURLs(for: imageItems, sessionID: sessionID)
+                let urls = try await imageFileURLs(for: imageItems, sessionID: sessionID)
                 steps.append(
                     PasteStep(
                         payload: .fileURLs(urls),
@@ -157,7 +168,7 @@ struct PastePayloadBuilder {
                     )
                 )
             } catch {
-                imageExporter.removePasteSession(sessionID)
+                await imageExporter.removePasteSession(sessionID)
                 throw error
             }
         }
@@ -166,8 +177,8 @@ struct PastePayloadBuilder {
         return PastePlan(id: UUID(), steps: steps, temporaryAssetSessionID: sessionID)
     }
 
-    private func singleItemPlan(for item: ClipboardItem) throws -> PastePlan {
-        if let text = ClipboardItemTypeRegistry.pastedText(for: item, store: store) {
+    private func singleItemPlan(for item: ClipboardItem) async throws -> PastePlan {
+        if let text = await contentReader.pasteText(for: item) {
             return PastePlan(
                 id: UUID(),
                 steps: [PasteStep(payload: .string(text), delayBeforeExecution: 0)],
@@ -176,14 +187,14 @@ struct PastePayloadBuilder {
         }
 
         guard ClipboardItemTypeRegistry.supportsImageAssets(for: item),
-            let image = store.image(for: item)
+            let imageData = await contentReader.pasteImageData(for: item)
         else {
             throw PastePreparationError.unavailableContent
         }
 
         let sessionID = UUID()
-        if let fileURL = imageExporter.saveImageToTemp(
-            image,
+        if let fileURL = await imageExporter.saveImageDataToTemp(
+            imageData,
             sessionID: sessionID,
             fileName: "image-0001.png"
         ) {
@@ -194,8 +205,8 @@ struct PastePayloadBuilder {
             )
         }
 
-        imageExporter.removePasteSession(sessionID)
-        guard let tiffData = image.tiffRepresentation else {
+        await imageExporter.removePasteSession(sessionID)
+        guard let tiffData = PasteImageDataEncoder.tiffData(from: imageData) else {
             throw PastePreparationError.imageExportFailed
         }
         return PastePlan(
@@ -205,18 +216,18 @@ struct PastePayloadBuilder {
         )
     }
 
-    private func imageFileURLs(for items: [ClipboardItem], sessionID: UUID) throws -> [URL] {
+    private func imageFileURLs(for items: [ClipboardItem], sessionID: UUID) async throws -> [URL] {
         var urls: [URL] = []
         urls.reserveCapacity(items.count)
 
         for (index, item) in items.enumerated() {
-            guard let image = store.image(for: item) else {
+            guard let imageData = await contentReader.pasteImageData(for: item) else {
                 throw PastePreparationError.unavailableContent
             }
             let paddedNumber = String(format: "%04d", index + 1)
             guard
-                let url = imageExporter.saveImageToTemp(
-                    image,
+                let url = await imageExporter.saveImageDataToTemp(
+                    imageData,
                     sessionID: sessionID,
                     fileName: "image-\(paddedNumber).png"
                 )

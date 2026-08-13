@@ -19,6 +19,10 @@ final class HistoryPasteStateController: ObservableObject {
     @Published private(set) var isPasteInProgress = false
     @Published var failure: HistoryPasteFailurePresentation?
 
+    var blocksPasteAttempt: Bool {
+        isPasteInProgress || failure != nil
+    }
+
     func begin() {
         isPasteInProgress = true
         failure = nil
@@ -40,6 +44,254 @@ final class HistoryPasteStateController: ObservableObject {
 }
 
 @MainActor
+protocol HistoryPasteCoordinatorDelegate: AnyObject {
+    func pasteCoordinatorPresentFailure(_ failure: HistoryPasteFailurePresentation)
+    func pasteCoordinatorDidDismissFailure()
+    func pasteCoordinatorWillOrderOutForPaste()
+    func pasteCoordinatorWillOpenPermissionSettings()
+    func pasteCoordinatorShouldRestorePanel()
+    func pasteCoordinatorDidCommitPaste()
+}
+
+/// Owns the complete copy/paste state machine. The window controller only
+/// performs presentation transitions requested through the delegate.
+@MainActor
+final class HistoryPasteCoordinator {
+    let state = HistoryPasteStateController()
+
+    weak var delegate: (any HistoryPasteCoordinatorDelegate)?
+
+    private let pasteController: any PasteControlling
+    private let suppressCapturedChange: @MainActor (PasteboardWriteReceipt) -> Void
+    private let openPermissionSettings: @MainActor () -> Void
+    private var target: ApplicationTarget?
+    private var activePlan: PastePlan?
+    private var task: Task<Void, Never>?
+    private var generation: UInt = 0
+
+    init(
+        pasteController: any PasteControlling,
+        suppressCapturedChange: @escaping @MainActor (PasteboardWriteReceipt) -> Void,
+        openPermissionSettings: @escaping @MainActor () -> Void =
+            HistoryPasteCoordinator.openAccessibilitySettings
+    ) {
+        self.pasteController = pasteController
+        self.suppressCapturedChange = suppressCapturedChange
+        self.openPermissionSettings = openPermissionSettings
+    }
+
+    deinit {
+        task?.cancel()
+    }
+
+    func beginSession(target: ApplicationTarget?) {
+        cancelSession(discardPlan: true)
+        self.target = target
+    }
+
+    func cancelSession(discardPlan: Bool) {
+        let wasPresentingFailure = state.failure != nil
+        generation &+= 1
+        task?.cancel()
+        task = nil
+        pasteController.cancelPaste()
+
+        if discardPlan {
+            discardActivePlan()
+        }
+        state.finish()
+        if wasPresentingFailure {
+            delegate?.pasteCoordinatorDidDismissFailure()
+        }
+    }
+
+    func copyToClipboard(_ items: [ClipboardItem]) async -> Bool {
+        do {
+            let receipt = try await pasteController.copyToClipboard(items)
+            guard !Task.isCancelled else { return false }
+            suppressCapturedChange(receipt)
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            presentFailure(
+                title: String(localized: "Copy Failed"),
+                message: error.localizedDescription,
+                recovery: .cancelOnly
+            )
+            return false
+        }
+    }
+
+    func paste(_ items: [ClipboardItem]) {
+        guard !items.isEmpty, !state.blocksPasteAttempt else { return }
+
+        discardActivePlan()
+        startTask()
+        state.begin()
+        let currentGeneration = generation
+
+        task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let plan = try await pasteController.preparePastePlan(for: items)
+                guard isCurrent(currentGeneration) else {
+                    pasteController.discardPastePlan(plan)
+                    return
+                }
+                activePlan = plan
+                task = nil
+                execute(plan, generation: currentGeneration)
+            } catch is CancellationError {
+                finishCancelledPreparation(generation: currentGeneration)
+            } catch {
+                guard isCurrent(currentGeneration) else { return }
+                task = nil
+                presentFailure(
+                    title: String(localized: "Paste Failed"),
+                    message: error.localizedDescription,
+                    recovery: .cancelOnly
+                )
+            }
+        }
+    }
+
+    func retry() {
+        guard let activePlan else { return }
+        state.clearFailure()
+        startTask()
+        execute(activePlan, generation: generation)
+    }
+
+    func dismissFailure() {
+        let wasPresentingFailure = state.failure != nil
+        discardActivePlan()
+        state.finish()
+        if wasPresentingFailure {
+            delegate?.pasteCoordinatorDidDismissFailure()
+        }
+    }
+
+    func requestPermission() {
+        discardActivePlan()
+        state.finish()
+        delegate?.pasteCoordinatorWillOpenPermissionSettings()
+        pasteController.requestPostEventAccess()
+        openPermissionSettings()
+    }
+
+    private func execute(_ plan: PastePlan, generation: UInt) {
+        guard let target else {
+            presentFailure(
+                title: String(localized: "No Paste Destination"),
+                message: PasteFailure.missingDestination.localizedDescription,
+                recovery: .cancelOnly
+            )
+            return
+        }
+        guard pasteController.hasPostEventAccess else {
+            presentFailure(
+                title: String(localized: "Permission Required"),
+                message: PasteFailure.eventPermissionDenied.localizedDescription,
+                recovery: .requestPermission
+            )
+            return
+        }
+
+        state.begin()
+        delegate?.pasteCoordinatorWillOrderOutForPaste()
+        task?.cancel()
+        task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let outcome = await pasteController.executePaste(
+                plan,
+                target: target,
+                suppressCapture: suppressCapturedChange
+            )
+            guard isCurrent(generation) else { return }
+            handle(outcome, executedPlan: plan)
+        }
+    }
+
+    private func handle(_ outcome: PasteOutcome, executedPlan: PastePlan) {
+        task = nil
+
+        switch outcome {
+        case .success:
+            pasteController.completePastePlan(executedPlan)
+            activePlan = nil
+            state.finish()
+            delegate?.pasteCoordinatorDidCommitPaste()
+
+        case .cancelled:
+            state.finish()
+
+        case .failure(let failure, let remainingPlan, let completedStepCount):
+            activePlan = remainingPlan
+            delegate?.pasteCoordinatorShouldRestorePanel()
+            let partialPrefix =
+                completedStepCount > 0
+                ? String(localized: "The text was pasted, but the remaining images were not. ")
+                : ""
+            presentFailure(
+                title: String(
+                    localized: completedStepCount > 0
+                        ? "Paste Partially Completed"
+                        : "Paste Failed"
+                ),
+                message: partialPrefix + failure.localizedDescription,
+                recovery: failure == .eventPermissionDenied ? .requestPermission : .retry
+            )
+        }
+    }
+
+    private func startTask() {
+        generation &+= 1
+        task?.cancel()
+        task = nil
+    }
+
+    private func finishCancelledPreparation(generation: UInt) {
+        guard isCurrent(generation) else { return }
+        task = nil
+        state.finish()
+    }
+
+    private func isCurrent(_ generation: UInt) -> Bool {
+        !Task.isCancelled && self.generation == generation
+    }
+
+    private func discardActivePlan() {
+        guard let activePlan else { return }
+        pasteController.discardPastePlan(activePlan)
+        self.activePlan = nil
+    }
+
+    private func presentFailure(
+        title: String,
+        message: String,
+        recovery: HistoryPasteFailurePresentation.Recovery
+    ) {
+        let failure = HistoryPasteFailurePresentation(
+            title: title,
+            message: message,
+            recovery: recovery
+        )
+        state.fail(failure)
+        delegate?.pasteCoordinatorPresentFailure(failure)
+    }
+
+    static func openAccessibilitySettings() {
+        guard
+            let url = URL(
+                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            )
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
+
+@MainActor
 final class HistoryPanel: NSPanel {
     var onClickOutside: (() -> Void)?
     var dismissesWhenResigningKey = true
@@ -47,12 +299,17 @@ final class HistoryPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
-    init(contentRect: NSRect) {
+    init(contentRect: NSRect, allowsResizing: Bool = false) {
         // Window-manager exclusion depends on these structural traits. Hiding the
         // controls of a titled panel still exposes an accessibility close button.
+        var panelStyle: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
+        if allowsResizing {
+            panelStyle.insert(.resizable)
+        }
+
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: panelStyle,
             backing: .buffered,
             defer: false
         )
@@ -80,20 +337,26 @@ final class HistoryPanel: NSPanel {
 }
 
 @MainActor
-final class HistoryWindowController: NSWindowController {
+final class HistoryWindowController: NSWindowController, HistoryPasteCoordinatorDelegate {
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
     private let pasteController: PasteControlling
     private let suppressCapturedChange: @MainActor (PasteboardWriteReceipt) -> Void
-    private let panelConfigurator = HistoryPanelConfigurator()
+    private let panelConfigurator: HistoryPanelConfigurator
+    private let itemAssetProvider: ClipboardItemAssetProvider
+    private let listAssetPrewarmer: ClipboardListAssetPrewarmer
+    private let keyboardScrollRouter = HistoryKeyboardScrollRouter()
     private let openAnimator = HistoryWindowOpenAnimator()
     private let scrollRestorationCoordinator = HistoryListScrollRestorationCoordinator()
-    private let pasteStateController = HistoryPasteStateController()
-
-    private var pasteTarget: ApplicationTarget?
-    private var activePastePlan: PastePlan?
-    private var pasteTask: Task<Void, Never>?
+    private lazy var pasteCoordinator: HistoryPasteCoordinator = {
+        let coordinator = HistoryPasteCoordinator(
+            pasteController: pasteController,
+            suppressCapturedChange: suppressCapturedChange
+        )
+        coordinator.delegate = self
+        return coordinator
+    }()
     nonisolated(unsafe) private var keyObserver: NSObjectProtocol?
 
     private let viewModel: HistoryViewModel
@@ -107,6 +370,7 @@ final class HistoryWindowController: NSWindowController {
         activeApplicationProvider: ActiveApplicationProviding,
         pasteController: PasteControlling,
         ocrService: OCRServicing,
+        windowConfiguration: HistoryWindowConfiguration = .standard,
         suppressCapturedChange: @escaping @MainActor (PasteboardWriteReceipt) -> Void
     ) {
         self.store = store
@@ -114,10 +378,19 @@ final class HistoryWindowController: NSWindowController {
         self.activeApplicationProvider = activeApplicationProvider
         self.pasteController = pasteController
         self.suppressCapturedChange = suppressCapturedChange
+        self.panelConfigurator = HistoryPanelConfigurator(configuration: windowConfiguration)
+        let itemAssetProvider = ClipboardItemAssetProvider(
+            store: store,
+            settings: settingsManager
+        )
+        self.itemAssetProvider = itemAssetProvider
+        self.listAssetPrewarmer = ClipboardListAssetPrewarmer(assetProvider: itemAssetProvider)
         self.viewModel = HistoryViewModel(
             store: store,
             settingsManager: settingsManager,
-            ocrService: ocrService
+            ocrService: ocrService,
+            assetProvider: itemAssetProvider,
+            keyboardScrollRouter: keyboardScrollRouter
         )
 
         let panel = panelConfigurator.makePanel()
@@ -137,7 +410,6 @@ final class HistoryWindowController: NSWindowController {
     }
 
     deinit {
-        pasteTask?.cancel()
         if let keyObserver {
             NotificationCenter.default.removeObserver(keyObserver)
         }
@@ -158,11 +430,14 @@ final class HistoryWindowController: NSWindowController {
         activateApp: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
     ) {
-        cancelPasteSession(discardPlan: true)
+        pasteCoordinator.beginSession(
+            target: pasteController.applicationTarget(
+                for: activeApplicationProvider.currentApplication
+            )
+        )
         historyPanel?.dismissesWhenResigningKey = true
         focusSearchOnNextOpen = focusSearch
         suppressQuickPasteUntilModifiersReleasedOnNextOpen = suppressQuickPasteUntilModifiersReleased
-        pasteTarget = pasteController.applicationTarget(for: activeApplicationProvider.currentApplication)
 
         guard let window else {
             return
@@ -198,7 +473,10 @@ final class HistoryWindowController: NSWindowController {
     }
 
     override func close() {
-        cancelPasteSession(discardPlan: true)
+        pasteCoordinator.cancelSession(discardPlan: true)
+        if let window, let attachedSheet = window.attachedSheet {
+            window.endSheet(attachedSheet)
+        }
         openAnimator.cancelAnimations(for: window)
         scrollRestorationCoordinator.captureCurrentOffset()
         window?.orderOut(nil)
@@ -214,20 +492,19 @@ final class HistoryWindowController: NSWindowController {
         let rootView = HistoryContentView(
             viewModel: viewModel,
             settings: settingsManager,
-            pasteState: pasteStateController,
-            store: store,
-            onCopyToClipboard: { [weak self] item in
-                self?.copyToClipboard([item]) == true
+            pasteState: pasteCoordinator.state,
+            contentReader: store,
+            itemAssetProvider: itemAssetProvider,
+            listAssetPrewarmer: listAssetPrewarmer,
+            keyboardScrollRouter: keyboardScrollRouter,
+            onCopy: { [weak self] items in
+                guard let self else { return false }
+                return await self.pasteCoordinator.copyToClipboard(items)
             },
-            onCopyMultipleToClipboard: { [weak self] items in
-                self?.copyToClipboard(items) == true
+            onPaste: { [weak self] items in
+                self?.pasteCoordinator.paste(items)
             },
-            onPaste: { [weak self] item in
-                self?.pasteItems([item])
-            },
-            onPasteMultiple: { [weak self] items in
-                self?.pasteItems(items)
-            },
+            presentingWindow: { [weak self] in self?.window },
             onScrollOffsetProviderChanged: { [weak self] provider in
                 self?.setListScrollOffsetProvider(provider)
             },
@@ -236,10 +513,7 @@ final class HistoryWindowController: NSWindowController {
             },
             onDismiss: { [weak self] in
                 self?.close()
-            },
-            onRetryPaste: { [weak self] in self?.retryPaste() },
-            onDismissPasteFailure: { [weak self] in self?.dismissPasteFailure() },
-            onRequestPastePermission: { [weak self] in self?.requestPastePermission() }
+            }
         )
 
         let contentConfiguration = panelConfigurator.makeContentConfiguration(
@@ -252,7 +526,7 @@ final class HistoryWindowController: NSWindowController {
     }
 
     private func handlePanelDidBecomeKey() {
-        historyPanel?.dismissesWhenResigningKey = true
+        historyPanel?.dismissesWhenResigningKey = pasteCoordinator.state.failure == nil
 
         if shouldIgnoreNextDidBecomeKeyOpenHandling {
             shouldIgnoreNextDidBecomeKeyOpenHandling = false
@@ -277,132 +551,7 @@ final class HistoryWindowController: NSWindowController {
         scrollRestorationCoordinator.setOffsetRestorer(restorer)
     }
 
-    private func copyToClipboard(_ items: [ClipboardItem]) -> Bool {
-        do {
-            let receipt = try pasteController.copyToClipboard(items)
-            suppressCapturedChange(receipt)
-            return true
-        } catch {
-            presentPasteFailure(
-                title: "Copy Failed",
-                message: error.localizedDescription,
-                recovery: .cancelOnly
-            )
-            return false
-        }
-    }
-
-    private func pasteItems(_ items: [ClipboardItem]) {
-        guard !pasteStateController.isPasteInProgress else { return }
-
-        if let activePastePlan {
-            pasteController.discardPastePlan(activePastePlan)
-            self.activePastePlan = nil
-        }
-
-        do {
-            let plan = try pasteController.preparePastePlan(for: items)
-            activePastePlan = plan
-            startPaste(plan)
-        } catch {
-            presentPasteFailure(
-                title: "Paste Failed",
-                message: error.localizedDescription,
-                recovery: .cancelOnly
-            )
-        }
-    }
-
-    private func startPaste(_ plan: PastePlan) {
-        guard pasteTarget != nil else {
-            presentPasteFailure(
-                title: "No Paste Destination",
-                message: PasteFailure.missingDestination.localizedDescription,
-                recovery: .cancelOnly
-            )
-            return
-        }
-        guard pasteController.hasPostEventAccess else {
-            presentPasteFailure(
-                title: "Permission Required",
-                message: PasteFailure.eventPermissionDenied.localizedDescription,
-                recovery: .requestPermission
-            )
-            return
-        }
-
-        pasteStateController.begin()
-        orderOutForPaste()
-        pasteTask?.cancel()
-        pasteTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let outcome = await pasteController.executePaste(
-                plan,
-                target: pasteTarget,
-                suppressCapture: suppressCapturedChange
-            )
-            guard !Task.isCancelled else { return }
-            handlePasteOutcome(outcome, executedPlan: plan)
-        }
-    }
-
-    private func handlePasteOutcome(_ outcome: PasteOutcome, executedPlan: PastePlan) {
-        pasteTask = nil
-
-        switch outcome {
-        case .success:
-            historyPanel?.dismissesWhenResigningKey = true
-            pasteController.completePastePlan(executedPlan)
-            activePastePlan = nil
-            pasteStateController.finish()
-            viewModel.clearSearchAfterCommittedAction()
-
-        case .cancelled:
-            historyPanel?.dismissesWhenResigningKey = true
-            pasteStateController.finish()
-
-        case .failure(let failure, let remainingPlan, let completedStepCount):
-            activePastePlan = remainingPlan
-            restorePanelAfterPasteFailure()
-            let partialPrefix =
-                completedStepCount > 0
-                ? "The text was pasted, but the remaining images were not. "
-                : ""
-            presentPasteFailure(
-                title: completedStepCount > 0 ? "Paste Partially Completed" : "Paste Failed",
-                message: partialPrefix + failure.localizedDescription,
-                recovery: failure == .eventPermissionDenied ? .requestPermission : .retry
-            )
-        }
-    }
-
-    private func retryPaste() {
-        guard let activePastePlan else { return }
-        pasteStateController.clearFailure()
-        startPaste(activePastePlan)
-    }
-
-    private func dismissPasteFailure() {
-        if let activePastePlan {
-            pasteController.discardPastePlan(activePastePlan)
-        }
-        activePastePlan = nil
-        pasteStateController.finish()
-    }
-
-    private func requestPastePermission() {
-        dismissPasteFailure()
-        orderOutForPermissionSetup()
-
-        pasteController.requestPostEventAccess()
-        if let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        ) {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func orderOutForPermissionSetup() {
+    func pasteCoordinatorWillOpenPermissionSettings() {
         historyPanel?.dismissesWhenResigningKey = false
         openAnimator.cancelAnimations(for: window)
         scrollRestorationCoordinator.captureCurrentOffset()
@@ -410,28 +559,73 @@ final class HistoryWindowController: NSWindowController {
         historyPanel?.dismissesWhenResigningKey = true
     }
 
-    private func presentPasteFailure(
-        title: String,
-        message: String,
-        recovery: HistoryPasteFailurePresentation.Recovery
-    ) {
-        pasteStateController.fail(
-            HistoryPasteFailurePresentation(
-                title: title,
-                message: message,
-                recovery: recovery
-            )
-        )
+    func pasteCoordinatorPresentFailure(_ failure: HistoryPasteFailurePresentation) {
+        historyPanel?.dismissesWhenResigningKey = false
+        guard let window else {
+            pasteCoordinator.dismissFailure()
+            return
+        }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = failure.title
+        alert.informativeText = failure.message
+
+        switch failure.recovery {
+        case .cancelOnly:
+            alert.addButton(withTitle: String(localized: "OK"))
+        case .retry:
+            alert.addButton(withTitle: String(localized: "Retry"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+        case .requestPermission:
+            alert.addButton(withTitle: String(localized: "Open System Settings"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
+        }
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            self?.handlePasteFailureResponse(response, failure: failure)
+        }
+
+        if window.attachedSheet == nil,
+            pasteCoordinator.state.failure?.id == failure.id
+        {
+            pasteCoordinator.dismissFailure()
+        }
     }
 
-    private func orderOutForPaste() {
+    func pasteCoordinatorDidDismissFailure() {
+        historyPanel?.dismissesWhenResigningKey = true
+    }
+
+    private func handlePasteFailureResponse(
+        _ response: NSApplication.ModalResponse,
+        failure: HistoryPasteFailurePresentation
+    ) {
+        guard pasteCoordinator.state.failure?.id == failure.id else { return }
+
+        guard response == .alertFirstButtonReturn else {
+            pasteCoordinator.dismissFailure()
+            return
+        }
+
+        switch failure.recovery {
+        case .cancelOnly:
+            pasteCoordinator.dismissFailure()
+        case .retry:
+            pasteCoordinator.retry()
+        case .requestPermission:
+            pasteCoordinator.requestPermission()
+        }
+    }
+
+    func pasteCoordinatorWillOrderOutForPaste() {
         historyPanel?.dismissesWhenResigningKey = false
         openAnimator.cancelAnimations(for: window)
         scrollRestorationCoordinator.captureCurrentOffset()
         window?.orderOut(nil)
     }
 
-    private func restorePanelAfterPasteFailure() {
+    func pasteCoordinatorShouldRestorePanel() {
         guard let window else { return }
         historyPanel?.dismissesWhenResigningKey = true
         shouldIgnoreNextDidBecomeKeyOpenHandling = true
@@ -439,17 +633,9 @@ final class HistoryWindowController: NSWindowController {
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func cancelPasteSession(discardPlan: Bool) {
+    func pasteCoordinatorDidCommitPaste() {
         historyPanel?.dismissesWhenResigningKey = true
-        pasteTask?.cancel()
-        pasteTask = nil
-        pasteController.cancelPaste()
-
-        if discardPlan, let activePastePlan {
-            pasteController.discardPastePlan(activePastePlan)
-            self.activePastePlan = nil
-        }
-        pasteStateController.finish()
+        viewModel.clearSearchAfterCommittedAction()
     }
 
     private var historyPanel: HistoryPanel? {

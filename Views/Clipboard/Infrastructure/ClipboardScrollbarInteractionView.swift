@@ -80,7 +80,7 @@ final class ScrollbarThumbInteractionView: NSView {
             options: [
                 .activeAlways,
                 .inVisibleRect,
-                .mouseEnteredAndExited
+                .mouseEnteredAndExited,
             ],
             owner: self,
             userInfo: nil
@@ -166,7 +166,8 @@ final class ScrollbarThumbInteractionView: NSView {
 
         thumbLayer.frame = model.frame
         thumbLayer.cornerRadius = model.cornerRadius
-        thumbLayer.backgroundColor = NSColor.labelColor
+        thumbLayer.backgroundColor =
+            NSColor.labelColor
             .withAlphaComponent(model.alpha)
             .cgColor
 

@@ -75,9 +75,10 @@ enum ClipboardColorParser {
         let components = content.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
 
         guard components.count >= 3,
-              let red = Double(components[0]),
-              let green = Double(components[1]),
-              let blue = Double(components[2]) else {
+            let red = Double(components[0]),
+            let green = Double(components[1]),
+            let blue = Double(components[2])
+        else {
             return nil
         }
 
@@ -109,13 +110,15 @@ enum ClipboardColorParser {
             return Double(value.dropLast()).map { $0 / 100.0 }
         }
 
-        let hueValue = components[0].hasSuffix("deg")
+        let hueValue =
+            components[0].hasSuffix("deg")
             ? String(components[0].dropLast(3))
             : components[0]
 
         guard let hue = Double(hueValue),
-              let saturation = parsePercent(components[1]),
-              let lightness = parsePercent(components[2]) else {
+            let saturation = parsePercent(components[1]),
+            let lightness = parsePercent(components[2])
+        else {
             return nil
         }
 
@@ -128,4 +131,3 @@ enum ClipboardColorParser {
         )
     }
 }
-

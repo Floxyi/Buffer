@@ -8,16 +8,19 @@ enum AppFormatting {
         24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0", 30: "]", 31: "O",
         32: "U", 33: "[", 34: "I", 35: "P", 37: "L", 38: "J", 39: "'", 40: "K",
         41: ";", 42: "\\", 43: ",", 44: "/", 45: "N", 46: "M", 47: ".",
-        49: "Space", 50: "`"
+        49: "Space", 50: "`",
     ]
 
-    static func historySectionTitle(for date: Date, calendar: Calendar = .current, referenceDate: Date = Date()) -> String {
+    static func historySectionTitle(for date: Date, calendar: Calendar = .current, referenceDate: Date = Date())
+        -> String
+    {
         if calendar.isDate(date, inSameDayAs: referenceDate) {
             return "TODAY"
         }
 
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: referenceDate),
-           calendar.isDate(date, inSameDayAs: yesterday) {
+            calendar.isDate(date, inSameDayAs: yesterday)
+        {
             return "YESTERDAY"
         }
 
@@ -26,7 +29,8 @@ enum AppFormatting {
         }
 
         if let lastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: referenceDate),
-           calendar.isDate(date, equalTo: lastWeek, toGranularity: .weekOfYear) {
+            calendar.isDate(date, equalTo: lastWeek, toGranularity: .weekOfYear)
+        {
             return "LAST WEEK"
         }
 

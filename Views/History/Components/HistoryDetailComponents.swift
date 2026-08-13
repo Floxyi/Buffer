@@ -2,10 +2,17 @@ import AppKit
 import SwiftUI
 
 struct HistoryPanelSurfaceBackground: View {
+    @Environment(\.bufferAppearance) private var appearance
+
     var body: some View {
-        Rectangle()
-            .fill(.regularMaterial)
-            .opacity(0.16)
+        switch appearance.surfaceStyle {
+        case .glass:
+            Rectangle().fill(.regularMaterial).opacity(0.16)
+        case .transparent:
+            Color.clear
+        case .opaque:
+            Color(nsColor: .controlBackgroundColor)
+        }
     }
 }
 
@@ -15,7 +22,7 @@ struct HistoryDetailPane: View {
     let textDetailFontSize: TextDetailFontSize
     let showsSpacesAndTabs: Bool
     let enableWebsitePreviews: Bool
-    let store: ClipboardStore
+    let assetProvider: any ClipboardItemAssetProviding
     let actionsForItem: (ClipboardItem) -> [HistoryItemActionDescriptor]
     let onSelectItemAction: (ClipboardItem, HistoryItemAction) -> Void
     let onSelectAction: (HistoryItemAction) -> Void
@@ -77,7 +84,7 @@ struct HistoryDetailPane: View {
         if detailState.selectionCount > 1 {
             HistoryMultiSelectionSummary(
                 items: detailState.selectedItems,
-                store: store,
+                assetProvider: assetProvider,
                 textDetailFontStyle: textDetailFontStyle,
                 textDetailFontSize: textDetailFontSize,
                 enableWebsitePreviews: enableWebsitePreviews,

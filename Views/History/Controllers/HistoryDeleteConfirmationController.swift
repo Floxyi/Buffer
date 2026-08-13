@@ -52,7 +52,8 @@ final class HistoryDeleteConfirmationController: ObservableObject {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = selectionCount == 1 ? "Delete item?" : "Delete \(selectionCount) items?"
-        alert.informativeText = selectionCount == 1
+        alert.informativeText =
+            selectionCount == 1
             ? "This item will be removed from your clipboard history."
             : "These items will be removed from your clipboard history."
 

@@ -102,7 +102,8 @@ final class SettingsManager: ObservableObject {
             try launchAtLoginController.setEnabled(enabled)
             launchAtLogin = launchAtLoginController.isEnabled()
         } catch {
-            BufferLogger.settings.error("Failed to toggle launch at login: \(error.localizedDescription, privacy: .public)")
+            BufferLogger.settings.error(
+                "Failed to toggle launch at login: \(error.localizedDescription, privacy: .public)")
             launchAtLogin = launchAtLoginController.isEnabled()
         }
     }

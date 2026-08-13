@@ -11,17 +11,31 @@ struct HistoryActionResolver {
         let allPinned = items.allSatisfy(\.isPinned)
         let pinDescriptor = HistoryItemActionDescriptor(
             action: .togglePin,
-            title: allPinned ? "Unpin" : "Pin",
+            title: allPinned ? String(localized: "Unpin") : String(localized: "Pin"),
             systemImage: allPinned ? "pin.slash" : "pin",
             isPinnedVariant: allPinned
         )
+        let allBookmarked = items.allSatisfy(\.isBookmarked)
+        let bookmarkDescriptor = HistoryItemActionDescriptor(
+            action: .toggleBookmark,
+            title: allBookmarked
+                ? String(localized: "Remove Bookmark")
+                : String(localized: "Bookmark"),
+            systemImage: allBookmarked ? "bookmark.slash" : "bookmark",
+            isBookmarkedVariant: allBookmarked
+        )
+        let canDeleteAny = items.contains { !$0.isProtectedFromDeletion }
 
         if items.count > 1 {
-            return [
+            var actions: [HistoryItemActionDescriptor] = [
                 .init(action: .copy),
+                bookmarkDescriptor,
                 pinDescriptor,
-                .init(action: .delete, isDestructive: true)
             ]
+            if canDeleteAny {
+                actions.append(.init(action: .delete, isDestructive: true))
+            }
+            return actions
         }
 
         let item = items[0]
@@ -53,8 +67,11 @@ struct HistoryActionResolver {
             )
         }
 
+        actions.append(bookmarkDescriptor)
         actions.append(pinDescriptor)
-        actions.append(.init(action: .delete, isDestructive: true))
+        if canDeleteAny {
+            actions.append(.init(action: .delete, isDestructive: true))
+        }
         return actions
     }
 }

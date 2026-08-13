@@ -78,7 +78,8 @@ final class ScrollController: ObservableObject {
     func scroll(to progress: CGFloat) {
         settledScrollScheduler.cancel()
         guard let scrollView,
-              let documentView = scrollView.documentView else {
+            let documentView = scrollView.documentView
+        else {
             return
         }
 
@@ -126,7 +127,8 @@ final class ScrollController: ObservableObject {
     func scrollBy(deltaY: CGFloat) {
         settledScrollScheduler.cancel()
         guard abs(deltaY) > 0.5,
-              let scrollView else {
+            let scrollView
+        else {
             return
         }
 
@@ -202,7 +204,8 @@ final class ScrollController: ObservableObject {
 
     private func scrollToTopNow() {
         guard let scrollView,
-              let documentView = scrollView.documentView else {
+            let documentView = scrollView.documentView
+        else {
             return
         }
 
@@ -226,7 +229,8 @@ final class ScrollController: ObservableObject {
 
     private func scrollToBottomNow() {
         guard let scrollView,
-              let documentView = scrollView.documentView else {
+            let documentView = scrollView.documentView
+        else {
             return
         }
 

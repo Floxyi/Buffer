@@ -10,9 +10,11 @@ struct SettingsPrivacyWebsitePreviewsSection: View {
         Section("Website Data") {
             Toggle("Enable Website Previews and Icons", isOn: bindings.privacy.enableWebsitePreviews)
 
-            Text("When enabled, Buffer may fetch website metadata and favicons for link items, and bare domains are only treated as links if they resolve to a live website. Disable this to keep link handling fully local-only; in that mode, only full https:// links are recognized as website items.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "When enabled, Buffer may fetch website metadata and favicons for link items, and bare domains are only treated as links if they resolve to a live website. Disable this to keep link handling fully local-only; in that mode, only full https:// links are recognized as website items."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }
@@ -72,7 +74,8 @@ struct SettingsPrivacyExcludedAppsSection: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             iconRefreshToken &+= 1
         }
-        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification)) { _ in
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.sessionDidBecomeActiveNotification))
+        { _ in
             iconRefreshToken &+= 1
         }
     }
@@ -128,8 +131,8 @@ struct SettingsPrivacyExcludedAppRow: View {
                 bundlePath: app.bundlePath,
                 refreshToken: iconRefreshToken
             )
-                .frame(width: 28, height: 28)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: 28, height: 28)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(app.name)

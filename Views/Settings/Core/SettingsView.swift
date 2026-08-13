@@ -109,7 +109,8 @@ struct SettingsView: View {
             return
         }
 
-        let handledByResponder = window.firstResponder?
+        let handledByResponder =
+            window.firstResponder?
             .tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil) ?? false
 
         if !handledByResponder {
@@ -127,7 +128,7 @@ private struct SettingsDetailContainer<Content: View>: View {
 
     var body: some View {
         content
-        .background(Color(nsColor: .windowBackgroundColor))
+            .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 

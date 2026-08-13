@@ -8,6 +8,4 @@ struct HistoryViewPresentationState {
     var openListScrollRequest = HistoryOpenListScrollRequest(mode: .scrollToTop)
     var openListScrollRequestToken = 0
     var jumpToHistoryState = HistoryJumpToHistoryState.idle
-    var keyboardScrollRequest: HistoryKeyboardScrollRequest?
-    var scrollTrigger = false
 }

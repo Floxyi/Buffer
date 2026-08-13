@@ -42,6 +42,87 @@ final class ClipboardSearchIndexTests: XCTestCase {
         XCTAssertTrue(index.matches(ClipboardSearchIndex.normalize("cafe"), for: item.id))
     }
 
+    func testTypedQueryReturnsFieldAndOriginalTextRange() throws {
+        var index = ClipboardSearchIndex()
+        let item = ClipboardItem.text("Café receipt")
+        index.rebuild(using: [item]) { $0.textContent ?? "" }
+
+        let result = try XCTUnwrap(
+            index.result(for: item, query: ClipboardQuery(text: "cafe"))
+        )
+        let match = try XCTUnwrap(result.matches.first)
+
+        XCTAssertEqual(match.field, .content)
+        XCTAssertEqual(match.ranges.map { String("Café receipt"[$0]) }, ["Café"])
+    }
+
+    func testTypedQueryReturnsEveryOriginalTextRange() throws {
+        var index = ClipboardSearchIndex()
+        let item = ClipboardItem.text("Café and cafe")
+        index.rebuild(using: [item]) { $0.textContent ?? "" }
+
+        let result = try XCTUnwrap(
+            index.result(for: item, query: ClipboardQuery(text: "cafe"))
+        )
+        let match = try XCTUnwrap(result.matches.first)
+
+        XCTAssertEqual(match.ranges.map { String("Café and cafe"[$0]) }, ["Café", "cafe"])
+    }
+
+    func testTypedQueryAppliesBookmarkAppTypeAndDateFilters() {
+        var index = ClipboardSearchIndex()
+        let timestamp = Date(timeIntervalSince1970: 1_000)
+        let item = ClipboardItem(
+            timestamp: timestamp,
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            isBookmarked: true,
+            content: .text(TextItemContent(inlineText: "meeting notes"))
+        )
+        index.rebuild(using: [item]) { $0.textContent ?? "" }
+
+        let matchingQuery = ClipboardQuery(
+            text: "notes",
+            filters: ClipboardFilters(
+                requiresBookmark: true,
+                sourceBundleIdentifiers: ["com.apple.Notes"],
+                kinds: [.text],
+                copiedAt: DateInterval(
+                    start: timestamp.addingTimeInterval(-1),
+                    end: timestamp.addingTimeInterval(1)
+                )
+            )
+        )
+        XCTAssertNotNil(index.result(for: item, query: matchingQuery))
+
+        var excludedQuery = matchingQuery
+        excludedQuery.filters.kinds = [.image]
+        XCTAssertNil(index.result(for: item, query: excludedQuery))
+    }
+
+    func testTypedQueryCanExcludeOCRMatches() {
+        var index = ClipboardSearchIndex()
+        let item = ClipboardItem(
+            type: .image,
+            imageFilename: "sample.png",
+            ocrText: "invoice number"
+        )
+        index.rebuild(using: [item]) { _ in "" }
+
+        XCTAssertNotNil(
+            index.result(
+                for: item,
+                query: ClipboardQuery(text: "invoice", includesOCRText: true)
+            )
+        )
+        XCTAssertNil(
+            index.result(
+                for: item,
+                query: ClipboardQuery(text: "invoice", includesOCRText: false)
+            )
+        )
+    }
+
     func testFilteringCachedEntriesStaysWithinInteractiveBudget() {
         assertCachedFilterDuration(itemCount: 1_000, isLessThan: 0.05)
         assertCachedFilterDuration(itemCount: 5_000, isLessThan: 0.05)

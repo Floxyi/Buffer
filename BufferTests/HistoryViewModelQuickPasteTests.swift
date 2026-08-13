@@ -1,9 +1,10 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
 final class HistoryViewModelQuickPasteTests: XCTestCase {
-    func testQuickPasteUsesPinnedSectionByDefault() async {
+    func testQuickPasteUsesPinnedSectionByDefault() async throws {
         let settings = makeHistoryTestSettings()
         settings.setQuickPasteSettings(
             QuickPasteSettings(
@@ -19,7 +20,7 @@ final class HistoryViewModelQuickPasteTests: XCTestCase {
         let second = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "second")
         await populateStore(store, with: [pinned, first, second])
 
-        store.togglePin(for: pinned)
+        try await store.togglePin(for: pinned)
         await eventually {
             store.items.first(where: { $0.id == pinned.id })?.isPinned == true
         }
@@ -32,7 +33,7 @@ final class HistoryViewModelQuickPasteTests: XCTestCase {
         XCTAssertEqual(viewModel.performQuickPaste(at: 0)?.id, pinned.id)
     }
 
-    func testQuickPasteCanStartAtNormalEntries() async {
+    func testQuickPasteCanStartAtNormalEntries() async throws {
         let settings = makeHistoryTestSettings()
         settings.setQuickPasteSettings(
             QuickPasteSettings(
@@ -48,7 +49,7 @@ final class HistoryViewModelQuickPasteTests: XCTestCase {
         let second = ClipboardItem(type: .text, timestamp: Date(timeIntervalSince1970: 3), textContent: "second")
         await populateStore(store, with: [pinned, first, second])
 
-        store.togglePin(for: pinned)
+        try await store.togglePin(for: pinned)
         await eventually {
             store.items.first(where: { $0.id == pinned.id })?.isPinned == true
         }

@@ -13,7 +13,7 @@ final class HistorySelectionQueryTests: XCTestCase {
             selectedIDs: [first.id, third.id],
             selectedActionOrderIDs: [third.id, first.id],
             selectedID: third.id,
-            searchText: "",
+            isQueryEmpty: true,
             totalItemCount: 3
         )
 
@@ -32,7 +32,7 @@ final class HistorySelectionQueryTests: XCTestCase {
                 selectedIDs: [],
                 selectedActionOrderIDs: [],
                 selectedID: nil,
-                searchText: "needle",
+                isQueryEmpty: false,
                 totalItemCount: 1
             ).isShowingFullHistory
         )
@@ -43,7 +43,7 @@ final class HistorySelectionQueryTests: XCTestCase {
                 selectedIDs: [],
                 selectedActionOrderIDs: [],
                 selectedID: nil,
-                searchText: "",
+                isQueryEmpty: true,
                 totalItemCount: 1
             ).isShowingFullHistory
         )

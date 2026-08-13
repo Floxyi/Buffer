@@ -7,8 +7,9 @@ enum HistoryDetailViewportMode: Equatable {
 
     init(selectionCount: Int, selectedItem: ClipboardItem?) {
         if selectionCount == 1,
-           let selectedItem,
-           selectedItem.kind == .link {
+            let selectedItem,
+            selectedItem.kind == .link
+        {
             self = .fitted
         } else {
             self = .scrollable

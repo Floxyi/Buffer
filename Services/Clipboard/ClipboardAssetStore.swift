@@ -26,6 +26,10 @@ final class ClipboardAssetStore: @unchecked Sendable, ClipboardAssetAccessing {
         imageStore.image(for: item)
     }
 
+    func imageData(for item: ClipboardItem) -> Data? {
+        imageStore.imageData(for: item)
+    }
+
     func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? {
         imageStore.thumbnail(for: item, maxPixelSize: maxPixelSize)
     }
@@ -54,7 +58,7 @@ final class ClipboardAssetStore: @unchecked Sendable, ClipboardAssetAccessing {
         textStore.fullText(for: item)
     }
 
-    func textChunk(for item: ClipboardItem, charCount: Int) -> (text: String, totalBytes: Int, reachedEOF: Bool)? {
+    func textChunk(for item: ClipboardItem, charCount: Int) -> ClipboardTextChunk? {
         textStore.textChunk(for: item, charCount: charCount)
     }
 

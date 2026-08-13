@@ -27,7 +27,8 @@ enum ClipboardListSectionBuilder {
             )
 
             if let lastIndex = sections.indices.last,
-               sections[lastIndex].title == title {
+                sections[lastIndex].title == title
+            {
                 sections[lastIndex].items.append(item)
             } else {
                 sections.append(
@@ -62,7 +63,7 @@ enum ClipboardListSectionBuilder {
             rows.append(
                 ClipboardListStructure.DisplayRow(
                     id: "header-pinned",
-                    kind: .header(title: "PINNED", systemImage: nil)
+                    kind: .header(title: String(localized: "PINNED"), systemImage: nil)
                 )
             )
 

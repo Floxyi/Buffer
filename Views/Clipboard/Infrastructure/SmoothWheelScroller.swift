@@ -58,10 +58,11 @@ final class SmoothWheelScroller {
 
     private func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
         guard shouldSmooth(event: event),
-              let scrollView,
-              isPointerInsideScrollView(event: event, scrollView: scrollView),
-              let onScroll,
-              let metrics else {
+            let scrollView,
+            isPointerInsideScrollView(event: event, scrollView: scrollView),
+            let onScroll,
+            let metrics
+        else {
             return event
         }
 
@@ -71,10 +72,12 @@ final class SmoothWheelScroller {
             return event
         }
 
-        let startOffset = animationTask == nil
+        let startOffset =
+            animationTask == nil
             ? currentMetrics.scrollOffset
             : animatedOffset.clamped(to: 0...maxOffset)
-        let baseTargetOffset = animationTask == nil
+        let baseTargetOffset =
+            animationTask == nil
             ? currentMetrics.scrollOffset
             : targetOffset.clamped(to: 0...maxOffset)
 
@@ -101,9 +104,7 @@ final class SmoothWheelScroller {
     }
 
     private func shouldSmooth(event: NSEvent) -> Bool {
-        event.momentumPhase == [] &&
-        event.phase == [] &&
-        abs(event.scrollingDeltaY) > 0.01
+        event.momentumPhase == [] && event.phase == [] && abs(event.scrollingDeltaY) > 0.01
     }
 
     private func scrollDelta(for event: NSEvent) -> CGFloat {

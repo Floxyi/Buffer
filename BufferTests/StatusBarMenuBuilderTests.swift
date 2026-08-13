@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 @MainActor
@@ -21,16 +22,18 @@ final class StatusBarMenuBuilderTests: XCTestCase {
             quitAction: #selector(ActionTarget.performAction)
         )
 
-        XCTAssertEqual(menu.items.map(\.title), [
-            "Shortcut: ⇧⌘V",
-            "",
-            "Pause Capture",
-            "Clear History",
-            "",
-            "Settings...",
-            "",
-            "Quit Buffer"
-        ])
+        XCTAssertEqual(
+            menu.items.map(\.title),
+            [
+                "Shortcut: ⇧⌘V",
+                "",
+                "Pause Capture",
+                "Clear History",
+                "",
+                "Settings...",
+                "",
+                "Quit Buffer",
+            ])
     }
 
     private final class ActionTarget: NSObject {

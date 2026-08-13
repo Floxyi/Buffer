@@ -19,7 +19,7 @@ struct StatusBarMenuBuilder {
             keyCode: settings.hotkeyKeyCode
         )
         let shortcutItem = NSMenuItem(
-            title: "Shortcut: \(shortcutDisplay)",
+            title: String(localized: "Shortcut: \(shortcutDisplay)"),
             action: nil,
             keyEquivalent: ""
         )
@@ -27,32 +27,38 @@ struct StatusBarMenuBuilder {
         menu.addItem(shortcutItem)
 
         menu.addItem(.separator())
-        menu.addItem(actionItem(
-            title: isPaused ? "Resume Capture" : "Pause Capture",
-            action: pauseAction,
-            target: target
-        ))
-        menu.addItem(actionItem(
-            title: "Clear History",
-            action: clearHistoryAction,
-            target: target
-        ))
+        menu.addItem(
+            actionItem(
+                title: isPaused
+                    ? String(localized: "Resume Capture")
+                    : String(localized: "Pause Capture"),
+                action: pauseAction,
+                target: target
+            ))
+        menu.addItem(
+            actionItem(
+                title: String(localized: "Clear History"),
+                action: clearHistoryAction,
+                target: target
+            ))
 
         menu.addItem(.separator())
-        menu.addItem(actionItem(
-            title: "Settings...",
-            action: showSettingsAction,
-            keyEquivalent: ",",
-            target: target
-        ))
+        menu.addItem(
+            actionItem(
+                title: String(localized: "Settings..."),
+                action: showSettingsAction,
+                keyEquivalent: ",",
+                target: target
+            ))
 
         menu.addItem(.separator())
-        menu.addItem(actionItem(
-            title: "Quit Buffer",
-            action: quitAction,
-            keyEquivalent: "q",
-            target: target
-        ))
+        menu.addItem(
+            actionItem(
+                title: String(localized: "Quit Buffer"),
+                action: quitAction,
+                keyEquivalent: "q",
+                target: target
+            ))
 
         return menu
     }

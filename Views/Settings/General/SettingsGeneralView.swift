@@ -74,7 +74,9 @@ struct SettingsGeneralView: View {
 
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will reset your preferences to their default values. Your clipboard history and excluded apps will not be deleted.")
+            Text(
+                "This will reset your preferences to their default values. Your clipboard history and excluded apps will not be deleted."
+            )
         }
         .background(
             KeyRecorder(isRecording: $isRecording) { keyCode, modifiers in
@@ -98,8 +100,14 @@ struct SettingsGeneralView: View {
     }
 
     private var trimAlertMessage: String {
-        let entryDescription = pendingDeletionCount == 1 ? "1 clipboard item" : "\(pendingDeletionCount) clipboard items"
-        return "This will permanently delete \(entryDescription) from your oldest unpinned history to fit the new size. This action cannot be undone."
+        let entryDescription =
+            pendingDeletionCount == 1
+            ? String(localized: "1 clipboard item")
+            : String(localized: "\(pendingDeletionCount) clipboard items")
+        return String(
+            localized:
+                "This will permanently delete \(entryDescription) from your oldest unprotected history to fit the new size. This action cannot be undone."
+        )
     }
 
     private func applyDraftHistoryLimit() {
@@ -133,7 +141,7 @@ struct SettingsGeneralView: View {
         guard proposedLimit < settings.persistedHistoryLimit else { return 0 }
 
         let requiredRemovals = max(store.items.count - proposedLimit, 0)
-        let removableItems = store.items.lazy.filter { !$0.isPinned }.count
+        let removableItems = store.items.lazy.filter { !$0.isProtectedFromDeletion }.count
         return min(requiredRemovals, removableItems)
     }
 }

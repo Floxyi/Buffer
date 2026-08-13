@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct KeyRecorder: NSViewRepresentable {
     @Binding var isRecording: Bool

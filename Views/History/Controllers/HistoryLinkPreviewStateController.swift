@@ -1,5 +1,5 @@
-@preconcurrency import LinkPresentation
 import Foundation
+@preconcurrency import LinkPresentation
 
 @MainActor
 struct HistoryLinkPreviewStateController {
@@ -7,9 +7,11 @@ struct HistoryLinkPreviewStateController {
 
     private let metadataProvider: MetadataProvider
 
-    init(metadataProvider: @escaping MetadataProvider = { url in
-        await ClipboardWebsiteIconLoader.metadata(for: url)
-    }) {
+    init(
+        metadataProvider: @escaping MetadataProvider = { url in
+            await ClipboardWebsiteIconLoader.metadata(for: url)
+        }
+    ) {
         self.metadataProvider = metadataProvider
     }
 

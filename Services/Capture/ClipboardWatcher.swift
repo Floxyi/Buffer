@@ -120,18 +120,19 @@ final class ClipboardWatcher: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 if case .item(let item, let contentHash) = result {
-                    self.lastContentHash = contentHash
-                    store.add(item)
+                    await self.commitCapturedItem(item, contentHash: contentHash)
                 }
             }
             return
         }
 
         if let text = pasteboard.string(forType: .string), !text.isEmpty {
-            guard let preparedText = PreparedClipboardText.make(
-                from: text,
-                whitespaceMode: settingsManager.clipboardWhitespaceMode
-            ) else {
+            guard
+                let preparedText = PreparedClipboardText.make(
+                    from: text,
+                    whitespaceMode: settingsManager.clipboardWhitespaceMode
+                )
+            else {
                 return
             }
 
@@ -148,8 +149,7 @@ final class ClipboardWatcher: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 if case .item(let item, let contentHash) = result {
-                    self.lastContentHash = contentHash
-                    store.add(item)
+                    await self.commitCapturedItem(item, contentHash: contentHash)
                 }
             }
             return
@@ -170,10 +170,18 @@ final class ClipboardWatcher: ObservableObject {
                 guard !Task.isCancelled else { return }
 
                 if case .item(let item, let contentHash) = result {
-                    self.lastContentHash = contentHash
-                    store.add(item)
+                    await self.commitCapturedItem(item, contentHash: contentHash)
                 }
             }
+        }
+    }
+
+    private func commitCapturedItem(_ item: ClipboardItem, contentHash: Int) async {
+        do {
+            try await store.add(item)
+            lastContentHash = contentHash
+        } catch {
+            await store.discardCapturedAssets(for: item)
         }
     }
 

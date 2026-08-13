@@ -8,19 +8,11 @@ struct ClipboardListDisplayState {
 
 struct ClipboardListDisplayStateProjector {
     func project(
-        items: [ClipboardItem],
         cache: ClipboardListStructure.DisplayCache,
         viewportHeight: CGFloat
     ) -> ClipboardListDisplayState {
-        let displayCache: ClipboardListStructure.DisplayCache
-        if cache.matches(items: items) {
-            displayCache = cache
-        } else {
-            displayCache = ClipboardListStructure.makeDisplayCache(from: items)
-        }
-
-        let displayRows = displayCache.displayRows
-        let contentHeight = displayCache.layoutIndex.contentHeight
+        let displayRows = cache.displayRows
+        let contentHeight = cache.layoutIndex.contentHeight
         let hasVisibleScrollbar = viewportHeight > 1 && max(0, contentHeight - viewportHeight) > 1
         let contentTrailingPadding: CGFloat
         if hasVisibleScrollbar {
@@ -33,7 +25,7 @@ struct ClipboardListDisplayStateProjector {
 
         return ClipboardListDisplayState(
             displayRows: displayRows,
-            layoutIndex: displayCache.layoutIndex,
+            layoutIndex: cache.layoutIndex,
             contentTrailingPadding: contentTrailingPadding
         )
     }

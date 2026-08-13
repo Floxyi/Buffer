@@ -1,6 +1,32 @@
 import CoreGraphics
 import Foundation
 
+/// Window-scoped output port from synchronous keyboard selection to the AppKit
+/// viewport. It deliberately carries no selection ownership: the list may be
+/// unavailable and selection remains authoritative in the view model.
+@MainActor
+final class HistoryKeyboardScrollRouter {
+    typealias Handler = @MainActor (HistoryKeyboardScrollRequest) -> Void
+
+    private var registration: (id: UUID, handler: Handler)?
+
+    @discardableResult
+    func register(_ handler: @escaping Handler) -> UUID {
+        let id = UUID()
+        registration = (id, handler)
+        return id
+    }
+
+    func unregister(_ id: UUID) {
+        guard registration?.id == id else { return }
+        registration = nil
+    }
+
+    func submit(_ request: HistoryKeyboardScrollRequest) {
+        registration?.handler(request)
+    }
+}
+
 @MainActor
 final class ClipboardKeyboardNavigationCoordinator {
     enum Result: Equatable {

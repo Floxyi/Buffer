@@ -29,6 +29,11 @@ final class ClipboardImageAssetStore: @unchecked Sendable {
         return image
     }
 
+    func imageData(for item: ClipboardItem) -> Data? {
+        guard let filename = item.imageFilename else { return nil }
+        return try? Data(contentsOf: directory.appendingPathComponent(filename))
+    }
+
     func thumbnail(for item: ClipboardItem, maxPixelSize: CGFloat) -> NSImage? {
         guard let filename = item.imageFilename else { return nil }
 

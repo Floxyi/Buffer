@@ -3,18 +3,21 @@ import Foundation
 
 @MainActor
 struct HistoryPreviewLoader {
-    let store: ClipboardStore
+    let assetProvider: any ClipboardItemAssetProviding
     let ocrService: OCRServicing
 
     func loadPreviewImage(for item: ClipboardItem) async -> NSImage? {
-        await ClipboardImageAssetLoader.loadPreviewImage(for: item, store: store)
+        await assetProvider.loadPreviewImage(for: item)
     }
 
     func loadInitialChunk(for item: ClipboardItem) async -> ChunkedTextState {
         var state = ChunkedTextState()
         state.isLoadingMore = true
 
-        if let result = await store.textChunkAsync(for: item, charCount: ChunkedTextState.initialChars) {
+        if let result = await assetProvider.loadTextChunk(
+            for: item,
+            charCount: ChunkedTextState.initialChars
+        ) {
             state.visibleText = result.text
             state.totalBytes = result.totalBytes
             state.loadedCharCount = result.text.count
@@ -30,7 +33,7 @@ struct HistoryPreviewLoader {
         nextState.isLoadingMore = true
 
         let nextCharCount = nextState.loadedCharCount + ChunkedTextState.chunkSize
-        if let result = await store.textChunkAsync(for: item, charCount: nextCharCount) {
+        if let result = await assetProvider.loadTextChunk(for: item, charCount: nextCharCount) {
             nextState.visibleText = result.text
             nextState.totalBytes = result.totalBytes
             nextState.loadedCharCount = result.text.count

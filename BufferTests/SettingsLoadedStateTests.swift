@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Buffer
 
 final class SettingsLoadedStateTests: XCTestCase {
@@ -7,7 +8,9 @@ final class SettingsLoadedStateTests: XCTestCase {
         defaults.set(250, forKey: SettingsKey.historyLimit.rawValue)
         defaults.set(false, forKey: SettingsKey.keepSearchTextAfterPaste.rawValue)
         defaults.set(true, forKey: SettingsKey.keepSearchTextAfterClosing.rawValue)
-        defaults.set(HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue)
+        defaults.set(
+            HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue
+        )
         defaults.set(MenuBarIcon.tray.rawValue, forKey: SettingsKey.menuBarIcon.rawValue)
 
         let state = SettingsLoadedState.load(
@@ -25,7 +28,8 @@ final class SettingsLoadedStateTests: XCTestCase {
 
     func testDefaultsMatchSettingsDefaults() {
         XCTAssertEqual(SettingsLoadedState.defaults.historyLimit, SettingsDefaults.defaultHistoryLimit)
-        XCTAssertEqual(SettingsLoadedState.defaults.quickPasteEntryCount, SettingsDefaults.defaultQuickPasteSettings.entryCount)
+        XCTAssertEqual(
+            SettingsLoadedState.defaults.quickPasteEntryCount, SettingsDefaults.defaultQuickPasteSettings.entryCount)
         XCTAssertEqual(SettingsLoadedState.defaults.menuBarIcon, SettingsDefaults.defaultMenuBarIcon)
         XCTAssertEqual(
             SettingsLoadedState.defaults.clipboardWhitespaceMode,
