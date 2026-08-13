@@ -43,7 +43,9 @@ struct HistoryDetailPane: View {
 
             BufferPanelSeparator(isVertical: false)
 
-            HistoryDetailScrollView {
+            HistoryDetailScrollView(
+                resetID: HistoryDetailScrollResetID(detailState: detailState)
+            ) {
                 if detailState.selectionCount > 1 {
                     HistoryMultiSelectionSummary(
                         items: detailState.selectedItems,

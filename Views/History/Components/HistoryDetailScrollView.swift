@@ -1,4 +1,15 @@
+import Foundation
 import SwiftUI
+
+struct HistoryDetailScrollResetID: Equatable {
+    let focusedItemID: UUID?
+    let selectedItemIDs: [UUID]
+
+    init(detailState: HistoryDetailViewState) {
+        focusedItemID = detailState.selectedItem?.id
+        selectedItemIDs = detailState.selectedItems.map(\.id)
+    }
+}
 
 struct HistoryDetailScrollView<Content: View>: View {
     private let padding = CGFloat(8)
@@ -6,6 +17,7 @@ struct HistoryDetailScrollView<Content: View>: View {
     private let scrollbarWidth = CGFloat(4)
 
     @StateObject private var scrollController = ScrollController()
+    let resetID: HistoryDetailScrollResetID
     @ViewBuilder let content: () -> Content
 
     private var hasVisibleScrollbar: Bool {
@@ -45,27 +57,15 @@ struct HistoryDetailScrollView<Content: View>: View {
                     .allowsHitTesting(false)
                 }
         }
+        .onChange(of: resetID) { _ in
+            scrollController.scrollToTopImmediately()
+        }
         .overlay(alignment: .topTrailing) {
-            let viewportHeight = scrollController.viewportHeight
-            let contentHeight = scrollController.contentHeight
-            let trackHeight = max(0, viewportHeight - 2 * padding)
-            let maxScrollOffset = max(0, contentHeight - viewportHeight)
-
-            if trackHeight > 0, maxScrollOffset > 0 {
-                ScrollbarThumbView(
-                    viewportHeight: viewportHeight,
-                    contentHeight: contentHeight,
-                    scrollbarWidth: scrollbarWidth,
-                    scrollOffset: scrollController.scrollOffset
-                ) { progress in
-                    scrollController.scroll(to: progress)
-                }
-                .frame(width: scrollbarWidth, height: trackHeight)
-                .contentShape(Rectangle())
-                .padding(.vertical, padding)
-                .padding(.trailing, padding)
-                .zIndex(10)
-            }
+            ScrollControllerScrollbarOverlay(
+                scrollController: scrollController,
+                scrollbarWidth: scrollbarWidth,
+                contentPadding: padding
+            )
         }
     }
 }

@@ -164,4 +164,97 @@ final class ClipboardScrollbarInteractionViewTests: XCTestCase {
         XCTAssertEqual(thumbLayer.frame.height, expectedFrame.height, accuracy: 0.001)
         XCTAssertTrue(thumbLayer.animationKeys()?.isEmpty ?? true)
     }
+
+    func testMetricsReceivedDuringDragApplyWhenGestureEnds() {
+        var state = ScrollbarThumbInteractionState()
+        state.updateMetrics(
+            viewportHeight: 100,
+            contentHeight: 1_000,
+            scrollbarWidth: 4,
+            scrollOffset: 0
+        )
+        _ = state.beginDrag(mouseY: 20, trackHeight: 200)
+
+        state.updateMetrics(
+            viewportHeight: 200,
+            contentHeight: 2_000,
+            scrollbarWidth: 6,
+            scrollOffset: 900
+        )
+        state.endDrag(mouseY: 20, boundsHeight: 200)
+
+        let model = state.layerModel(for: CGRect(x: 0, y: 0, width: 8, height: 200))
+        let expected = ScrollbarMetrics.make(
+            trackHeight: 200,
+            viewportHeight: 200,
+            contentHeight: 2_000,
+            scrollOffset: 900,
+            dragProgress: nil
+        )
+
+        XCTAssertEqual(model.frame.minY, expected.thumbRect.minY, accuracy: 0.001)
+        XCTAssertEqual(model.frame.height, expected.thumbRect.height, accuracy: 0.001)
+        XCTAssertEqual(model.frame.width, 6, accuracy: 0.001)
+    }
+}
+
+@MainActor
+final class ScrollControllerPresentationTests: XCTestCase {
+    func testSystemScrollPublishesLiveOffsetForScrollbarConsumers() async {
+        let controller = ScrollController()
+        let scrollView = makeScrollView(viewportHeight: 120, contentHeight: 1_000)
+        controller.configure(scrollView: scrollView, interactionMode: .system)
+        controller.syncMetricsImmediately()
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 360))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        NotificationCenter.default.post(
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+
+        await eventually {
+            abs(controller.presentationState.scrollOffset - 360) < 0.5
+        }
+
+        XCTAssertEqual(controller.scrollOffset, 360, accuracy: 0.5)
+        XCTAssertEqual(controller.presentationState.scrollOffset, 360, accuracy: 0.5)
+    }
+
+    func testReconfigurationDiscardsPendingMetricsFromReplacedScrollView() async {
+        let controller = ScrollController()
+        let replacedScrollView = makeScrollView(viewportHeight: 100, contentHeight: 600)
+        let currentScrollView = makeScrollView(viewportHeight: 180, contentHeight: 1_400)
+
+        controller.configure(scrollView: replacedScrollView, interactionMode: .system)
+        controller.configure(scrollView: currentScrollView, interactionMode: .system)
+
+        await eventually {
+            abs(controller.presentationState.viewportHeight - 180) < 0.5
+                && abs(controller.presentationState.contentHeight - 1_400) < 0.5
+        }
+
+        XCTAssertTrue(controller.scrollView === currentScrollView)
+        XCTAssertEqual(controller.presentationState.viewportHeight, 180, accuracy: 0.5)
+        XCTAssertEqual(controller.presentationState.contentHeight, 1_400, accuracy: 0.5)
+    }
+
+    private func makeScrollView(
+        viewportHeight: CGFloat,
+        contentHeight: CGFloat
+    ) -> NSScrollView {
+        let scrollView = NSScrollView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: viewportHeight)
+        )
+        scrollView.hasVerticalScroller = false
+        scrollView.documentView = FlippedDocumentView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: contentHeight)
+        )
+        scrollView.layoutSubtreeIfNeeded()
+        return scrollView
+    }
+}
+
+private final class FlippedDocumentView: NSView {
+    override var isFlipped: Bool { true }
 }

@@ -72,4 +72,43 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertEqual(state.firstTextPreview, "person@example.com")
         XCTAssertEqual(state.actions.map(\.action), [.copy, .composeEmail, .jumpToHistory, .togglePin, .delete])
     }
+
+    func testDetailScrollResetIDChangesOnlyWithSelectionIdentity() {
+        let first = ClipboardItem.text("first")
+        let second = ClipboardItem.text("second")
+        let initialState = HistoryDetailViewState(
+            selectionCount: 1,
+            selectedItem: first,
+            selectedItems: [first]
+        )
+        let initialResetID = HistoryDetailScrollResetID(detailState: initialState)
+
+        var previewUpdatedState = initialState
+        previewUpdatedState.previewImage = NSImage(size: NSSize(width: 10, height: 10))
+
+        XCTAssertEqual(
+            HistoryDetailScrollResetID(detailState: previewUpdatedState),
+            initialResetID
+        )
+
+        let nextItemState = HistoryDetailViewState(
+            selectionCount: 1,
+            selectedItem: second,
+            selectedItems: [second]
+        )
+        XCTAssertNotEqual(
+            HistoryDetailScrollResetID(detailState: nextItemState),
+            initialResetID
+        )
+
+        let multiSelectionState = HistoryDetailViewState(
+            selectionCount: 2,
+            selectedItem: second,
+            selectedItems: [first, second]
+        )
+        XCTAssertNotEqual(
+            HistoryDetailScrollResetID(detailState: multiSelectionState),
+            HistoryDetailScrollResetID(detailState: nextItemState)
+        )
+    }
 }

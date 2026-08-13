@@ -37,14 +37,14 @@ struct ScrollbarThumbInteractionState {
         scrollOffset: CGFloat
     ) {
         self.scrollbarWidth = max(2, scrollbarWidth)
-
-        guard !isDraggingThumb else {
-            return
-        }
-
         self.viewportHeight = viewportHeight
         self.contentHeight = contentHeight
         self.scrollOffset = scrollOffset
+
+        // Drag geometry remains frozen for the gesture, but the latest external
+        // metrics must still be retained so mouse-up cannot restore stale state.
+        guard !isDraggingThumb else { return }
+
         self.dragProgress = nil
         self.dragViewportHeight = nil
         self.dragContentHeight = nil

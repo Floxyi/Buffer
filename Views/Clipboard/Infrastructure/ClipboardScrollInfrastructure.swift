@@ -2,9 +2,15 @@ import AppKit
 
 @MainActor
 final class ScrollPresentationState: ObservableObject {
-    @Published fileprivate(set) var viewportHeight: CGFloat = 0
-    @Published fileprivate(set) var contentHeight: CGFloat = 0
-    @Published fileprivate(set) var scrollOffset: CGFloat = 0
+    @Published private var metrics = SmoothWheelScroller.Metrics.zero
+
+    var viewportHeight: CGFloat { metrics.viewportHeight }
+    var contentHeight: CGFloat { metrics.contentHeight }
+    var scrollOffset: CGFloat { metrics.scrollOffset }
+
+    fileprivate func update(_ metrics: SmoothWheelScroller.Metrics) {
+        self.metrics = metrics
+    }
 }
 
 @MainActor
@@ -43,6 +49,9 @@ final class ScrollController: ObservableObject {
     }
 
     func configure(scrollView: NSScrollView, interactionMode: InteractionMode = .smoothWheel) {
+        if self.scrollView !== scrollView {
+            settledScrollScheduler.cancel()
+        }
         self.scrollView = scrollView
         metricsObserver.configure(
             scrollView: scrollView,
@@ -67,6 +76,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scroll(to progress: CGFloat) {
+        settledScrollScheduler.cancel()
         guard let scrollView,
               let documentView = scrollView.documentView else {
             return
@@ -103,6 +113,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scrollTo(offset: CGFloat) {
+        settledScrollScheduler.cancel()
         scrollToOffset(offset)
     }
 
@@ -113,6 +124,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scrollBy(deltaY: CGFloat) {
+        settledScrollScheduler.cancel()
         guard abs(deltaY) > 0.5,
               let scrollView else {
             return
@@ -132,6 +144,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scrollToTopImmediately() {
+        settledScrollScheduler.cancel()
         scrollToTopNow()
     }
 
@@ -142,6 +155,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scrollToBottomImmediately() {
+        settledScrollScheduler.cancel()
         scrollToBottomNow()
     }
 
@@ -327,25 +341,24 @@ final class ScrollController: ObservableObject {
         var didChange = false
         if abs(viewportHeight - nextViewportHeight) > 0.5 {
             viewportHeight = nextViewportHeight
-            presentationState.viewportHeight = nextViewportHeight
             didChange = true
         }
 
         if abs(contentHeight - nextContentHeight) > 0.5 {
             contentHeight = nextContentHeight
-            presentationState.contentHeight = nextContentHeight
             didChange = true
         }
 
         if abs(scrollOffset - nextScrollOffset) > 0.5 {
             scrollOffset = nextScrollOffset
-            presentationState.scrollOffset = nextScrollOffset
             activityTracker.markScrolling()
             didChange = true
         }
 
         if didChange {
-            onMetricsChanged?(metricsSnapshot())
+            let metrics = metricsSnapshot()
+            presentationState.update(metrics)
+            onMetricsChanged?(metrics)
         }
     }
 
