@@ -175,7 +175,6 @@ struct HistoryContentView: View {
     private var keyboardCommandHandler: HistoryKeyboardCommandHandler {
         HistoryKeyboardCommandHandler(
             isDeleteConfirmationPresenting: deleteConfirmationController.isPresenting,
-            selectionCount: viewModel.selectionCount,
             confirmDeleteWithKeyboardShortcut: settings.confirmDeleteWithKeyboardShortcut,
             actions: .init(
                 handleModifierFlagsChange: viewModel.handleQuickPasteModifierFlagsChange,
@@ -195,7 +194,9 @@ struct HistoryContentView: View {
                     copyOnly ? actionHandler.performCopyOnlyAction() : actionHandler.performPrimaryPasteAction()
                 },
                 dismiss: actionHandler.dismissHistoryWindow,
-                deleteSelection: viewModel.deleteSelectedItem,
+                selectAll: viewModel.selectAllItems,
+                makeDeleteRequest: viewModel.makeDeleteSelectionRequest,
+                deleteSelection: viewModel.delete,
                 copySelection: {
                     actionHandler.copySelection(dismissAfterCopy: false)
                 },
@@ -210,9 +211,9 @@ struct HistoryContentView: View {
                         onPaste(item)
                     }
                 },
-                presentDeleteConfirmation: { selectionCount in
-                    deleteConfirmationController.presentDeleteConfirmation(selectionCount: selectionCount) {
-                        viewModel.deleteSelectedItem()
+                presentDeleteConfirmation: { request in
+                    deleteConfirmationController.presentDeleteConfirmation(selectionCount: request.selectionCount) {
+                        viewModel.delete(request)
                     }
                 }
             )

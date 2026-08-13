@@ -204,13 +204,36 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
         viewModel.selectSingle(middle.id)
-        viewModel.deleteSelectedItem()
+        viewModel.deleteSelectedItems()
 
         await eventually {
             viewModel.selectedItem?.id == oldest.id
         }
 
         XCTAssertEqual(viewModel.selectedItem?.id, oldest.id)
+    }
+
+    func testDeleteRequestKeepsOriginalMultiSelectionAfterSelectionChanges() async throws {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let oldest = ClipboardItem.text("oldest")
+        let middle = ClipboardItem.text("middle")
+        let newest = ClipboardItem.text("newest")
+        await populateStore(store, with: [oldest, middle, newest])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+
+        viewModel.selectSingle(middle.id)
+        viewModel.toggleSelection(oldest.id)
+        let request = try XCTUnwrap(viewModel.makeDeleteSelectionRequest())
+        viewModel.selectSingle(newest.id)
+
+        viewModel.delete(request)
+
+        await eventually {
+            Set(store.items.map(\.id)) == [newest.id]
+        }
+        XCTAssertEqual(Set(request.items.map(\.id)), [middle.id, oldest.id])
+        XCTAssertEqual(store.items.map(\.id), [newest.id])
     }
 
     func testClearSearchAfterClosingClearsTextByDefault() {

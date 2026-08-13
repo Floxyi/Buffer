@@ -35,4 +35,34 @@ final class HistorySelectionControllerTests: XCTestCase {
         XCTAssertEqual(extended.selectedID, oldest.id)
         XCTAssertEqual(extended.selectedIndex, 2)
     }
+
+    func testSyncSelectionReanchorsWhenFilterRemovesRangeAnchor() {
+        let controller = HistorySelectionController()
+        let items = (0..<5).map { ClipboardItem.text("item-\($0)") }
+        var state = controller.applySingleSelection(
+            items[2].id,
+            index: 2,
+            in: items,
+            state: HistorySelectionState()
+        )
+        state = controller.extendSelection(
+            to: items[4].id,
+            targetIndex: 4,
+            in: items,
+            state: state
+        )
+
+        let filteredItems = [items[3], items[4]]
+        let synced = controller.syncSelection(
+            state: state,
+            in: filteredItems,
+            preferredID: nil,
+            preferredTopSelectionID: filteredItems.first?.id
+        )
+
+        XCTAssertEqual(synced.selectedIDs, Set(filteredItems.map(\.id)))
+        XCTAssertEqual(synced.selectedID, items[4].id)
+        XCTAssertEqual(synced.selectedIndex, 1)
+        XCTAssertEqual(synced.selectionAnchor, items[4].id)
+    }
 }

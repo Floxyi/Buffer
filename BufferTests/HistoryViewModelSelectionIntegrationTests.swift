@@ -105,7 +105,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedItem?.id, viewModel.filteredItems.first?.id)
         XCTAssertEqual(viewModel.selectedIndex, 0)
-        XCTAssertTrue(viewModel.scrollTrigger)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, 0)
     }
 
     func testJumpToLastItemSelectsOldestVisibleItem() async {
@@ -117,7 +117,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedItem?.id, viewModel.filteredItems.last?.id)
         XCTAssertEqual(viewModel.selectedIndex, viewModel.filteredItems.count - 1)
-        XCTAssertTrue(viewModel.scrollTrigger)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, viewModel.filteredItems.count - 1)
     }
 
     func testExtendSelectionToFirstItemSelectsRangeToNewestVisibleItem() async {
@@ -130,7 +130,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.first?.id)
         XCTAssertEqual(viewModel.selectedIndex, 0)
         XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.prefix(2).map(\.id)))
-        XCTAssertTrue(viewModel.scrollTrigger)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, 0)
     }
 
     func testExtendSelectionToLastItemSelectsRangeToOldestVisibleItem() async {
@@ -143,7 +143,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.last?.id)
         XCTAssertEqual(viewModel.selectedIndex, viewModel.filteredItems.count - 1)
         XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.suffix(2).map(\.id)))
-        XCTAssertTrue(viewModel.scrollTrigger)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, viewModel.filteredItems.count - 1)
     }
 
     func testCommandToggleSelectionTracksActionOrderAndRemovesDeselectedItems() async {
@@ -193,6 +193,54 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         viewModel.selectSingle(middle.id)
         viewModel.extendSelectionDown()
         XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, oldest.id])
+    }
+
+    func testKeyboardRangeShrinksAndReversesAcrossAnchor() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        let newest = viewModel.filteredItems[0]
+        let middle = viewModel.filteredItems[1]
+        let oldest = viewModel.filteredItems[2]
+
+        viewModel.selectSingle(middle.id)
+        viewModel.extendSelectionDown()
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, oldest.id])
+
+        viewModel.extendSelectionUp()
+        XCTAssertEqual(viewModel.selectedIDs, [middle.id])
+        XCTAssertEqual(viewModel.selectedID, middle.id)
+
+        viewModel.extendSelectionUp()
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), [middle.id, newest.id])
+        XCTAssertEqual(viewModel.selectedID, newest.id)
+
+        viewModel.extendSelectionDown()
+        XCTAssertEqual(viewModel.selectedIDs, [middle.id])
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.targetIndex, 1)
+        XCTAssertEqual(viewModel.keyboardScrollRequest?.generation, 4)
+    }
+
+    func testKeyboardRangeBoundaryIsNoOpWithoutNewScrollRequest() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+
+        viewModel.extendSelectionUp()
+
+        XCTAssertEqual(viewModel.selectedIndex, 0)
+        XCTAssertNil(viewModel.keyboardScrollRequest)
+    }
+
+    func testSelectAllUsesFilteredItemsAndPlainArrowCollapsesSelection() async {
+        let viewModel = await makeSelectionHistoryViewModel()
+        viewModel.searchText = "e"
+
+        viewModel.selectAllItems()
+
+        XCTAssertEqual(viewModel.selectedIDs, Set(viewModel.filteredItems.map(\.id)))
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), viewModel.filteredItems.map(\.id))
+
+        viewModel.navigateDown()
+
+        XCTAssertEqual(viewModel.selectedIDs, [viewModel.filteredItems[1].id])
+        XCTAssertEqual(viewModel.selectedIndex, 1)
     }
 
     func testContextMenuTargetingUsesSelectionScopeForSelectedRowsAndSingleScopeOtherwise() async {

@@ -9,6 +9,7 @@ enum HistoryKeyboardCommand: Equatable {
     case moveToLast(extendSelection: Bool)
     case commitSelection(copyOnly: Bool)
     case dismiss
+    case selectAll
     case deleteSelection
     case copySelection
     case togglePinned
@@ -63,8 +64,16 @@ enum HistoryKeyboardCommandResolver {
         case 53:
             return .dismiss
 
-        case 51:
-            guard input.modifierFlags.contains(.command) else { return nil }
+        case 0:
+            guard isCommandOnlyPressed, !input.isTextInputFocused else { return nil }
+            return .selectAll
+
+        case 51, 117:
+            if isCommandOnlyPressed {
+                return .deleteSelection
+            }
+
+            guard relevantFlags.isEmpty, !input.isTextInputFocused else { return nil }
             return .deleteSelection
 
         case 8:

@@ -45,9 +45,9 @@ struct SettingsBehaviourItemActionsSection: View {
 
     var body: some View {
         Section("Item Actions") {
-            Toggle("Confirm before deleting with hotkey (⌘ ⌫)", isOn: bindings.searchBehavior.confirmDeleteWithKeyboardShortcut)
+            Toggle("Confirm before deleting with keyboard shortcut", isOn: bindings.searchBehavior.confirmDeleteWithKeyboardShortcut)
 
-            Text("Choose whether deleting items with Command-Delete asks for confirmation.")
+            Text("Choose whether Delete or Command-Delete asks for confirmation.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

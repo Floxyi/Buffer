@@ -3,6 +3,7 @@ import Foundation
 struct HistorySelectionRangeController {
     func extendSelection(
         to targetID: UUID,
+        targetIndex: Int? = nil,
         in filteredItems: [ClipboardItem],
         state: HistorySelectionState,
         applySingleSelection: (UUID, [ClipboardItem], HistorySelectionState) -> HistorySelectionState
@@ -12,81 +13,109 @@ struct HistorySelectionRangeController {
         }
 
         guard let anchorIndex = filteredItems.firstIndex(where: { $0.id == anchorID }),
-              let targetIndex = filteredItems.firstIndex(where: { $0.id == targetID }) else {
+              let resolvedTargetIndex = resolvedIndex(
+                  for: targetID,
+                  proposedIndex: targetIndex,
+                  in: filteredItems
+              ) else {
             return state
         }
 
-        var nextState = state
-        let direction = targetIndex >= anchorIndex ? 1 : -1
-        let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-        let rangeIDs = Set(filteredItems[range].map(\.id))
-        let previousSelection = nextState.selectedIDs
-
-        nextState.selectedIDs = rangeIDs
-        nextState.selectedActionOrderIDs.removeAll { !rangeIDs.contains($0) }
-
-        let steppedIndices = stride(from: anchorIndex, through: targetIndex, by: direction)
-        for index in steppedIndices {
-            let id = filteredItems[index].id
-            if !previousSelection.contains(id) && !nextState.selectedActionOrderIDs.contains(id) {
-                nextState.selectedActionOrderIDs.append(id)
-            }
+        if let adjacentState = extendCanonicalRangeByOneItem(
+            from: anchorIndex,
+            to: resolvedTargetIndex,
+            in: filteredItems,
+            state: state
+        ) {
+            return adjacentState
         }
 
-        nextState.selectedIndex = targetIndex
+        var nextState = state
+        let orderedRangeIDs = orderedRangeIDs(
+            from: anchorIndex,
+            through: resolvedTargetIndex,
+            in: filteredItems
+        )
+        nextState.selectedIDs = Set(orderedRangeIDs)
+        nextState.selectedActionOrderIDs = orderedRangeIDs
+        nextState.selectedIndex = resolvedTargetIndex
         nextState.selectedID = targetID
         return nextState
     }
 
-    func extendSelectionUp(
+    private func extendCanonicalRangeByOneItem(
+        from anchorIndex: Int,
+        to targetIndex: Int,
         in filteredItems: [ClipboardItem],
-        state: HistorySelectionState,
-        applySingleSelection: (UUID, [ClipboardItem], HistorySelectionState) -> HistorySelectionState
-    ) -> HistorySelectionState {
-        guard state.selectedIndex > 0 else { return state }
-
-        let currentItem = filteredItems[state.selectedIndex]
-        let previousIndex = state.selectedIndex - 1
-        let previousItem = filteredItems[previousIndex]
-
-        guard !state.selectedIDs.isEmpty else {
-            return applySingleSelection(currentItem.id, filteredItems, state)
+        state: HistorySelectionState
+    ) -> HistorySelectionState? {
+        guard let focusedID = state.selectedID,
+              let focusedIndex = resolvedIndex(
+                  for: focusedID,
+                  proposedIndex: state.selectedIndex,
+                  in: filteredItems
+              ),
+              abs(targetIndex - focusedIndex) == 1,
+              isCanonicalRange(
+                  state,
+                  anchorIndex: anchorIndex,
+                  focusedIndex: focusedIndex
+              ) else {
+            return nil
         }
 
         var nextState = state
-        nextState.selectedIDs.insert(previousItem.id)
-        if !nextState.selectedActionOrderIDs.contains(previousItem.id) {
-            nextState.selectedActionOrderIDs.append(previousItem.id)
+        let focusedDistance = abs(focusedIndex - anchorIndex)
+        let targetDistance = abs(targetIndex - anchorIndex)
+
+        if targetDistance > focusedDistance {
+            let targetID = filteredItems[targetIndex].id
+            nextState.selectedIDs.insert(targetID)
+            nextState.selectedActionOrderIDs.append(targetID)
+        } else {
+            nextState.selectedIDs.remove(focusedID)
+            nextState.selectedActionOrderIDs.removeLast()
         }
-        nextState.selectionAnchor = nextState.selectionAnchor ?? currentItem.id
-        nextState.selectedIndex = previousIndex
-        nextState.selectedID = previousItem.id
+
+        nextState.selectedIndex = targetIndex
+        nextState.selectedID = filteredItems[targetIndex].id
         return nextState
     }
 
-    func extendSelectionDown(
-        in filteredItems: [ClipboardItem],
-        state: HistorySelectionState,
-        applySingleSelection: (UUID, [ClipboardItem], HistorySelectionState) -> HistorySelectionState
-    ) -> HistorySelectionState {
-        guard state.selectedIndex < filteredItems.count - 1 else { return state }
+    private func isCanonicalRange(
+        _ state: HistorySelectionState,
+        anchorIndex: Int,
+        focusedIndex: Int
+    ) -> Bool {
+        let expectedCount = abs(focusedIndex - anchorIndex) + 1
+        return state.selectedIDs.count == expectedCount
+            && state.selectedActionOrderIDs.count == expectedCount
+            && state.selectedActionOrderIDs.first == state.selectionAnchor
+            && state.selectedActionOrderIDs.last == state.selectedID
+    }
 
-        let currentItem = filteredItems[state.selectedIndex]
-        let nextIndex = state.selectedIndex + 1
-        let nextItem = filteredItems[nextIndex]
+    private func orderedRangeIDs(
+        from anchorIndex: Int,
+        through targetIndex: Int,
+        in filteredItems: [ClipboardItem]
+    ) -> [UUID] {
+        let direction = targetIndex >= anchorIndex ? 1 : -1
+        return stride(from: anchorIndex, through: targetIndex, by: direction).map {
+            filteredItems[$0].id
+        }
+    }
 
-        guard !state.selectedIDs.isEmpty else {
-            return applySingleSelection(currentItem.id, filteredItems, state)
+    private func resolvedIndex(
+        for id: UUID,
+        proposedIndex: Int?,
+        in filteredItems: [ClipboardItem]
+    ) -> Int? {
+        if let proposedIndex,
+           filteredItems.indices.contains(proposedIndex),
+           filteredItems[proposedIndex].id == id {
+            return proposedIndex
         }
 
-        var nextState = state
-        nextState.selectedIDs.insert(nextItem.id)
-        if !nextState.selectedActionOrderIDs.contains(nextItem.id) {
-            nextState.selectedActionOrderIDs.append(nextItem.id)
-        }
-        nextState.selectionAnchor = nextState.selectionAnchor ?? currentItem.id
-        nextState.selectedIndex = nextIndex
-        nextState.selectedID = nextItem.id
-        return nextState
+        return filteredItems.firstIndex(where: { $0.id == id })
     }
 }

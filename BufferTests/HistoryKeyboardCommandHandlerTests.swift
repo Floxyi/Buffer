@@ -5,40 +5,48 @@ import AppKit
 @MainActor
 final class HistoryKeyboardCommandHandlerTests: XCTestCase {
     func testDeleteSelectionPresentsConfirmationWhenEnabled() {
-        var presentedSelectionCount: Int?
+        let request = makeDeleteRequest(itemCount: 3)
+        var presentedRequest: HistoryDeleteRequest?
         var deletedCount = 0
 
         let handler = HistoryKeyboardCommandHandler(
             isDeleteConfirmationPresenting: false,
-            selectionCount: 3,
             confirmDeleteWithKeyboardShortcut: true,
             actions: recorderActions(
-                deleteSelection: { deletedCount += 1 },
-                presentDeleteConfirmation: { presentedSelectionCount = $0 }
+                makeDeleteRequest: { request },
+                deleteSelection: { _ in deletedCount += 1 },
+                presentDeleteConfirmation: { presentedRequest = $0 }
             )
         )
 
         handler.handle(.deleteSelection)
 
-        XCTAssertEqual(presentedSelectionCount, 3)
+        XCTAssertEqual(presentedRequest, request)
+        XCTAssertEqual(presentedRequest?.selectionCount, 3)
         XCTAssertEqual(deletedCount, 0)
     }
 
     func testDeleteSelectionDeletesImmediatelyWhenConfirmationDisabled() {
+        let request = makeDeleteRequest(itemCount: 1)
+        var deletedRequest: HistoryDeleteRequest?
         var deletedCount = 0
 
         let handler = HistoryKeyboardCommandHandler(
             isDeleteConfirmationPresenting: false,
-            selectionCount: 1,
             confirmDeleteWithKeyboardShortcut: false,
             actions: recorderActions(
-                deleteSelection: { deletedCount += 1 }
+                makeDeleteRequest: { request },
+                deleteSelection: {
+                    deletedRequest = $0
+                    deletedCount += 1
+                }
             )
         )
 
         handler.handle(.deleteSelection)
 
         XCTAssertEqual(deletedCount, 1)
+        XCTAssertEqual(deletedRequest, request)
     }
 
     func testCommandsAreIgnoredWhileDeleteConfirmationIsPresenting() {
@@ -48,7 +56,6 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
 
         let handler = HistoryKeyboardCommandHandler(
             isDeleteConfirmationPresenting: true,
-            selectionCount: 1,
             confirmDeleteWithKeyboardShortcut: false,
             actions: recorderActions(
                 moveDown: { _ in moveDownCallCount += 1 },
@@ -71,7 +78,6 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
 
         let handler = HistoryKeyboardCommandHandler(
             isDeleteConfirmationPresenting: true,
-            selectionCount: 0,
             confirmDeleteWithKeyboardShortcut: false,
             actions: recorderActions(
                 handleModifierFlagsChange: { receivedFlags = $0 }
@@ -91,12 +97,14 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
         moveToLast: @escaping (Bool) -> Void = { _ in },
         commitSelection: @escaping (Bool) -> Void = { _ in },
         dismiss: @escaping () -> Void = {},
-        deleteSelection: @escaping () -> Void = {},
+        selectAll: @escaping () -> Void = {},
+        makeDeleteRequest: @escaping () -> HistoryDeleteRequest? = { nil },
+        deleteSelection: @escaping (HistoryDeleteRequest) -> Void = { _ in },
         copySelection: @escaping () -> Void = {},
         togglePinned: @escaping () -> Void = {},
         saveImage: @escaping () -> Void = {},
         quickPaste: @escaping (Int) -> Void = { _ in },
-        presentDeleteConfirmation: @escaping (Int) -> Void = { _ in }
+        presentDeleteConfirmation: @escaping (HistoryDeleteRequest) -> Void = { _ in }
     ) -> HistoryKeyboardCommandHandler.Actions {
         .init(
             handleModifierFlagsChange: handleModifierFlagsChange,
@@ -106,12 +114,21 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
             moveToLast: moveToLast,
             commitSelection: commitSelection,
             dismiss: dismiss,
+            selectAll: selectAll,
+            makeDeleteRequest: makeDeleteRequest,
             deleteSelection: deleteSelection,
             copySelection: copySelection,
             togglePinned: togglePinned,
             saveImage: saveImage,
             quickPaste: quickPaste,
             presentDeleteConfirmation: presentDeleteConfirmation
+        )
+    }
+
+    private func makeDeleteRequest(itemCount: Int) -> HistoryDeleteRequest {
+        HistoryDeleteRequest(
+            items: (0..<itemCount).map { ClipboardItem.text("item-\($0)") },
+            preferredSelectionID: nil
         )
     }
 }

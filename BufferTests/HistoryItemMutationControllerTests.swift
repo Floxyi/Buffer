@@ -29,7 +29,7 @@ final class HistoryItemMutationControllerTests: XCTestCase {
         XCTAssertEqual(syncedSelectionID, second.id)
     }
 
-    func testDeleteSelectedItemsPrefersAdjacentSelectionAndDeletesTargets() async {
+    func testDeleteRequestPrefersAdjacentSelectionAndDeletesTargets() async throws {
         let controller = HistoryItemMutationController()
         let selectionController = HistorySelectionController()
         let store = makeStore()
@@ -46,10 +46,15 @@ final class HistoryItemMutationControllerTests: XCTestCase {
         }
 
         let filteredItems = [third, second, first]
-        controller.deleteSelectedItems(
-            [second],
-            filteredItems: filteredItems,
-            selectionController: selectionController,
+        let request = try XCTUnwrap(
+            controller.makeDeleteRequest(
+                for: [second],
+                in: filteredItems,
+                selectionController: selectionController
+            )
+        )
+        controller.delete(
+            request,
             store: store,
             setPendingPreferredSelectionID: { pendingPreferredSelectionID = $0 }
         )

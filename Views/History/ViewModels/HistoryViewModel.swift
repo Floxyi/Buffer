@@ -353,51 +353,34 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func jumpToFirstItem() {
-        guard let firstItemID = filteredItems.first?.id else { return }
-
-        scrollTrigger = true
-        selectionState.selectedIndex = 0
-        syncSelection(preferredID: firstItemID)
+        moveKeyboardSelection(to: 0, extending: false)
     }
 
     func jumpToLastItem() {
-        guard let lastItemID = filteredItems.last?.id else { return }
-
-        scrollTrigger = true
-        selectionState.selectedIndex = filteredItems.count - 1
-        syncSelection(preferredID: lastItemID)
+        moveKeyboardSelection(to: filteredItems.count - 1, extending: false)
     }
 
     func extendSelectionToFirstItem() {
-        guard let firstItemID = filteredItems.first?.id else { return }
-
-        scrollTrigger = true
-        selectionState.selectionAnchor = selectionState.selectionAnchor ?? selectedID ?? firstItemID
-        extendSelectionTo(firstItemID)
+        moveKeyboardSelection(to: 0, extending: true)
     }
 
     func extendSelectionToLastItem() {
-        guard let lastItemID = filteredItems.last?.id else { return }
-
-        scrollTrigger = true
-        selectionState.selectionAnchor = selectionState.selectionAnchor ?? selectedID ?? lastItemID
-        extendSelectionTo(lastItemID)
+        moveKeyboardSelection(to: filteredItems.count - 1, extending: true)
     }
 
     func extendSelectionUp() {
-        guard selectedIndex > 0 else { return }
-
-        scrollTrigger = true
-        selectionState = selectionController.extendSelectionUp(in: filteredItems, state: selectionState)
-        applySelectionState()
+        moveKeyboardSelection(to: selectedIndex - 1, extending: true)
     }
 
     func extendSelectionDown() {
-        guard selectedIndex < filteredItems.count - 1 else { return }
+        moveKeyboardSelection(to: selectedIndex + 1, extending: true)
+    }
 
-        scrollTrigger = true
-        selectionState = selectionController.extendSelectionDown(in: filteredItems, state: selectionState)
-        applySelectionState()
+    func selectAllItems() {
+        guard !filteredItems.isEmpty else { return }
+
+        let nextState = selectionController.selectAll(in: filteredItems, state: selectionState)
+        publishKeyboardSelection(nextState, focusedIndex: nextState.selectedIndex)
     }
 
     func togglePinForSelectedItem() {
@@ -409,11 +392,22 @@ final class HistoryViewModel: ObservableObject {
         )
     }
 
-    func deleteSelectedItem() {
-        itemMutationController.deleteSelectedItems(
-            selectedItemsInActionOrder,
-            filteredItems: filteredItems,
-            selectionController: selectionController,
+    func deleteSelectedItems() {
+        guard let request = makeDeleteSelectionRequest() else { return }
+        delete(request)
+    }
+
+    func makeDeleteSelectionRequest() -> HistoryDeleteRequest? {
+        itemMutationController.makeDeleteRequest(
+            for: selectedItemsInActionOrder,
+            in: filteredItems,
+            selectionController: selectionController
+        )
+    }
+
+    func delete(_ request: HistoryDeleteRequest) {
+        itemMutationController.delete(
+            request,
             store: store,
             setPendingPreferredSelectionID: { [weak self] in
                 guard let self else { return }
@@ -700,17 +694,42 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func navigate(by delta: Int) {
-        let targetIndex = selectedIndex + delta
+        moveKeyboardSelection(to: selectedIndex + delta, extending: false)
+    }
+
+    private func moveKeyboardSelection(to targetIndex: Int, extending: Bool) {
         guard filteredItems.indices.contains(targetIndex) else { return }
 
         let item = filteredItems[targetIndex]
+        let nextState = extending
+            ? selectionController.extendSelection(
+                to: item.id,
+                targetIndex: targetIndex,
+                in: filteredItems,
+                state: selectionState
+            )
+            : selectionController.applySingleSelection(
+                item.id,
+                index: targetIndex,
+                in: filteredItems,
+                state: selectionState
+            )
+
+        publishKeyboardSelection(nextState, focusedIndex: targetIndex)
+    }
+
+    private func publishKeyboardSelection(
+        _ nextState: HistorySelectionState,
+        focusedIndex: Int
+    ) {
+        guard nextState != selectionState,
+              filteredItems.indices.contains(focusedIndex),
+              nextState.selectedID == filteredItems[focusedIndex].id else {
+            return
+        }
+
         let selectionToken = BufferPerformanceDiagnostics.begin(.keyboardSelection)
-        selectionState = selectionController.applySingleSelection(
-            item.id,
-            index: targetIndex,
-            in: filteredItems,
-            state: selectionState
-        )
+        selectionState = nextState
 
         var transaction = Transaction()
         transaction.disablesAnimations = true
@@ -719,16 +738,17 @@ final class HistoryViewModel: ObservableObject {
         }
         BufferPerformanceDiagnostics.end(selectionToken)
 
+        let focusedItem = filteredItems[focusedIndex]
         navigationState = jumpNavigationController.makeKeyboardScrollRequest(
-            itemID: item.id,
-            targetIndex: targetIndex,
+            itemID: focusedItem.id,
+            targetIndex: focusedIndex,
             state: navigationState
         )
         updatePresentationState { $0.keyboardScrollRequest = navigationState.keyboardScrollRequest }
         beginDetailLoad(
-            selectedItem: item,
-            selectedItemsInVisualOrder: [item],
-            selectedItemsInActionOrder: [item]
+            selectedItem: focusedItem,
+            selectedItemsInVisualOrder: selectedItemsInVisualOrder,
+            selectedItemsInActionOrder: selectedItemsInActionOrder
         )
     }
 

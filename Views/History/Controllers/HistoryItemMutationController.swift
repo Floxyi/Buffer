@@ -1,7 +1,41 @@
 import Foundation
 
+struct HistoryDeleteRequest: Equatable, Sendable {
+    let items: [ClipboardItem]
+    let preferredSelectionID: UUID?
+
+    var selectionCount: Int { items.count }
+}
+
 @MainActor
 struct HistoryItemMutationController {
+    func makeDeleteRequest(
+        for items: [ClipboardItem],
+        in filteredItems: [ClipboardItem],
+        selectionController: HistorySelectionController
+    ) -> HistoryDeleteRequest? {
+        guard !items.isEmpty else { return nil }
+
+        return HistoryDeleteRequest(
+            items: items,
+            preferredSelectionID: selectionController.preferredSelectionID(
+                afterDeleting: items,
+                from: filteredItems
+            )
+        )
+    }
+
+    func delete(
+        _ request: HistoryDeleteRequest,
+        store: ClipboardStore,
+        setPendingPreferredSelectionID: (UUID?) -> Void
+    ) {
+        guard !request.items.isEmpty else { return }
+
+        setPendingPreferredSelectionID(request.preferredSelectionID)
+        store.delete(request.items)
+    }
+
     func togglePinForSelectedItems(
         _ items: [ClipboardItem],
         selectedID: UUID?,
@@ -14,21 +48,6 @@ struct HistoryItemMutationController {
         let preferredID = selectedID ?? items.first?.id
         store.updatePinState(pinState, for: items)
         syncSelection(preferredID)
-    }
-
-    func deleteSelectedItems(
-        _ items: [ClipboardItem],
-        filteredItems: [ClipboardItem],
-        selectionController: HistorySelectionController,
-        store: ClipboardStore,
-        setPendingPreferredSelectionID: (UUID?) -> Void
-    ) {
-        guard !items.isEmpty else { return }
-
-        setPendingPreferredSelectionID(
-            selectionController.preferredSelectionID(afterDeleting: items, from: filteredItems)
-        )
-        store.delete(items)
     }
 
     func togglePin(
@@ -51,10 +70,16 @@ struct HistoryItemMutationController {
         setPendingPreferredSelectionID: (UUID?) -> Void
     ) {
         selectSingle(item.id)
-        setPendingPreferredSelectionID(
-            selectionController.preferredSelectionID(afterDeleting: [item], from: filteredItems)
+        guard let request = makeDeleteRequest(
+            for: [item],
+            in: filteredItems,
+            selectionController: selectionController
+        ) else { return }
+        delete(
+            request,
+            store: store,
+            setPendingPreferredSelectionID: setPendingPreferredSelectionID
         )
-        store.delete(item)
     }
 
     func deleteContextMenuTarget(
@@ -64,12 +89,16 @@ struct HistoryItemMutationController {
         store: ClipboardStore,
         setPendingPreferredSelectionID: (UUID?) -> Void
     ) {
-        guard !targets.isEmpty else { return }
-
-        setPendingPreferredSelectionID(
-            selectionController.preferredSelectionID(afterDeleting: targets, from: filteredItems)
+        guard let request = makeDeleteRequest(
+            for: targets,
+            in: filteredItems,
+            selectionController: selectionController
+        ) else { return }
+        delete(
+            request,
+            store: store,
+            setPendingPreferredSelectionID: setPendingPreferredSelectionID
         )
-        store.delete(targets)
     }
 
     func togglePinForContextMenuTarget(

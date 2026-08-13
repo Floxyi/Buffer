@@ -11,16 +11,17 @@ struct HistoryKeyboardCommandHandler {
         var moveToLast: (_ extendSelection: Bool) -> Void
         var commitSelection: (_ copyOnly: Bool) -> Void
         var dismiss: () -> Void
-        var deleteSelection: () -> Void
+        var selectAll: () -> Void
+        var makeDeleteRequest: () -> HistoryDeleteRequest?
+        var deleteSelection: (HistoryDeleteRequest) -> Void
         var copySelection: () -> Void
         var togglePinned: () -> Void
         var saveImage: () -> Void
         var quickPaste: (_ index: Int) -> Void
-        var presentDeleteConfirmation: (_ selectionCount: Int) -> Void
+        var presentDeleteConfirmation: (HistoryDeleteRequest) -> Void
     }
 
     let isDeleteConfirmationPresenting: Bool
-    let selectionCount: Int
     let confirmDeleteWithKeyboardShortcut: Bool
     let actions: Actions
 
@@ -53,6 +54,10 @@ struct HistoryKeyboardCommandHandler {
             guard !isDeleteConfirmationPresenting else { return }
             actions.dismiss()
 
+        case .selectAll:
+            guard !isDeleteConfirmationPresenting else { return }
+            actions.selectAll()
+
         case .deleteSelection:
             guard !isDeleteConfirmationPresenting else { return }
             handleDeleteShortcut()
@@ -76,13 +81,12 @@ struct HistoryKeyboardCommandHandler {
     }
 
     private func handleDeleteShortcut() {
-        guard selectionCount > 0 else { return }
+        guard let request = actions.makeDeleteRequest() else { return }
 
         if confirmDeleteWithKeyboardShortcut {
-            actions.presentDeleteConfirmation(selectionCount)
+            actions.presentDeleteConfirmation(request)
         } else {
-            actions.deleteSelection()
+            actions.deleteSelection(request)
         }
     }
 }
-

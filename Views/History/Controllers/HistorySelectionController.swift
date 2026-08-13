@@ -1,6 +1,6 @@
 import Foundation
 
-struct HistorySelectionState {
+struct HistorySelectionState: Equatable {
     var selectedIDs: Set<UUID> = []
     var selectedActionOrderIDs: [UUID] = []
     var selectedIndex = 0
@@ -114,23 +114,27 @@ struct HistorySelectionController {
             nextState.selectedActionOrderIDs.append(id)
         }
 
-        nextState.selectionAnchor = id
+        guard !nextState.selectedIDs.isEmpty else {
+            return clearSelection()
+        }
 
         if let index = filteredItems.firstIndex(where: { $0.id == id }) {
-            nextState.selectedIndex = index
             if nextState.selectedIDs.contains(id) {
+                nextState.selectedIndex = index
                 nextState.selectedID = id
+                nextState.selectionAnchor = id
             } else {
                 nextState.selectedID = nearestSelectedID(
                     around: index,
                     in: filteredItems,
                     selectedIDs: nextState.selectedIDs
                 )
+                nextState.selectionAnchor = nextState.selectedID
+                if let selectedID = nextState.selectedID,
+                   let selectedIndex = filteredItems.firstIndex(where: { $0.id == selectedID }) {
+                    nextState.selectedIndex = selectedIndex
+                }
             }
-        }
-
-        if nextState.selectedIDs.isEmpty {
-            nextState.selectionAnchor = nil
         }
 
         return nextState
@@ -138,11 +142,13 @@ struct HistorySelectionController {
 
     func extendSelection(
         to targetID: UUID,
+        targetIndex: Int? = nil,
         in filteredItems: [ClipboardItem],
         state: HistorySelectionState
     ) -> HistorySelectionState {
         rangeController.extendSelection(
             to: targetID,
+            targetIndex: targetIndex,
             in: filteredItems,
             state: state,
             applySingleSelection: { id, items, nextState in
@@ -151,30 +157,25 @@ struct HistorySelectionController {
         )
     }
 
-    func extendSelectionUp(
+    func selectAll(
         in filteredItems: [ClipboardItem],
         state: HistorySelectionState
     ) -> HistorySelectionState {
-        rangeController.extendSelectionUp(
-            in: filteredItems,
-            state: state,
-            applySingleSelection: { id, items, nextState in
-                applySingleSelection(id, in: items, state: nextState)
-            }
-        )
-    }
+        guard !filteredItems.isEmpty else { return clearSelection() }
 
-    func extendSelectionDown(
-        in filteredItems: [ClipboardItem],
-        state: HistorySelectionState
-    ) -> HistorySelectionState {
-        rangeController.extendSelectionDown(
-            in: filteredItems,
-            state: state,
-            applySingleSelection: { id, items, nextState in
-                applySingleSelection(id, in: items, state: nextState)
-            }
-        )
+        var nextState = state
+        let focusedIndex = filteredItems.indices.contains(state.selectedIndex)
+            ? state.selectedIndex
+            : 0
+        let focusedID = filteredItems[focusedIndex].id
+        let allIDs = filteredItems.map(\.id)
+
+        nextState.selectedIDs = Set(allIDs)
+        nextState.selectedActionOrderIDs = allIDs
+        nextState.selectedIndex = focusedIndex
+        nextState.selectedID = focusedID
+        nextState.selectionAnchor = focusedID
+        return nextState
     }
 
     func preferredSelectionID(
