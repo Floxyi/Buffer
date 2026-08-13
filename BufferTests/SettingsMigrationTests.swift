@@ -53,4 +53,29 @@ final class SettingsMigrationTests: XCTestCase {
 
         XCTAssertEqual(decoded, apps)
     }
+
+    func testLoadClipboardWhitespaceModeFallsBackForMissingOrInvalidValue() {
+        let defaults = makeTestDefaults()
+        let store = UserDefaultsSettingsStore(defaults: defaults)
+
+        XCTAssertEqual(
+            SettingsMigration.loadClipboardWhitespaceMode(from: store),
+            .preserve
+        )
+
+        defaults.set("invalid", forKey: SettingsKey.clipboardWhitespaceMode.rawValue)
+        XCTAssertEqual(
+            SettingsMigration.loadClipboardWhitespaceMode(from: store),
+            .preserve
+        )
+
+        defaults.set(
+            ClipboardWhitespaceMode.showSpacesAndTabs.rawValue,
+            forKey: SettingsKey.clipboardWhitespaceMode.rawValue
+        )
+        XCTAssertEqual(
+            SettingsMigration.loadClipboardWhitespaceMode(from: store),
+            .showSpacesAndTabs
+        )
+    }
 }

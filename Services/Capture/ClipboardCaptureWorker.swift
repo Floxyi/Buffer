@@ -56,7 +56,7 @@ actor ClipboardCaptureWorker {
     }
 
     func processText(
-        _ text: String,
+        _ preparedText: PreparedClipboardText,
         sourceApp: SourceApplicationInfo?,
         enableWebsitePreviews: Bool,
         store: any ClipboardCaptureAssetPersisting
@@ -65,13 +65,9 @@ actor ClipboardCaptureWorker {
             return .none
         }
 
-        let textSize = text.utf8.count
-        let hashSource = textSize > ClipboardCaptureSupport.inlineTextLimit ? String(text.prefix(10_000)) : text
-        let hash = hashSource.hashValue
-
         let token = BufferPerformanceDiagnostics.begin(.clipboardCapture)
         let item = await ClipboardCaptureSupport.classifyTextItem(
-            text,
+            preparedText.text,
             sourceApp: sourceApp,
             enableWebsitePreviews: enableWebsitePreviews,
             saveText: { text in
@@ -98,7 +94,7 @@ actor ClipboardCaptureWorker {
             return .none
         }
 
-        return .item(item, contentHash: hash)
+        return .item(item, contentHash: preparedText.contentHash)
     }
 
     func processPasteboardImage(

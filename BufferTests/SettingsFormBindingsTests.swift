@@ -64,4 +64,24 @@ final class SettingsFormBindingsTests: XCTestCase {
         XCTAssertEqual(settings.historyRetentionPeriod, .oneWeek)
         XCTAssertTrue(settings.enableWebsitePreviews)
     }
+
+    func testWhitespaceBindingsAlwaysProduceAnExclusiveMode() {
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.formBindings.whitespace.showSpacesAndTabs.wrappedValue = true
+        XCTAssertEqual(settings.clipboardWhitespaceMode, .showSpacesAndTabs)
+        XCTAssertTrue(settings.formBindings.whitespace.showSpacesAndTabs.wrappedValue)
+        XCTAssertFalse(settings.formBindings.whitespace.trimTrailingSpacesAndTabs.wrappedValue)
+
+        settings.formBindings.whitespace.trimTrailingSpacesAndTabs.wrappedValue = true
+        XCTAssertEqual(settings.clipboardWhitespaceMode, .trimTrailingSpacesAndTabs)
+        XCTAssertFalse(settings.formBindings.whitespace.showSpacesAndTabs.wrappedValue)
+        XCTAssertTrue(settings.formBindings.whitespace.trimTrailingSpacesAndTabs.wrappedValue)
+
+        settings.formBindings.whitespace.trimTrailingSpacesAndTabs.wrappedValue = false
+        XCTAssertEqual(settings.clipboardWhitespaceMode, .preserve)
+    }
 }

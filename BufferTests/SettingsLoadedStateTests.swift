@@ -27,5 +27,9 @@ final class SettingsLoadedStateTests: XCTestCase {
         XCTAssertEqual(SettingsLoadedState.defaults.historyLimit, SettingsDefaults.defaultHistoryLimit)
         XCTAssertEqual(SettingsLoadedState.defaults.quickPasteEntryCount, SettingsDefaults.defaultQuickPasteSettings.entryCount)
         XCTAssertEqual(SettingsLoadedState.defaults.menuBarIcon, SettingsDefaults.defaultMenuBarIcon)
+        XCTAssertEqual(
+            SettingsLoadedState.defaults.clipboardWhitespaceMode,
+            SettingsDefaults.defaultClipboardWhitespaceMode
+        )
     }
 }

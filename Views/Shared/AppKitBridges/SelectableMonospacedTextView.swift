@@ -5,16 +5,31 @@ struct SelectableMonospacedTextView: NSViewRepresentable {
     let text: String
     let fontSize: CGFloat
     let usesMonospacedFont: Bool
+    let showsSpacesAndTabs: Bool
+
+    init(
+        text: String,
+        fontSize: CGFloat,
+        usesMonospacedFont: Bool,
+        showsSpacesAndTabs: Bool = false
+    ) {
+        self.text = text
+        self.fontSize = fontSize
+        self.usesMonospacedFont = usesMonospacedFont
+        self.showsSpacesAndTabs = showsSpacesAndTabs
+    }
 
     func makeNSView(context: Context) -> MeasuringSelectableTextView {
         let textView = MeasuringSelectableTextView(frame: .zero)
         textView.configure(fontSize: fontSize, usesMonospacedFont: usesMonospacedFont)
+        textView.setShowsSpacesAndTabs(showsSpacesAndTabs)
         textView.setText(text)
         return textView
     }
 
     func updateNSView(_ nsView: MeasuringSelectableTextView, context: Context) {
         nsView.configure(fontSize: fontSize, usesMonospacedFont: usesMonospacedFont)
+        nsView.setShowsSpacesAndTabs(showsSpacesAndTabs)
         nsView.setText(text)
     }
 
@@ -43,7 +58,7 @@ final class MeasuringSelectableTextView: NSTextView {
         let container = NSTextContainer(size: NSSize(width: frameRect.width, height: .greatestFiniteMagnitude))
         container.widthTracksTextView = true
         container.heightTracksTextView = false
-        let layoutManager = NSLayoutManager()
+        let layoutManager = WhitespaceVisualizingLayoutManager()
         layoutManager.addTextContainer(container)
         let storage = NSTextStorage()
         storage.addLayoutManager(layoutManager)
@@ -114,6 +129,13 @@ final class MeasuringSelectableTextView: NSTextView {
         invalidateMeasuredLayout()
     }
 
+    func setShowsSpacesAndTabs(_ isVisible: Bool) {
+        guard let layoutManager = layoutManager as? WhitespaceVisualizingLayoutManager else {
+            return
+        }
+        layoutManager.showsSpacesAndTabs = isVisible
+    }
+
     func measuredHeight(constrainedTo proposedWidth: CGFloat) -> CGFloat {
         let width = max(1, proposedWidth)
         updateContainerWidth(width)
@@ -153,5 +175,108 @@ final class MeasuringSelectableTextView: NSTextView {
         let fullRange = NSRange(location: 0, length: (string as NSString).length)
         layoutManager.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
         invalidateIntrinsicContentSize()
+    }
+}
+
+final class WhitespaceVisualizingLayoutManager: NSLayoutManager {
+    private static let space = unichar(0x20)
+    private static let tab = unichar(0x09)
+
+    var showsSpacesAndTabs = false {
+        didSet {
+            guard showsSpacesAndTabs != oldValue else { return }
+            invalidateDisplay(forCharacterRange: fullCharacterRange)
+        }
+    }
+
+    override func drawGlyphs(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
+        super.drawGlyphs(forGlyphRange: glyphsToShow, at: origin)
+
+        guard showsSpacesAndTabs,
+              let textStorage,
+              let textContainer = textContainers.first,
+              glyphsToShow.length > 0 else {
+            return
+        }
+
+        let characterRange = characterRange(
+            forGlyphRange: glyphsToShow,
+            actualGlyphRange: nil
+        )
+        let string = textStorage.string as NSString
+        let upperBound = min(NSMaxRange(characterRange), string.length)
+
+        for characterIndex in characterRange.location..<upperBound {
+            let character = string.character(at: characterIndex)
+            guard let marker = Self.marker(for: character) else { continue }
+
+            let characterGlyphRange = glyphRange(
+                forCharacterRange: NSRange(location: characterIndex, length: 1),
+                actualCharacterRange: nil
+            )
+            guard characterGlyphRange.length > 0,
+                  NSIntersectionRange(characterGlyphRange, glyphsToShow).length > 0 else {
+                continue
+            }
+
+            drawMarker(
+                marker,
+                scale: Self.markerScale(for: character),
+                forCharacterAt: characterIndex,
+                glyphRange: characterGlyphRange,
+                textStorage: textStorage,
+                textContainer: textContainer,
+                origin: origin
+            )
+        }
+    }
+
+    static func marker(for character: unichar) -> String? {
+        switch character {
+        case space: return "·"
+        case tab: return "→"
+        default: return nil
+        }
+    }
+
+    private static func markerScale(for character: unichar) -> CGFloat {
+        character == space ? 0.92 : 0.78
+    }
+
+    private var fullCharacterRange: NSRange {
+        NSRange(location: 0, length: textStorage?.length ?? 0)
+    }
+
+    private func drawMarker(
+        _ marker: String,
+        scale: CGFloat,
+        forCharacterAt characterIndex: Int,
+        glyphRange: NSRange,
+        textStorage: NSTextStorage,
+        textContainer: NSTextContainer,
+        origin: NSPoint
+    ) {
+        let font = textStorage.attribute(
+            .font,
+            at: characterIndex,
+            effectiveRange: nil
+        ) as? NSFont ?? .systemFont(ofSize: NSFont.systemFontSize)
+
+        let markerFont = NSFont.systemFont(
+            ofSize: max(7, font.pointSize * scale),
+            weight: .regular
+        )
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: markerFont,
+            .foregroundColor: NSColor.secondaryLabelColor.withAlphaComponent(0.90)
+        ]
+        let markerSize = marker.size(withAttributes: attributes)
+        let glyphBounds = boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let markerOrigin = NSPoint(
+            x: origin.x + glyphBounds.midX - markerSize.width / 2,
+            y: origin.y + glyphBounds.midY - markerSize.height / 2
+        )
+
+        marker.draw(at: markerOrigin, withAttributes: attributes)
     }
 }

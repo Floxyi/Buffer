@@ -13,6 +13,7 @@ struct HistoryDetailPane: View {
     let detailState: HistoryDetailViewState
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
+    let showsSpacesAndTabs: Bool
     let enableWebsitePreviews: Bool
     let store: ClipboardStore
     let actionsForItem: (ClipboardItem) -> [HistoryItemActionDescriptor]
@@ -94,6 +95,7 @@ struct HistoryDetailPane: View {
                 isExtractingText: detailState.isExtractingText,
                 textDetailFontStyle: textDetailFontStyle,
                 textDetailFontSize: textDetailFontSize,
+                showsSpacesAndTabs: showsSpacesAndTabs,
                 enableWebsitePreviews: enableWebsitePreviews,
                 onCopyOCRText: onCopyOCRText,
                 onCopyColorVariant: onCopyColorVariant,

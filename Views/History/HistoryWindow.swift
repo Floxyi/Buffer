@@ -140,6 +140,7 @@ struct HistoryContentView: View {
             detailState: viewModel.detailViewState,
             textDetailFontStyle: settings.textDetailFontStyle,
             textDetailFontSize: settings.textDetailFontSize,
+            showsSpacesAndTabs: settings.clipboardWhitespaceMode.showsSpacesAndTabs,
             enableWebsitePreviews: settings.enableWebsitePreviews,
             store: store,
             actionsForItem: { item in

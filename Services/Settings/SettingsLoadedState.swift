@@ -14,6 +14,7 @@ struct SettingsLoadedState {
     var quickPasteEntryCount: Int
     var textDetailFontStyle: TextDetailFontStyle
     var textDetailFontSize: TextDetailFontSize
+    var clipboardWhitespaceMode: ClipboardWhitespaceMode
     var historyRetentionPeriod: HistoryRetentionPeriod
     var menuBarIcon: MenuBarIcon
     var enableWebsitePreviews: Bool
@@ -43,6 +44,7 @@ struct SettingsLoadedState {
             quickPasteEntryCount: quickPaste.entryCount,
             textDetailFontStyle: textDetail.style,
             textDetailFontSize: textDetail.size,
+            clipboardWhitespaceMode: SettingsMigration.loadClipboardWhitespaceMode(from: store),
             historyRetentionPeriod: privacy.historyRetentionPeriod,
             menuBarIcon: SettingsMigration.loadMenuBarIcon(from: store),
             enableWebsitePreviews: privacy.enableWebsitePreviews,
@@ -65,6 +67,7 @@ struct SettingsLoadedState {
         quickPasteEntryCount: SettingsDefaults.defaultQuickPasteSettings.entryCount,
         textDetailFontStyle: SettingsDefaults.defaultTextDetailSettings.style,
         textDetailFontSize: SettingsDefaults.defaultTextDetailSettings.size,
+        clipboardWhitespaceMode: SettingsDefaults.defaultClipboardWhitespaceMode,
         historyRetentionPeriod: SettingsDefaults.defaultPrivacySettings.historyRetentionPeriod,
         menuBarIcon: SettingsDefaults.defaultMenuBarIcon,
         enableWebsitePreviews: SettingsDefaults.defaultPrivacySettings.enableWebsitePreviews,

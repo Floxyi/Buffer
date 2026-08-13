@@ -5,6 +5,7 @@ struct HistoryTextDetailContent: View {
     let chunkedText: ChunkedTextState
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
+    let showsSpacesAndTabs: Bool
     let onLoadNextChunk: (ClipboardItem) -> Void
 
     private var fontSize: CGFloat {
@@ -21,7 +22,8 @@ struct HistoryTextDetailContent: View {
                 SelectableMonospacedTextView(
                     text: item.textContent ?? "",
                     fontSize: fontSize,
-                    usesMonospacedFont: usesMonospacedFont
+                    usesMonospacedFont: usesMonospacedFont,
+                    showsSpacesAndTabs: showsSpacesAndTabs
                 )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -38,7 +40,8 @@ struct HistoryTextDetailContent: View {
                 SelectableMonospacedTextView(
                     text: chunkedText.visibleText,
                     fontSize: fontSize,
-                    usesMonospacedFont: usesMonospacedFont
+                    usesMonospacedFont: usesMonospacedFont,
+                    showsSpacesAndTabs: showsSpacesAndTabs
                 )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
 
@@ -61,7 +64,8 @@ struct HistoryTextDetailContent: View {
             SelectableMonospacedTextView(
                 text: item.textContent ?? "",
                 fontSize: fontSize,
-                usesMonospacedFont: usesMonospacedFont
+                usesMonospacedFont: usesMonospacedFont,
+                showsSpacesAndTabs: showsSpacesAndTabs
             )
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }

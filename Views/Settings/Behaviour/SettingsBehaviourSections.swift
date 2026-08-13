@@ -85,6 +85,32 @@ struct SettingsBehaviourQuickPasteSection: View {
     }
 }
 
+struct SettingsBehaviourWhitespaceSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
+    var body: some View {
+        Section("Whitespace") {
+            Toggle(
+                "Show spaces and tabs in text details",
+                isOn: bindings.whitespace.showSpacesAndTabs
+            )
+            .disabled(settings.clipboardWhitespaceMode.trimsTrailingSpacesAndTabs)
+
+            Toggle(
+                "Remove trailing spaces and tabs from copied text",
+                isOn: bindings.whitespace.trimTrailingSpacesAndTabs
+            )
+            .disabled(settings.clipboardWhitespaceMode.showsSpacesAndTabs)
+
+            Text("Visible whitespace changes only Buffer's text detail display. Trimming applies only to new history entries and leaves the system clipboard unchanged.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SettingsBehaviourTextDetailSection: View {
     @ObservedObject var settings: SettingsManager
     let previewFont: Font

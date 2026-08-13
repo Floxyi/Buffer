@@ -81,6 +81,72 @@ final class ClipboardWatcherTests: XCTestCase {
         }
     }
 
+    func testTrailingWhitespaceModeNormalizesBeforeCaptureAndDuplicateDetection() async {
+        let context = makeWatcherContext()
+        context.settings.setClipboardWhitespaceMode(.trimTrailingSpacesAndTabs)
+        context.pasteboard.text = "first  \n\tsecond\t "
+        context.pasteboard.changeCount = 1
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.first?.textContent == "first\n\tsecond"
+        }
+
+        XCTAssertEqual(
+            context.pasteboard.text,
+            "first  \n\tsecond\t ",
+            "Capture normalization must not rewrite the system clipboard"
+        )
+
+        context.pasteboard.text = "first\n\tsecond"
+        context.pasteboard.changeCount = 2
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.count == 1
+        }
+    }
+
+    func testTrailingWhitespaceNormalizationRunsBeforeStructuredClassification() async {
+        let context = makeWatcherContext()
+        context.settings.setClipboardWhitespaceMode(.trimTrailingSpacesAndTabs)
+        context.pasteboard.text = "person@example.com \t"
+        context.pasteboard.changeCount = 1
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.first?.emailPayload?.originalText == "person@example.com"
+        }
+    }
+
+    func testWhitespaceOnlyCaptureIsIgnoredInTrimmingMode() async {
+        let context = makeWatcherContext()
+        context.settings.setClipboardWhitespaceMode(.trimTrailingSpacesAndTabs)
+        context.pasteboard.text = " \t  "
+        context.pasteboard.changeCount = 1
+        context.watcher.checkClipboard()
+
+        await Task.yield()
+        XCTAssertTrue(context.store.items.isEmpty)
+    }
+
+    func testLargeTextStoresTheSameNormalizedContentUsedForItsPreview() async {
+        let context = makeWatcherContext()
+        context.settings.setClipboardWhitespaceMode(.trimTrailingSpacesAndTabs)
+        let rawText = String(repeating: "content \t\n", count: 7_000) + "final  "
+        let expectedText = String(repeating: "content\n", count: 7_000) + "final"
+        context.pasteboard.text = rawText
+        context.pasteboard.changeCount = 1
+        context.watcher.checkClipboard()
+
+        await eventually {
+            guard let item = context.store.items.first else { return false }
+            return item.isFileBacked
+                && item.textContent == String(expectedText.prefix(ClipboardCaptureSupport.previewLength))
+                && context.store.fullText(for: item) == expectedText
+        }
+    }
+
     func testImageFileCaptureAddsImageItem() async throws {
         let context = makeWatcherContext()
         let root = FileManager.default.temporaryDirectory

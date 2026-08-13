@@ -77,6 +77,17 @@ enum SettingsMigration {
         return TextDetailSettings(style: style, size: size)
     }
 
+    static func loadClipboardWhitespaceMode(
+        from store: any SettingsPersisting
+    ) -> ClipboardWhitespaceMode {
+        guard let rawValue = store.string(for: .clipboardWhitespaceMode) else {
+            return SettingsDefaults.defaultClipboardWhitespaceMode
+        }
+
+        return ClipboardWhitespaceMode(rawValue: rawValue)
+            ?? SettingsDefaults.defaultClipboardWhitespaceMode
+    }
+
     static func loadPrivacySettings(from store: any SettingsPersisting) -> PrivacySettings {
         let defaults = SettingsDefaults.defaultPrivacySettings
         let historyRetentionPeriod = HistoryRetentionPeriod(

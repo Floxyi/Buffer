@@ -76,6 +76,20 @@ enum TextDetailFontSize: Int, CaseIterable, Codable, Sendable {
     }
 }
 
+enum ClipboardWhitespaceMode: String, Codable, Sendable {
+    case preserve
+    case showSpacesAndTabs
+    case trimTrailingSpacesAndTabs
+
+    var showsSpacesAndTabs: Bool {
+        self == .showSpacesAndTabs
+    }
+
+    var trimsTrailingSpacesAndTabs: Bool {
+        self == .trimTrailingSpacesAndTabs
+    }
+}
+
 enum HistoryRetentionPeriod: String, CaseIterable, Codable, Sendable {
     case never
     case twelveHours

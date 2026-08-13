@@ -19,6 +19,7 @@ struct SettingsBehaviourView: View {
             SettingsBehaviourSearchSection(settings: settings)
             SettingsBehaviourItemActionsSection(settings: settings)
             SettingsBehaviourQuickPasteSection(settings: settings)
+            SettingsBehaviourWhitespaceSection(settings: settings)
             SettingsBehaviourTextDetailSection(settings: settings, previewFont: previewFont)
         }
         .formStyle(.grouped)

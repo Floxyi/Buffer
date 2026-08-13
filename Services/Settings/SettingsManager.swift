@@ -22,6 +22,7 @@ final class SettingsManager: ObservableObject {
     @Published var quickPasteEntryCount: Int
     @Published var textDetailFontStyle: TextDetailFontStyle
     @Published var textDetailFontSize: TextDetailFontSize
+    @Published private(set) var clipboardWhitespaceMode: ClipboardWhitespaceMode
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published var menuBarIcon: MenuBarIcon
     @Published var enableWebsitePreviews: Bool
@@ -67,6 +68,7 @@ final class SettingsManager: ObservableObject {
         quickPasteEntryCount = loadedState.quickPasteEntryCount
         textDetailFontStyle = loadedState.textDetailFontStyle
         textDetailFontSize = loadedState.textDetailFontSize
+        clipboardWhitespaceMode = loadedState.clipboardWhitespaceMode
         historyRetentionPeriod = loadedState.historyRetentionPeriod
         menuBarIcon = loadedState.menuBarIcon
         enableWebsitePreviews = loadedState.enableWebsitePreviews
@@ -127,6 +129,11 @@ final class SettingsManager: ObservableObject {
     func setTextDetailSettings(_ settings: TextDetailSettings) {
         textDetailFontStyle = settings.style
         textDetailFontSize = settings.size
+        persist()
+    }
+
+    func setClipboardWhitespaceMode(_ mode: ClipboardWhitespaceMode) {
+        clipboardWhitespaceMode = mode
         persist()
     }
 
@@ -203,6 +210,7 @@ final class SettingsManager: ObservableObject {
         quickPasteEntryCount = state.quickPasteEntryCount
         textDetailFontStyle = state.textDetailFontStyle
         textDetailFontSize = state.textDetailFontSize
+        clipboardWhitespaceMode = state.clipboardWhitespaceMode
         historyRetentionPeriod = state.historyRetentionPeriod
         menuBarIcon = state.menuBarIcon
         enableWebsitePreviews = state.enableWebsitePreviews

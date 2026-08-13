@@ -104,6 +104,30 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertFalse(settings.keepSearchTextAfterClosing)
         XCTAssertTrue(settings.confirmDeleteWithKeyboardShortcut)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
+        XCTAssertEqual(settings.clipboardWhitespaceMode, .preserve)
+    }
+
+    func testClipboardWhitespaceModePersistsAsSingleExclusiveValue() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setClipboardWhitespaceMode(.showSpacesAndTabs)
+        XCTAssertTrue(settings.clipboardWhitespaceMode.showsSpacesAndTabs)
+        XCTAssertFalse(settings.clipboardWhitespaceMode.trimsTrailingSpacesAndTabs)
+
+        settings.setClipboardWhitespaceMode(.trimTrailingSpacesAndTabs)
+        XCTAssertFalse(settings.clipboardWhitespaceMode.showsSpacesAndTabs)
+        XCTAssertTrue(settings.clipboardWhitespaceMode.trimsTrailingSpacesAndTabs)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.clipboardWhitespaceMode.rawValue),
+            ClipboardWhitespaceMode.trimTrailingSpacesAndTabs.rawValue
+        )
+
+        settings.resetUserPreferencesToDefaults()
+        XCTAssertEqual(settings.clipboardWhitespaceMode, .preserve)
     }
 
     func testLegacyKeepLastSelectionValueMigratesToUnifiedReopenBehavior() {

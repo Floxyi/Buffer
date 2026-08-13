@@ -4,6 +4,65 @@ import XCTest
 
 @MainActor
 final class ClipboardCaptureSupportTests: XCTestCase {
+    func testTrailingSpacesAndTabsAreRemovedPerLineWithoutChangingLineEndings() {
+        let text = "  leading  \n\tindented\t \r\nmiddle  value \t\rfinal\t  "
+
+        XCTAssertEqual(
+            ClipboardTextNormalizer.normalize(
+                text,
+                mode: .trimTrailingSpacesAndTabs
+            ),
+            "  leading\n\tindented\r\nmiddle  value\rfinal"
+        )
+    }
+
+    func testTrailingNormalizationPreservesUnicodeWhitespaceAndNewlines() {
+        let nonBreakingSpace = "\u{00A0}"
+        let text = "value\(nonBreakingSpace) \n\n\t\n"
+
+        XCTAssertEqual(
+            ClipboardTextNormalizer.normalize(
+                text,
+                mode: .trimTrailingSpacesAndTabs
+            ),
+            "value\(nonBreakingSpace)\n\n\n"
+        )
+    }
+
+    func testNonTrimmingModesPreserveTextExactly() {
+        let text = " \tvalue \t\r\n"
+
+        XCTAssertEqual(ClipboardTextNormalizer.normalize(text, mode: .preserve), text)
+        XCTAssertEqual(
+            ClipboardTextNormalizer.normalize(text, mode: .showSpacesAndTabs),
+            text
+        )
+    }
+
+    func testPreparedCaptureHashesNormalizedContentAndRejectsEmptyResult() throws {
+        let first = try XCTUnwrap(
+            PreparedClipboardText.make(
+                from: "value  \nnext\t",
+                whitespaceMode: .trimTrailingSpacesAndTabs
+            )
+        )
+        let second = try XCTUnwrap(
+            PreparedClipboardText.make(
+                from: "value\nnext",
+                whitespaceMode: .trimTrailingSpacesAndTabs
+            )
+        )
+
+        XCTAssertEqual(first.text, "value\nnext")
+        XCTAssertEqual(first.contentHash, second.contentHash)
+        XCTAssertNil(
+            PreparedClipboardText.make(
+                from: " \t  ",
+                whitespaceMode: .trimTrailingSpacesAndTabs
+            )
+        )
+    }
+
     func testInlineTextLimitBoundaryStaysInline() async {
         let text = String(repeating: "a", count: ClipboardCaptureSupport.inlineTextLimit)
 

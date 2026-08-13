@@ -7,6 +7,7 @@ struct SettingsFormBindings {
     let searchBehavior: SettingsSearchBehaviorBindings
     let quickPaste: SettingsQuickPasteBindings
     let textDetail: SettingsTextDetailBindings
+    let whitespace: SettingsWhitespaceBindings
     let privacy: SettingsPrivacyBindings
 }
 
@@ -25,6 +26,11 @@ struct SettingsQuickPasteBindings {
 struct SettingsTextDetailBindings {
     let fontSize: Binding<TextDetailFontSize>
     let fontStyle: Binding<TextDetailFontStyle>
+}
+
+struct SettingsWhitespaceBindings {
+    let showSpacesAndTabs: Binding<Bool>
+    let trimTrailingSpacesAndTabs: Binding<Bool>
 }
 
 struct SettingsPrivacyBindings {
@@ -60,6 +66,10 @@ extension SettingsManager {
             textDetail: SettingsTextDetailBindings(
                 fontSize: textDetailBinding(\.size),
                 fontStyle: textDetailBinding(\.style)
+            ),
+            whitespace: SettingsWhitespaceBindings(
+                showSpacesAndTabs: whitespaceModeBinding(for: .showSpacesAndTabs),
+                trimTrailingSpacesAndTabs: whitespaceModeBinding(for: .trimTrailingSpacesAndTabs)
             ),
             privacy: SettingsPrivacyBindings(
                 historyRetentionPeriod: privacyBinding(\.historyRetentionPeriod),
@@ -145,6 +155,15 @@ extension SettingsManager {
             currentValue: { $0.currentPrivacySettings },
             update: { settings, value in settings.setPrivacySettings(value) },
             keyPath: keyPath
+        )
+    }
+
+    private func whitespaceModeBinding(for activeMode: ClipboardWhitespaceMode) -> Binding<Bool> {
+        Binding(
+            get: { self.clipboardWhitespaceMode == activeMode },
+            set: { isEnabled in
+                self.setClipboardWhitespaceMode(isEnabled ? activeMode : .preserve)
+            }
         )
     }
 

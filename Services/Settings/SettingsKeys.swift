@@ -15,6 +15,7 @@ enum SettingsKey: String, CaseIterable, Sendable {
     case quickPasteEntryCount
     case textDetailFontStyle
     case textDetailFontSize
+    case clipboardWhitespaceMode
     case historyRetentionPeriod
     case menuBarIcon
     case enableWebsitePreviews

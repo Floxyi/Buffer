@@ -36,6 +36,7 @@
 		AAA00041 /* AppFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00043 /* AppFormatting.swift */; };
 		AAB10001 /* BufferPerformanceDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC10001 /* BufferPerformanceDiagnostics.swift */; };
 		AAB10002 /* ClipboardCaptureWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBC10002 /* ClipboardCaptureWorker.swift */; };
+		WSP10001 /* ClipboardTextNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = WSP20001 /* ClipboardTextNormalizer.swift */; };
 		AAA00042 /* ClipboardScrollbarGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00044 /* ClipboardScrollbarGeometry.swift */; };
 		AAA00043 /* ClipboardScrollbarInteractionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00045 /* ClipboardScrollbarInteractionView.swift */; };
 		AAA00044 /* Comparable+Clamped.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00046 /* Comparable+Clamped.swift */; };
@@ -375,6 +376,7 @@
 		BBB00043 /* AppFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppFormatting.swift; sourceTree = "<group>"; };
 		BBC10001 /* BufferPerformanceDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferPerformanceDiagnostics.swift; sourceTree = "<group>"; };
 		BBC10002 /* ClipboardCaptureWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardCaptureWorker.swift; sourceTree = "<group>"; };
+		WSP20001 /* ClipboardTextNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextNormalizer.swift; sourceTree = "<group>"; };
 		BBB00044 /* ClipboardScrollbarGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollbarGeometry.swift; sourceTree = "<group>"; };
 		BBB00045 /* ClipboardScrollbarInteractionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollbarInteractionView.swift; sourceTree = "<group>"; };
 		BBB00046 /* Comparable+Clamped.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Comparable+Clamped.swift"; sourceTree = "<group>"; };
@@ -852,6 +854,7 @@
 			isa = PBXGroup;
 			children = (
 				BBB00042 /* ClipboardCaptureSupport.swift */,
+				WSP20001 /* ClipboardTextNormalizer.swift */,
 				BBC10002 /* ClipboardCaptureWorker.swift */,
 				BBB00004 /* ClipboardWatcher.swift */,
 			);
@@ -1445,6 +1448,7 @@
 				AAA00037 /* KeyRecorderBridge.swift in Sources */,
 				AAA00039 /* PasteSupport.swift in Sources */,
 				AAA00040 /* ClipboardCaptureSupport.swift in Sources */,
+				WSP10001 /* ClipboardTextNormalizer.swift in Sources */,
 				AAA00041 /* AppFormatting.swift in Sources */,
 				AAB10001 /* BufferPerformanceDiagnostics.swift in Sources */,
 				AAB10002 /* ClipboardCaptureWorker.swift in Sources */,

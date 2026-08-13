@@ -6,6 +6,34 @@ import XCTest
 
 @MainActor
 final class SelectableMonospacedTextViewTests: XCTestCase {
+    func testWhitespaceMarkersCoverOnlySpacesAndTabs() {
+        XCTAssertEqual(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x20)), "·")
+        XCTAssertEqual(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x09)), "→")
+        XCTAssertNil(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x0A)))
+        XCTAssertNil(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x0D)))
+        XCTAssertNil(WhitespaceVisualizingLayoutManager.marker(for: unichar(0x00A0)))
+    }
+
+    func testWhitespaceVisualizationPreservesTextAndLayoutGeometry() {
+        let textView = makeTextView(width: 180)
+        let text = "first value\n\tsecond value  "
+        textView.setText(text)
+        let originalHeight = textView.measuredHeight(constrainedTo: 180)
+
+        textView.setShowsSpacesAndTabs(true)
+
+        XCTAssertEqual(textView.string, text)
+        XCTAssertEqual(
+            textView.measuredHeight(constrainedTo: 180),
+            originalHeight,
+            accuracy: 0.5
+        )
+        XCTAssertTrue(
+            (textView.layoutManager as? WhitespaceVisualizingLayoutManager)?.showsSpacesAndTabs
+                == true
+        )
+    }
+
     func testSwiftUIReusesAndResizesTextViewAcrossSelectionContentChanges() async throws {
         let model = TextSizingTestModel(text: "Short value")
         let hostingView = NSHostingView(

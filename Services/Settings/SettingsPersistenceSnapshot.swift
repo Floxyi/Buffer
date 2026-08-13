@@ -13,6 +13,7 @@ struct SettingsPersistenceSnapshot {
     let quickPasteEntryCount: Int
     let textDetailFontStyle: String
     let textDetailFontSize: Int
+    let clipboardWhitespaceMode: String
     let historyRetentionPeriod: String
     let menuBarIcon: String
     let enableWebsitePreviews: Bool
@@ -32,6 +33,7 @@ struct SettingsPersistenceSnapshot {
         quickPasteEntryCount = settings.quickPasteEntryCount
         textDetailFontStyle = settings.textDetailFontStyle.rawValue
         textDetailFontSize = settings.textDetailFontSize.rawValue
+        clipboardWhitespaceMode = settings.clipboardWhitespaceMode.rawValue
         historyRetentionPeriod = settings.historyRetentionPeriod.rawValue
         menuBarIcon = settings.menuBarIcon.rawValue
         enableWebsitePreviews = settings.enableWebsitePreviews
@@ -52,6 +54,7 @@ struct SettingsPersistenceSnapshot {
         store.set(quickPasteEntryCount, for: .quickPasteEntryCount)
         store.set(textDetailFontStyle, for: .textDetailFontStyle)
         store.set(textDetailFontSize, for: .textDetailFontSize)
+        store.set(clipboardWhitespaceMode, for: .clipboardWhitespaceMode)
         store.set(historyRetentionPeriod, for: .historyRetentionPeriod)
         store.set(menuBarIcon, for: .menuBarIcon)
         store.set(enableWebsitePreviews, for: .enableWebsitePreviews)

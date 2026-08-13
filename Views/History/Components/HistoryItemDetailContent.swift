@@ -8,6 +8,7 @@ struct HistoryItemDetailContent: View {
     let isExtractingText: Bool
     let textDetailFontStyle: TextDetailFontStyle
     let textDetailFontSize: TextDetailFontSize
+    let showsSpacesAndTabs: Bool
     let enableWebsitePreviews: Bool
     let onCopyOCRText: (String) -> Void
     let onCopyColorVariant: (String) -> Void
@@ -21,6 +22,7 @@ struct HistoryItemDetailContent: View {
                 chunkedText: chunkedText,
                 textDetailFontStyle: textDetailFontStyle,
                 textDetailFontSize: textDetailFontSize,
+                showsSpacesAndTabs: showsSpacesAndTabs,
                 onLoadNextChunk: onLoadNextChunk
             )
         case .image:

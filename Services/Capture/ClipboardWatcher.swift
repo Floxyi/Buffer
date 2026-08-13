@@ -121,15 +121,18 @@ final class ClipboardWatcher: ObservableObject {
         }
 
         if let text = pasteboard.string(forType: .string), !text.isEmpty {
-            let textSize = text.utf8.count
-            let hashSource = textSize > ClipboardCaptureSupport.inlineTextLimit ? String(text.prefix(10_000)) : text
-            let hash = hashSource.hashValue
+            guard let preparedText = PreparedClipboardText.make(
+                from: text,
+                whitespaceMode: settingsManager.clipboardWhitespaceMode
+            ) else {
+                return
+            }
 
-            guard hash != lastContentHash else { return }
+            guard preparedText.contentHash != lastContentHash else { return }
             pendingAsyncCaptureTask = Task { [weak self, store, settingsManager, sourceApp] in
                 guard let self else { return }
                 let result = await captureWorker.processText(
-                    text,
+                    preparedText,
                     sourceApp: sourceApp,
                     enableWebsitePreviews: settingsManager.enableWebsitePreviews,
                     store: store
