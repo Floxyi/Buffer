@@ -15,6 +15,7 @@ struct HistoryContentView: View {
     let onScrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
+    let onRestoreFocus: () -> Void
 
     @StateObject private var searchFocusController = HistorySearchFocusController()
     @StateObject private var deleteConfirmationController = HistoryDeleteConfirmationController()
@@ -96,6 +97,7 @@ struct HistoryContentView: View {
             BufferPanelSeparator()
 
             HistoryActionBar(
+                showsBookmarkedShortcutAsRemove: viewModel.detailViewState.selectedItemIsBookmarked,
                 showsPinnedShortcutAsUnpin: viewModel.detailViewState.selectedItemIsPinned,
                 showsSaveShortcut: viewModel.detailViewState.canSaveSelectedImage,
                 showsJumpToHistory: viewModel.detailViewState.canJumpToHistorySelection,
@@ -157,6 +159,7 @@ struct HistoryContentView: View {
             onCopy: onCopy,
             onPaste: onPaste,
             onDismiss: onDismiss,
+            onRestoreFocus: onRestoreFocus,
             presentingWindow: presentingWindow
         )
     }
@@ -179,16 +182,15 @@ struct HistoryContentView: View {
                 moveToLast: { extendSelection in
                     extendSelection ? viewModel.extendSelectionToLastItem() : viewModel.jumpToLastItem()
                 },
-                commitSelection: { copyOnly in
-                    copyOnly ? actionHandler.performCopyOnlyAction() : actionHandler.performPrimaryPasteAction()
-                },
+                commitSelection: actionHandler.performPrimaryPasteAction,
                 dismiss: actionHandler.dismissHistoryWindow,
                 selectAll: viewModel.selectAllItems,
                 makeDeleteRequest: viewModel.makeDeleteSelectionRequest,
                 deleteSelection: viewModel.delete,
                 copySelection: {
-                    actionHandler.copySelection(dismissAfterCopy: false)
+                    actionHandler.performCopyOnlyAction()
                 },
+                toggleBookmark: viewModel.toggleBookmarkForSelectedItem,
                 togglePinned: viewModel.togglePinForSelectedItem,
                 saveImage: {
                     actionHandler.performDetailAction(.saveImage)

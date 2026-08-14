@@ -49,12 +49,14 @@ struct HistoryWindowKeyMonitor: NSViewRepresentable {
                     return event
                 }
 
+                let focusedTextView = window.firstResponder as? NSTextView
                 let command = HistoryKeyboardCommandResolver.resolve(
                     HistoryKeyboardInput(
                         eventType: event.type == .flagsChanged ? .flagsChanged : .keyDown,
                         keyCode: event.keyCode,
                         modifierFlags: event.modifierFlags,
-                        isTextInputFocused: window.firstResponder is NSTextView
+                        isTextInputFocused: focusedTextView != nil,
+                        hasTextSelection: focusedTextView?.selectedRange().length ?? 0 > 0
                     )
                 )
 

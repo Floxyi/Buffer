@@ -10,24 +10,46 @@ final class HistoryKeyboardCommandResolverTests: XCTestCase {
                 eventType: .keyDown,
                 keyCode: 126,
                 modifierFlags: [.command, .shift],
-                isTextInputFocused: false
+                isTextInputFocused: false,
+                hasTextSelection: false
             )
         )
 
         XCTAssertEqual(command, .moveToFirst(extendSelection: true))
     }
 
-    func testCommandCDoesNotInterceptWhenTextInputIsFocused() {
+    func testCommandCPreservesNativeCopyWhenTextIsSelected() {
         let command = HistoryKeyboardCommandResolver.resolve(
             HistoryKeyboardInput(
                 eventType: .keyDown,
                 keyCode: 8,
                 modifierFlags: [.command],
-                isTextInputFocused: true
+                isTextInputFocused: true,
+                hasTextSelection: true
             )
         )
 
         XCTAssertNil(command)
+    }
+
+    func testReturnPastesOnlyWithoutModifiers() {
+        XCTAssertEqual(resolve(keyCode: 36), .commitSelection)
+        XCTAssertNil(resolve(keyCode: 36, modifierFlags: .option))
+        XCTAssertNil(resolve(keyCode: 36, modifierFlags: .command))
+    }
+
+    func testCommandCResolvesToCopySelection() {
+        XCTAssertEqual(resolve(keyCode: 8, modifierFlags: .command), .copySelection)
+        XCTAssertEqual(
+            resolve(keyCode: 8, modifierFlags: .command, isTextInputFocused: true),
+            .copySelection
+        )
+        XCTAssertNil(resolve(keyCode: 8, modifierFlags: [.command, .shift]))
+    }
+
+    func testCommandBResolvesToToggleBookmark() {
+        XCTAssertEqual(resolve(keyCode: 11, modifierFlags: .command), .toggleBookmark)
+        XCTAssertNil(resolve(keyCode: 11, modifierFlags: [.command, .shift]))
     }
 
     func testCommandASelectsAllOnlyWhenListHasKeyboardFocus() {
@@ -65,7 +87,8 @@ final class HistoryKeyboardCommandResolverTests: XCTestCase {
                 eventType: .keyDown,
                 keyCode: 18,
                 modifierFlags: [.command],
-                isTextInputFocused: false
+                isTextInputFocused: false,
+                hasTextSelection: false
             )
         )
         let ignoredCommand = HistoryKeyboardCommandResolver.resolve(
@@ -73,7 +96,8 @@ final class HistoryKeyboardCommandResolverTests: XCTestCase {
                 eventType: .keyDown,
                 keyCode: 18,
                 modifierFlags: [.command, .shift],
-                isTextInputFocused: false
+                isTextInputFocused: false,
+                hasTextSelection: false
             )
         )
 
@@ -87,7 +111,8 @@ final class HistoryKeyboardCommandResolverTests: XCTestCase {
                 eventType: .flagsChanged,
                 keyCode: 0,
                 modifierFlags: [.command, .option],
-                isTextInputFocused: false
+                isTextInputFocused: false,
+                hasTextSelection: false
             )
         )
 
@@ -97,14 +122,16 @@ final class HistoryKeyboardCommandResolverTests: XCTestCase {
     private func resolve(
         keyCode: UInt16,
         modifierFlags: NSEvent.ModifierFlags = [],
-        isTextInputFocused: Bool = false
+        isTextInputFocused: Bool = false,
+        hasTextSelection: Bool = false
     ) -> HistoryKeyboardCommand? {
         HistoryKeyboardCommandResolver.resolve(
             HistoryKeyboardInput(
                 eventType: .keyDown,
                 keyCode: keyCode,
                 modifierFlags: modifierFlags,
-                isTextInputFocused: isTextInputFocused
+                isTextInputFocused: isTextInputFocused,
+                hasTextSelection: hasTextSelection
             )
         )
     }

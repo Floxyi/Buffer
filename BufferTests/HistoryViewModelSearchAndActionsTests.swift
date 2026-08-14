@@ -360,6 +360,31 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(viewModel.searchText, "matching")
     }
 
+    func testCopyOnlyDismissesBeforeRestoringPreviousApplicationFocus() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let item = ClipboardItem.text("copy me")
+        await populateStore(store, with: [item])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        var events: [String] = []
+        let actionHandler = makeActionHandler(
+            viewModel: viewModel,
+            store: store,
+            settings: settings,
+            onCopy: { _ in
+                events.append("copy")
+                return true
+            },
+            onDismiss: { events.append("dismiss") },
+            onRestoreFocus: { events.append("restore") }
+        )
+
+        actionHandler.performCopyOnlyAction()
+
+        await eventually { events.count == 3 }
+        XCTAssertEqual(events, ["copy", "dismiss", "restore"])
+    }
+
     func testDeleteSelectedItemPrefersNextVisibleItem() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
@@ -716,14 +741,17 @@ private func makeActionHandler(
     viewModel: HistoryViewModel,
     store: ClipboardStore,
     settings: SettingsManager,
+    onCopy: @escaping ([ClipboardItem]) async -> Bool = { _ in true },
     onPaste: @escaping (ClipboardItem) -> Void = { _ in },
-    onPasteMultiple: @escaping ([ClipboardItem]) -> Void = { _ in }
+    onPasteMultiple: @escaping ([ClipboardItem]) -> Void = { _ in },
+    onDismiss: @escaping () -> Void = {},
+    onRestoreFocus: @escaping () -> Void = {}
 ) -> HistoryActionHandler {
     HistoryActionHandler(
         viewModel: viewModel,
         contentReader: store,
         assetProvider: ClipboardItemAssetProvider(store: store, settings: settings),
-        onCopy: { _ in true },
+        onCopy: onCopy,
         onPaste: { items in
             if items.count == 1, let item = items.first {
                 onPaste(item)
@@ -731,7 +759,8 @@ private func makeActionHandler(
                 onPasteMultiple(items)
             }
         },
-        onDismiss: {},
+        onDismiss: onDismiss,
+        onRestoreFocus: onRestoreFocus,
         presentingWindow: { nil }
     )
 }

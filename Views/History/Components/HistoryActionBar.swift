@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HistoryActionBar: View {
+    let showsBookmarkedShortcutAsRemove: Bool
     let showsPinnedShortcutAsUnpin: Bool
     let showsSaveShortcut: Bool
     let showsJumpToHistory: Bool
@@ -9,19 +10,25 @@ struct HistoryActionBar: View {
 
     var body: some View {
         ZStack {
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 BufferShortcutHint(shortcut: "⇧ ↑↓", label: "Select")
+                BufferShortcutHint(
+                    shortcut: "⌘ B",
+                    label: showsBookmarkedShortcutAsRemove ? "Unbookmark" : "Bookmark"
+                )
                 BufferShortcutHint(shortcut: "⌘ P", label: showsPinnedShortcutAsUnpin ? "Unpin" : "Pin")
 
                 if showsSaveShortcut {
                     BufferShortcutHint(shortcut: "⌘ S", label: "Save")
                 }
 
-                BufferShortcutHint(shortcut: "⌥", label: "Copy", shortcutSymbolName: "return")
+                BufferShortcutHint(shortcut: "⌘ C", label: "Copy")
+                BufferShortcutHint(shortcut: "⌘ ⌫", label: "Delete")
             }
+            .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity, alignment: .center)
 
-            HStack {
+            HStack(spacing: 8) {
                 Spacer()
 
                 if showsJumpToHistory {

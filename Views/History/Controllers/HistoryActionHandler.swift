@@ -9,6 +9,7 @@ struct HistoryActionHandler {
     let onCopy: ([ClipboardItem]) async -> Bool
     let onPaste: ([ClipboardItem]) -> Void
     let onDismiss: () -> Void
+    let onRestoreFocus: () -> Void
     let presentingWindow: () -> NSWindow?
     let imageExportService = ClipboardImageExportService()
 
@@ -31,6 +32,7 @@ struct HistoryActionHandler {
             viewModel.clearSearchAfterCommittedAction()
             if dismissAfterCopy {
                 onDismiss()
+                onRestoreFocus()
             }
         }
     }

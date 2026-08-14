@@ -90,18 +90,32 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
         XCTAssertEqual(receivedFlags, .command)
     }
 
+    func testToggleBookmarkDispatchesAction() {
+        var toggleCount = 0
+        let handler = HistoryKeyboardCommandHandler(
+            isDeleteConfirmationPresenting: false,
+            confirmDeleteWithKeyboardShortcut: false,
+            actions: recorderActions(toggleBookmark: { toggleCount += 1 })
+        )
+
+        handler.handle(.toggleBookmark)
+
+        XCTAssertEqual(toggleCount, 1)
+    }
+
     private func recorderActions(
         handleModifierFlagsChange: @escaping (NSEvent.ModifierFlags) -> Void = { _ in },
         moveUp: @escaping (Bool) -> Void = { _ in },
         moveDown: @escaping (Bool) -> Void = { _ in },
         moveToFirst: @escaping (Bool) -> Void = { _ in },
         moveToLast: @escaping (Bool) -> Void = { _ in },
-        commitSelection: @escaping (Bool) -> Void = { _ in },
+        commitSelection: @escaping () -> Void = {},
         dismiss: @escaping () -> Void = {},
         selectAll: @escaping () -> Void = {},
         makeDeleteRequest: @escaping () -> HistoryDeleteRequest? = { nil },
         deleteSelection: @escaping (HistoryDeleteRequest) -> Void = { _ in },
         copySelection: @escaping () -> Void = {},
+        toggleBookmark: @escaping () -> Void = {},
         togglePinned: @escaping () -> Void = {},
         saveImage: @escaping () -> Void = {},
         quickPaste: @escaping (Int) -> Void = { _ in },
@@ -119,6 +133,7 @@ final class HistoryKeyboardCommandHandlerTests: XCTestCase {
             makeDeleteRequest: makeDeleteRequest,
             deleteSelection: deleteSelection,
             copySelection: copySelection,
+            toggleBookmark: toggleBookmark,
             togglePinned: togglePinned,
             saveImage: saveImage,
             quickPaste: quickPaste,

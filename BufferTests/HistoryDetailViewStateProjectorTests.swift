@@ -54,6 +54,27 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertFalse(state.canJumpToHistorySelection)
     }
 
+    func testProjectsBookmarkAndPinStateAcrossActionTargets() {
+        let organizedItem = ClipboardItem(
+            isPinned: true,
+            isBookmarked: true,
+            content: .text(TextItemContent(inlineText: "organized"))
+        )
+        let state = HistoryDetailViewStateProjector().project(
+            selectedItem: organizedItem,
+            selectedItemsInVisualOrder: [organizedItem],
+            selectedItemsInActionOrder: [organizedItem],
+            isQueryActive: false,
+            previewState: HistoryPreviewState(),
+            selectedItemsTotalSizeBytes: nil,
+            actionResolver: HistoryActionResolver(),
+            copiedAtFormatter: HistoryCopiedAtFormatter()
+        )
+
+        XCTAssertTrue(state.selectedItemIsBookmarked)
+        XCTAssertTrue(state.selectedItemIsPinned)
+    }
+
     func testProjectsEmailSelectionIntoDedicatedCountAndPreview() throws {
         let projector = HistoryDetailViewStateProjector()
         let item = ClipboardItem.email(

@@ -9,12 +9,13 @@ struct HistoryKeyboardCommandHandler {
         var moveDown: (_ extendSelection: Bool) -> Void
         var moveToFirst: (_ extendSelection: Bool) -> Void
         var moveToLast: (_ extendSelection: Bool) -> Void
-        var commitSelection: (_ copyOnly: Bool) -> Void
+        var commitSelection: () -> Void
         var dismiss: () -> Void
         var selectAll: () -> Void
         var makeDeleteRequest: () -> HistoryDeleteRequest?
         var deleteSelection: (HistoryDeleteRequest) -> Void
         var copySelection: () -> Void
+        var toggleBookmark: () -> Void
         var togglePinned: () -> Void
         var saveImage: () -> Void
         var quickPaste: (_ index: Int) -> Void
@@ -46,9 +47,9 @@ struct HistoryKeyboardCommandHandler {
             guard !isDeleteConfirmationPresenting else { return }
             actions.moveToLast(extendSelection)
 
-        case .commitSelection(let copyOnly):
+        case .commitSelection:
             guard !isDeleteConfirmationPresenting else { return }
-            actions.commitSelection(copyOnly)
+            actions.commitSelection()
 
         case .dismiss:
             guard !isDeleteConfirmationPresenting else { return }
@@ -65,6 +66,10 @@ struct HistoryKeyboardCommandHandler {
         case .copySelection:
             guard !isDeleteConfirmationPresenting else { return }
             actions.copySelection()
+
+        case .toggleBookmark:
+            guard !isDeleteConfirmationPresenting else { return }
+            actions.toggleBookmark()
 
         case .togglePinned:
             guard !isDeleteConfirmationPresenting else { return }

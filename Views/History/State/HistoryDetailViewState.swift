@@ -20,6 +20,7 @@ struct HistoryDetailViewState {
     var actions: [HistoryItemActionDescriptor] = []
     var canSaveSelectedImage = false
     var canExtractSelectedImageText = false
+    var selectedItemIsBookmarked = false
     var selectedItemIsPinned = false
     var canJumpToHistorySelection = false
 }

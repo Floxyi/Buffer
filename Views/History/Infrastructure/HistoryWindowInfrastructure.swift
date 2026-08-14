@@ -123,6 +123,11 @@ final class HistoryPasteCoordinator {
         }
     }
 
+    func restoreTargetFocus() {
+        guard let target, !target.isTerminated() else { return }
+        target.activate()
+    }
+
     func paste(_ items: [ClipboardItem]) {
         guard !items.isEmpty, !state.blocksPasteAttempt else { return }
 
@@ -538,6 +543,9 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
             },
             onDismiss: { [weak self] in
                 self?.close()
+            },
+            onRestoreFocus: { [weak self] in
+                self?.pasteCoordinator.restoreTargetFocus()
             }
         )
 

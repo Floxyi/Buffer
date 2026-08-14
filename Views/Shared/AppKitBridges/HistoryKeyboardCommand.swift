@@ -7,11 +7,12 @@ enum HistoryKeyboardCommand: Equatable {
     case moveDown(extendSelection: Bool)
     case moveToFirst(extendSelection: Bool)
     case moveToLast(extendSelection: Bool)
-    case commitSelection(copyOnly: Bool)
+    case commitSelection
     case dismiss
     case selectAll
     case deleteSelection
     case copySelection
+    case toggleBookmark
     case togglePinned
     case saveImage
     case quickPaste(Int)
@@ -27,6 +28,7 @@ struct HistoryKeyboardInput: Equatable {
     let keyCode: UInt16
     let modifierFlags: NSEvent.ModifierFlags
     let isTextInputFocused: Bool
+    let hasTextSelection: Bool
 }
 
 enum HistoryKeyboardCommandResolver {
@@ -59,7 +61,8 @@ enum HistoryKeyboardCommandResolver {
             return .moveDown(extendSelection: input.modifierFlags.contains(.shift))
 
         case 36:
-            return .commitSelection(copyOnly: input.modifierFlags.contains(.option))
+            guard relevantFlags.isEmpty else { return nil }
+            return .commitSelection
 
         case 53:
             return .dismiss
@@ -77,8 +80,12 @@ enum HistoryKeyboardCommandResolver {
             return .deleteSelection
 
         case 8:
-            guard input.modifierFlags.contains(.command), !input.isTextInputFocused else { return nil }
+            guard isCommandOnlyPressed, !input.hasTextSelection else { return nil }
             return .copySelection
+
+        case 11:
+            guard isCommandOnlyPressed else { return nil }
+            return .toggleBookmark
 
         case 35:
             guard input.modifierFlags.contains(.command) else { return nil }

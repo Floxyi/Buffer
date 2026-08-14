@@ -130,6 +130,21 @@ final class PasteControllerTests: XCTestCase {
 
 @MainActor
 final class HistoryPasteCoordinatorTests: XCTestCase {
+    func testRestoreTargetFocusActivatesSessionTarget() {
+        let pasteController = RecordingHistoryPasteController()
+        let coordinator = HistoryPasteCoordinator(
+            pasteController: pasteController,
+            suppressCapturedChange: { _ in },
+            openPermissionSettings: {}
+        )
+        var activationCount = 0
+        coordinator.beginSession(target: makeTarget(activate: { activationCount += 1 }))
+
+        coordinator.restoreTargetFocus()
+
+        XCTAssertEqual(activationCount, 1)
+    }
+
     func testSuccessfulPasteUsesPreparedSelectionAndCommitsExactlyOnce() async {
         let pasteController = RecordingHistoryPasteController()
         let delegate = RecordingHistoryPasteDelegate()
@@ -220,11 +235,11 @@ final class HistoryPasteCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.state.failure)
     }
 
-    private func makeTarget() -> ApplicationTarget {
+    private func makeTarget(activate: @escaping () -> Void = {}) -> ApplicationTarget {
         ApplicationTarget(
             processIdentifier: 42,
             applicationName: "Target",
-            activate: {},
+            activate: activate,
             isReady: { true },
             isTerminated: { false }
         )
