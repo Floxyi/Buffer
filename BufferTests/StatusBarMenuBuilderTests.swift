@@ -4,6 +4,26 @@ import XCTest
 
 @MainActor
 final class StatusBarMenuBuilderTests: XCTestCase {
+    func testPausedIconKeepsConfiguredSymbolAndAppearsDisabled() {
+        for menuBarIcon in MenuBarIcon.allCases {
+            let active = StatusBarIconPresentation(
+                menuBarIcon: menuBarIcon,
+                isPaused: false
+            )
+            let paused = StatusBarIconPresentation(
+                menuBarIcon: menuBarIcon,
+                isPaused: true
+            )
+
+            XCTAssertEqual(active.symbolName, menuBarIcon.symbolName)
+            XCTAssertEqual(paused.symbolName, menuBarIcon.symbolName)
+            XCTAssertFalse(active.appearsDisabled)
+            XCTAssertTrue(paused.appearsDisabled)
+            XCTAssertEqual(active.accessibilityDescription, "Buffer")
+            XCTAssertEqual(paused.accessibilityDescription, "Buffer Paused")
+        }
+    }
+
     func testBuildsExpectedMenuTitles() {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),

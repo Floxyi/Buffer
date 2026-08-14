@@ -2,6 +2,18 @@ import Cocoa
 import Combine
 import SwiftUI
 
+struct StatusBarIconPresentation: Equatable {
+    let symbolName: String
+    let accessibilityDescription: String
+    let appearsDisabled: Bool
+
+    init(menuBarIcon: MenuBarIcon, isPaused: Bool) {
+        symbolName = menuBarIcon.symbolName
+        accessibilityDescription = isPaused ? "Buffer Paused" : "Buffer"
+        appearsDisabled = isPaused
+    }
+}
+
 @MainActor
 final class StatusBarController: NSObject {
     private let store: ClipboardStore
@@ -31,26 +43,27 @@ final class StatusBarController: NSObject {
         super.init()
 
         setupButton()
-        observeSettings()
+        observeState()
     }
 
     private func setupButton() {
         guard let button = statusItem.button else { return }
 
-        updateIcon(paused: watcher.isPaused)
+        updateIcon(menuBarIcon: settingsManager.menuBarIcon, paused: watcher.isPaused)
 
         button.action = #selector(handleClick)
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
-    private func observeSettings() {
+    private func observeState() {
         settingsManager.$menuBarIcon
             .removeDuplicates()
-            .sink { [weak self] _ in
+            .combineLatest(watcher.$isPaused.removeDuplicates())
+            .sink { [weak self] menuBarIcon, isPaused in
                 Task { @MainActor in
                     guard let self else { return }
-                    self.updateIcon(paused: self.watcher.isPaused)
+                    self.updateIcon(menuBarIcon: menuBarIcon, paused: isPaused)
                 }
             }
             .store(in: &cancellables)
@@ -91,10 +104,8 @@ final class StatusBarController: NSObject {
     @objc private func togglePause() {
         if watcher.isPaused {
             watcher.resume()
-            updateIcon(paused: false)
         } else {
             watcher.pause()
-            updateIcon(paused: true)
         }
     }
 
@@ -119,16 +130,22 @@ final class StatusBarController: NSObject {
         NSApplication.shared.terminate(nil)
     }
 
-    private func updateIcon(paused: Bool) {
+    private func updateIcon(menuBarIcon: MenuBarIcon, paused: Bool) {
         guard let button = statusItem.button else { return }
 
-        let symbolName = paused ? "pause.circle.fill" : settingsManager.menuBarIcon.symbolName
-        let accessibilityDescription = paused ? "Buffer Paused" : "Buffer"
+        let presentation = StatusBarIconPresentation(
+            menuBarIcon: menuBarIcon,
+            isPaused: paused
+        )
 
         let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: accessibilityDescription)
+        let image = NSImage(
+            systemSymbolName: presentation.symbolName,
+            accessibilityDescription: presentation.accessibilityDescription
+        )
         image?.isTemplate = true
 
         button.image = image?.withSymbolConfiguration(config)
+        button.appearsDisabled = presentation.appearsDisabled
     }
 }
