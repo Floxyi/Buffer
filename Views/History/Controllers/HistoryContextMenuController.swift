@@ -24,18 +24,19 @@ struct HistoryContextMenuController {
         selectedIDs: Set<UUID>,
         selectedItemsInActionOrder: [ClipboardItem],
         allowsJumpToHistory: Bool,
-        isExtractingText: Bool,
+        ocrProcessingItemIDs: Set<UUID>,
         actionResolver: HistoryActionResolver
     ) -> [HistoryItemActionDescriptor] {
-        actionResolver.resolveActions(
-            for: targetItems(
-                for: clickedItemID,
-                itemByID: itemByID,
-                selectedIDs: selectedIDs,
-                selectedItemsInActionOrder: selectedItemsInActionOrder
-            ),
+        let targets = targetItems(
+            for: clickedItemID,
+            itemByID: itemByID,
+            selectedIDs: selectedIDs,
+            selectedItemsInActionOrder: selectedItemsInActionOrder
+        )
+        return actionResolver.resolveActions(
+            for: targets,
             allowsJumpToHistory: allowsJumpToHistory,
-            isExtractingText: isExtractingText
+            isExtractingText: targets.contains { ocrProcessingItemIDs.contains($0.id) }
         )
     }
 

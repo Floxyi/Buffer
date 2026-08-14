@@ -147,6 +147,10 @@ final class HistoryDetailModel: ObservableObject {
         guard activeOCRItemID != item.id else { return }
 
         cancelOCR()
+        guard store.beginOCRProcessing(for: item) else {
+            publish()
+            return
+        }
         activeOCRItemID = item.id
         activeOCRGeneration &+= 1
         let generation = activeOCRGeneration
@@ -183,6 +187,7 @@ final class HistoryDetailModel: ObservableObject {
         }
 
         previewState = previewStateController.finishExtracting(state: previewState)
+        store.finishOCRProcessing(for: item.id)
         activeOCRItemID = nil
         activeOCRTask = nil
         publish()
@@ -197,8 +202,15 @@ final class HistoryDetailModel: ObservableObject {
         activeOCRGeneration &+= 1
         activeOCRTask?.cancel()
         activeOCRTask = nil
+        if let activeOCRItemID {
+            store.finishOCRProcessing(for: activeOCRItemID)
+        }
         activeOCRItemID = nil
         previewState = previewStateController.finishExtracting(state: previewState)
+    }
+
+    func refreshOCRProcessingState() {
+        publish()
     }
 
     private func immediateTotalSizeBytes(for items: [ClipboardItem]) -> Int? {
@@ -228,12 +240,14 @@ final class HistoryDetailModel: ObservableObject {
     }
 
     private func publish() {
+        var projectedPreviewState = previewState
+        projectedPreviewState.isExtractingText = selectedItemID.map(store.isOCRProcessing(for:)) ?? false
         viewState = detailViewStateProjector.project(
             selectedItem: context.selectedItem,
             selectedItemsInVisualOrder: context.selectedItemsInVisualOrder,
             selectedItemsInActionOrder: context.selectedItemsInActionOrder,
             isQueryActive: context.isQueryActive,
-            previewState: previewState,
+            previewState: projectedPreviewState,
             selectedItemsTotalSizeBytes: totalSizeBytes,
             actionResolver: actionResolver,
             copiedAtFormatter: copiedAtFormatter

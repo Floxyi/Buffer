@@ -81,4 +81,14 @@ final class SettingsMigrationTests: XCTestCase {
             .showSpacesAndTabs
         )
     }
+
+    func testAutomaticOCRDefaultsToEnabledAndLoadsStoredValue() {
+        let defaults = makeTestDefaults()
+        let store = UserDefaultsSettingsStore(defaults: defaults)
+
+        XCTAssertTrue(SettingsMigration.loadEnableAutomaticOCR(from: store))
+
+        defaults.set(false, forKey: SettingsKey.enableAutomaticOCR.rawValue)
+        XCTAssertFalse(SettingsMigration.loadEnableAutomaticOCR(from: store))
+    }
 }

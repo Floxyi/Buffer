@@ -60,6 +60,27 @@ struct SettingsBehaviourItemActionsSection: View {
     }
 }
 
+struct SettingsBehaviourImageTextSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
+    var body: some View {
+        Section("Image Text") {
+            Toggle(
+                "Automatically extract text from copied images",
+                isOn: bindings.enableAutomaticOCR
+            )
+
+            Text(
+                "Runs on-device text recognition in the background after an image is added to history. Recognized text becomes searchable when processing finishes."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+}
+
 struct SettingsBehaviourQuickPasteSection: View {
     @ObservedObject var settings: SettingsManager
 

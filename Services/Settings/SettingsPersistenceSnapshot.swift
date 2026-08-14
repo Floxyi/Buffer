@@ -14,6 +14,7 @@ struct SettingsPersistenceSnapshot {
     let textDetailFontStyle: String
     let textDetailFontSize: Int
     let clipboardWhitespaceMode: String
+    let enableAutomaticOCR: Bool
     let historyRetentionPeriod: String
     let menuBarIcon: String
     let enableWebsitePreviews: Bool
@@ -34,6 +35,7 @@ struct SettingsPersistenceSnapshot {
         textDetailFontStyle = settings.textDetailFontStyle.rawValue
         textDetailFontSize = settings.textDetailFontSize.rawValue
         clipboardWhitespaceMode = settings.clipboardWhitespaceMode.rawValue
+        enableAutomaticOCR = settings.enableAutomaticOCR
         historyRetentionPeriod = settings.historyRetentionPeriod.rawValue
         menuBarIcon = settings.menuBarIcon.rawValue
         enableWebsitePreviews = settings.enableWebsitePreviews
@@ -55,6 +57,7 @@ struct SettingsPersistenceSnapshot {
         store.set(textDetailFontStyle, for: .textDetailFontStyle)
         store.set(textDetailFontSize, for: .textDetailFontSize)
         store.set(clipboardWhitespaceMode, for: .clipboardWhitespaceMode)
+        store.set(enableAutomaticOCR, for: .enableAutomaticOCR)
         store.set(historyRetentionPeriod, for: .historyRetentionPeriod)
         store.set(menuBarIcon, for: .menuBarIcon)
         store.set(enableWebsitePreviews, for: .enableWebsitePreviews)

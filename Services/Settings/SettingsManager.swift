@@ -23,6 +23,7 @@ final class SettingsManager: ObservableObject {
     @Published var textDetailFontStyle: TextDetailFontStyle
     @Published var textDetailFontSize: TextDetailFontSize
     @Published private(set) var clipboardWhitespaceMode: ClipboardWhitespaceMode
+    @Published private(set) var enableAutomaticOCR: Bool
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published var menuBarIcon: MenuBarIcon
     @Published var enableWebsitePreviews: Bool
@@ -69,6 +70,7 @@ final class SettingsManager: ObservableObject {
         textDetailFontStyle = loadedState.textDetailFontStyle
         textDetailFontSize = loadedState.textDetailFontSize
         clipboardWhitespaceMode = loadedState.clipboardWhitespaceMode
+        enableAutomaticOCR = loadedState.enableAutomaticOCR
         historyRetentionPeriod = loadedState.historyRetentionPeriod
         menuBarIcon = loadedState.menuBarIcon
         enableWebsitePreviews = loadedState.enableWebsitePreviews
@@ -135,6 +137,11 @@ final class SettingsManager: ObservableObject {
 
     func setClipboardWhitespaceMode(_ mode: ClipboardWhitespaceMode) {
         clipboardWhitespaceMode = mode
+        persist()
+    }
+
+    func setAutomaticOCREnabled(_ enabled: Bool) {
+        enableAutomaticOCR = enabled
         persist()
     }
 
@@ -212,6 +219,7 @@ final class SettingsManager: ObservableObject {
         textDetailFontStyle = state.textDetailFontStyle
         textDetailFontSize = state.textDetailFontSize
         clipboardWhitespaceMode = state.clipboardWhitespaceMode
+        enableAutomaticOCR = state.enableAutomaticOCR
         historyRetentionPeriod = state.historyRetentionPeriod
         menuBarIcon = state.menuBarIcon
         enableWebsitePreviews = state.enableWebsitePreviews

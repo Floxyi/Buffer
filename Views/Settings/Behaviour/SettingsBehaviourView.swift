@@ -18,6 +18,7 @@ struct SettingsBehaviourView: View {
             SettingsBehaviourHistoryWindowSection(settings: settings)
             SettingsBehaviourSearchSection(settings: settings)
             SettingsBehaviourItemActionsSection(settings: settings)
+            SettingsBehaviourImageTextSection(settings: settings)
             SettingsBehaviourQuickPasteSection(settings: settings)
             SettingsBehaviourWhitespaceSection(settings: settings)
             SettingsBehaviourTextDetailSection(settings: settings, previewFont: previewFont)

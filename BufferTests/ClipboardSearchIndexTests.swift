@@ -175,6 +175,32 @@ final class ClipboardSearchIndexTests: XCTestCase {
         )
     }
 
+    func testFuzzyMatchingAcceptsTwoEditsForMediumTerms() {
+        let item = ClipboardItem.text("phone")
+        let index = makeIndex(for: [item])
+
+        let result = searchResult(
+            in: index,
+            for: item,
+            query: ClipboardQuery(text: "pjnne")
+        )
+
+        XCTAssertEqual(result?.matches.first?.classification, .fuzzy)
+    }
+
+    func testFuzzyMatchingAcceptsThreeEditsForLongTerms() {
+        let item = ClipboardItem.text("abcdefghij")
+        let index = makeIndex(for: [item])
+
+        let result = searchResult(
+            in: index,
+            for: item,
+            query: ClipboardQuery(text: "abxdefyhiq")
+        )
+
+        XCTAssertEqual(result?.matches.first?.classification, .fuzzy)
+    }
+
     func testFuzzyMatchingRequiresTermsInOrderWithinOneField() {
         let matching = ClipboardItem.text("alpha middle beta")
         let reversed = ClipboardItem.text("beta middle alpha")

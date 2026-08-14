@@ -18,11 +18,13 @@ final class ClipboardWatcher: ObservableObject {
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
     private let activeApplicationProvider: ActiveApplicationProviding
+    private let ocrService: any OCRServicing
     private let pasteboard: ClipboardReadingPasteboard
     private let bufferApplicationInfo: SourceApplicationInfo
     private let captureWorker = ClipboardCaptureWorker()
     private var watchTask: Task<Void, Never>?
     private var pendingAsyncCaptureTask: Task<Void, Never>?
+    private var automaticOCRTasks: [UUID: Task<Void, Never>] = [:]
     private var lastChangeCount: Int
     private var lastContentHash = 0
     private var suppressedChangeCounts: Set<Int> = []
@@ -33,12 +35,14 @@ final class ClipboardWatcher: ObservableObject {
         store: ClipboardStore,
         settingsManager: SettingsManager,
         activeApplicationProvider: ActiveApplicationProviding,
+        ocrService: any OCRServicing = OCRService(),
         pasteboard: ClipboardReadingPasteboard = NSPasteboard.general,
         bufferApplicationInfo: SourceApplicationInfo = .currentProcess
     ) {
         self.store = store
         self.settingsManager = settingsManager
         self.activeApplicationProvider = activeApplicationProvider
+        self.ocrService = ocrService
         self.pasteboard = pasteboard
         self.bufferApplicationInfo = bufferApplicationInfo
         self.lastChangeCount = pasteboard.changeCount
@@ -62,6 +66,10 @@ final class ClipboardWatcher: ObservableObject {
         watchTask = nil
         pendingAsyncCaptureTask?.cancel()
         pendingAsyncCaptureTask = nil
+        for task in automaticOCRTasks.values {
+            task.cancel()
+        }
+        automaticOCRTasks.removeAll()
     }
 
     func pause() {
@@ -180,9 +188,49 @@ final class ClipboardWatcher: ObservableObject {
         do {
             try await store.add(item)
             lastContentHash = contentHash
+            scheduleAutomaticOCRIfNeeded(for: item)
         } catch {
             await store.discardCapturedAssets(for: item)
         }
+    }
+
+    private func scheduleAutomaticOCRIfNeeded(for item: ClipboardItem) {
+        guard settingsManager.enableAutomaticOCR,
+            item.kind == .image,
+            item.ocrText == nil,
+            store.beginOCRProcessing(for: item)
+        else {
+            return
+        }
+
+        let itemID = item.id
+        let task = Task { [weak self, store, ocrService] in
+            defer {
+                store.finishOCRProcessing(for: itemID)
+                self?.automaticOCRTasks[itemID] = nil
+            }
+            guard !Task.isCancelled,
+                let image = await store.imageAsync(for: item),
+                !Task.isCancelled
+            else {
+                return
+            }
+            guard let text = await ocrService.recognizeText(from: image),
+                !Task.isCancelled,
+                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                return
+            }
+
+            do {
+                try await store.setOCRText(text, for: item)
+            } catch {
+                BufferLogger.clipboard.error(
+                    "Failed to store automatic OCR text: \(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+        automaticOCRTasks[itemID] = task
     }
 
     private func discardStaleSuppressionReceipts(before changeCount: Int) {

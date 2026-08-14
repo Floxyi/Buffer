@@ -17,6 +17,7 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
 
     @Published private(set) var items: [ClipboardItem] = []
     @Published private(set) var searchIndexState = ClipboardSearchIndexState.initial
+    @Published private(set) var ocrProcessingItemIDs: Set<UUID> = []
 
     private let assetAccess: any ClipboardAssetAccessing
     private let repository: ClipboardRepository
@@ -233,6 +234,33 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         try await runRepositoryMutation { repository in
             try await repository.setOCRText(text, for: item)
         }
+    }
+
+    @discardableResult
+    func beginOCRProcessing(for item: ClipboardItem) -> Bool {
+        guard item.kind == .image,
+            item.ocrText == nil,
+            items.contains(where: { $0.id == item.id && $0.ocrText == nil }),
+            !ocrProcessingItemIDs.contains(item.id)
+        else {
+            return false
+        }
+
+        var nextIDs = ocrProcessingItemIDs
+        nextIDs.insert(item.id)
+        ocrProcessingItemIDs = nextIDs
+        return true
+    }
+
+    func finishOCRProcessing(for itemID: UUID) {
+        guard ocrProcessingItemIDs.contains(itemID) else { return }
+        var nextIDs = ocrProcessingItemIDs
+        nextIDs.remove(itemID)
+        ocrProcessingItemIDs = nextIDs
+    }
+
+    func isOCRProcessing(for itemID: UUID) -> Bool {
+        ocrProcessingItemIDs.contains(itemID)
     }
 
     func moveToTop(_ item: ClipboardItem) async throws {

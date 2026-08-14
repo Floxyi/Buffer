@@ -15,10 +15,12 @@ final class AppContainer {
         let settingsManager = SettingsManager()
         let activeApplicationMonitor = ActiveApplicationMonitor()
         let clipboardStore = await ClipboardStore.makeForApplication(settingsManager: settingsManager)
+        let ocrService = OCRService()
         let clipboardWatcher = ClipboardWatcher(
             store: clipboardStore,
             settingsManager: settingsManager,
-            activeApplicationProvider: activeApplicationMonitor
+            activeApplicationProvider: activeApplicationMonitor,
+            ocrService: ocrService
         )
         let pasteController = PasteController(store: clipboardStore)
         let hotkeyManager = HotkeyManager(settingsManager: settingsManager)
@@ -30,7 +32,7 @@ final class AppContainer {
             clipboardWatcher: clipboardWatcher,
             pasteController: pasteController,
             hotkeyManager: hotkeyManager,
-            ocrService: OCRService(),
+            ocrService: ocrService,
             historyWindowConfiguration: .standard
         )
     }

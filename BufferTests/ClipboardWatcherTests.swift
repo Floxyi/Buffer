@@ -210,6 +210,86 @@ final class ClipboardWatcherTests: XCTestCase {
         }
     }
 
+    func testAutomaticOCRUpdatesCapturedImageAfterPublishingIt() async {
+        let ocrService = ControlledAutomaticOCRService()
+        let context = makeWatcherContext(ocrService: ocrService)
+        context.pasteboard.imageData = makePNGData()
+        context.pasteboard.changeCount = 1
+
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.count == 1
+                && context.store.items.first?.kind == .image
+                && ocrService.pendingRequestCount == 1
+        }
+        let itemID = context.store.items[0].id
+        XCTAssertNil(context.store.items[0].ocrText)
+        XCTAssertTrue(context.store.isOCRProcessing(for: itemID))
+
+        let viewModel = HistoryViewModel(
+            store: context.store,
+            settingsManager: context.settings,
+            ocrService: ocrService
+        )
+        await viewModel.loadPreviewIfNeeded()
+
+        XCTAssertTrue(viewModel.detailViewState.isExtractingText)
+        XCTAssertFalse(viewModel.detailViewState.canExtractSelectedImageText)
+        XCTAssertEqual(
+            viewModel.detailViewState.actions.first {
+                $0.action == .extractImageText
+            }?.isEnabled,
+            false
+        )
+
+        await viewModel.extractImageText(for: context.store.items[0])
+        XCTAssertEqual(ocrService.pendingRequestCount, 1)
+
+        context.pasteboard.text = "a later clipboard change"
+        context.pasteboard.changeCount = 2
+        context.watcher.checkClipboard()
+        await eventually {
+            context.store.items.contains { $0.textContent == "a later clipboard change" }
+        }
+
+        ocrService.resumeNext(returning: "recognized background text")
+
+        await eventually {
+            context.store.items.first(where: { $0.id == itemID })?.ocrText
+                == "recognized background text"
+                && !context.store.isOCRProcessing(for: itemID)
+                && viewModel.detailViewState.selectedItem?.ocrText
+                    == "recognized background text"
+                && !viewModel.detailViewState.isExtractingText
+        }
+        await context.store.waitForSearchIndex()
+        XCTAssertNotNil(
+            context.store.searchIndexSnapshot.results(
+                for: [itemID],
+                query: ClipboardQuery(text: "recgonized backgorund")
+            )[itemID]
+        )
+    }
+
+    func testDisablingAutomaticOCRSkipsRecognitionForNewImages() async {
+        let ocrService = ControlledAutomaticOCRService()
+        let context = makeWatcherContext(ocrService: ocrService)
+        context.settings.setAutomaticOCREnabled(false)
+        context.pasteboard.imageData = makePNGData()
+        context.pasteboard.changeCount = 1
+
+        context.watcher.checkClipboard()
+
+        await eventually {
+            context.store.items.count == 1 && context.store.items.first?.kind == .image
+        }
+        await Task.yield()
+
+        XCTAssertEqual(ocrService.pendingRequestCount, 0)
+        XCTAssertNil(context.store.items[0].ocrText)
+    }
+
     func testPauseAndResumeGatePollingAgainstCurrentChangeCount() async {
         let context = makeWatcherContext()
         context.watcher.pause()
@@ -272,7 +352,8 @@ final class ClipboardWatcherTests: XCTestCase {
             name: "Buffer",
             bundleIdentifier: "de.floxyi.buffer",
             bundlePath: "/Applications/Buffer.app"
-        )
+        ),
+        ocrService: any OCRServicing = FakeOCRService(result: nil)
     ) -> WatcherTestContext {
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
@@ -288,6 +369,7 @@ final class ClipboardWatcherTests: XCTestCase {
             store: store,
             settingsManager: settings,
             activeApplicationProvider: activeApplicationProvider,
+            ocrService: ocrService,
             pasteboard: pasteboard,
             bufferApplicationInfo: bufferApplicationInfo
         )
@@ -298,6 +380,24 @@ final class ClipboardWatcherTests: XCTestCase {
             settings: settings,
             pasteboard: pasteboard
         )
+    }
+}
+
+@MainActor
+private final class ControlledAutomaticOCRService: OCRServicing {
+    private var continuations: [CheckedContinuation<String?, Never>] = []
+
+    var pendingRequestCount: Int { continuations.count }
+
+    func recognizeText(from image: NSImage) async -> String? {
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func resumeNext(returning text: String?) {
+        guard !continuations.isEmpty else { return }
+        continuations.removeFirst().resume(returning: text)
     }
 }
 

@@ -85,4 +85,17 @@ final class SettingsFormBindingsTests: XCTestCase {
         settings.formBindings.whitespace.trimTrailingSpacesAndTabs.wrappedValue = false
         XCTAssertEqual(settings.clipboardWhitespaceMode, .preserve)
     }
+
+    func testAutomaticOCRBindingPersistsItsValue() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.formBindings.enableAutomaticOCR.wrappedValue = false
+
+        XCTAssertFalse(settings.enableAutomaticOCR)
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.enableAutomaticOCR.rawValue))
+    }
 }

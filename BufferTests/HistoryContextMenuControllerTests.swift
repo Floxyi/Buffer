@@ -46,4 +46,23 @@ final class HistoryContextMenuControllerTests: XCTestCase {
             ).isEmpty
         )
     }
+
+    func testProcessingImageDisablesContextMenuOCRAction() throws {
+        let controller = HistoryContextMenuController()
+        let item = ClipboardItem.image(filename: "processing.png")
+
+        let actions = controller.actions(
+            for: item.id,
+            itemByID: [item.id: item],
+            selectedIDs: [],
+            selectedItemsInActionOrder: [],
+            allowsJumpToHistory: false,
+            ocrProcessingItemIDs: [item.id],
+            actionResolver: HistoryActionResolver()
+        )
+        let ocrAction = try XCTUnwrap(actions.first { $0.action == .extractImageText })
+
+        XCTAssertFalse(ocrAction.isEnabled)
+        XCTAssertEqual(ocrAction.systemImage, "ellipsis.circle")
+    }
 }

@@ -114,6 +114,25 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertTrue(settings.confirmDeleteWithKeyboardShortcut)
         XCTAssertEqual(settings.historyWindowOpenBehavior, .selectFirstNonPinnedItem)
         XCTAssertEqual(settings.clipboardWhitespaceMode, .preserve)
+        XCTAssertTrue(settings.enableAutomaticOCR)
+    }
+
+    func testAutomaticOCRPreferencePersistsAndResetsToEnabled() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setAutomaticOCREnabled(false)
+
+        XCTAssertFalse(settings.enableAutomaticOCR)
+        XCTAssertFalse(defaults.bool(forKey: SettingsKey.enableAutomaticOCR.rawValue))
+
+        settings.resetUserPreferencesToDefaults()
+
+        XCTAssertTrue(settings.enableAutomaticOCR)
+        XCTAssertTrue(defaults.bool(forKey: SettingsKey.enableAutomaticOCR.rawValue))
     }
 
     func testClipboardWhitespaceModePersistsAsSingleExclusiveValue() {

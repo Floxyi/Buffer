@@ -11,6 +11,7 @@ enum SettingsDefaults {
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let defaultMenuBarIcon: MenuBarIcon = .clipboard
     static let defaultClipboardWhitespaceMode: ClipboardWhitespaceMode = .preserve
+    static let defaultEnableAutomaticOCR = true
 
     static let defaultSearchBehavior = SearchBehaviorSettings(
         keepSearchTextAfterPaste: false,

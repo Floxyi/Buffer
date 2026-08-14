@@ -130,73 +130,67 @@ enum ClipboardTextMatcher {
             return queryTerm == candidate ? 0 : nil
         }
 
-        let maximumDistance = queryTerm.count <= 5 ? 1 : 2
+        let maximumDistance = maximumEditDistance(forTermLength: queryTerm.count)
         guard abs(queryTerm.count - candidate.count) <= maximumDistance else { return nil }
         let distance = damerauLevenshteinDistance(queryTerm, candidate)
         return distance <= maximumDistance ? distance : nil
     }
 
-    static func levenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
-        let left = Array(lhs)
-        let right = Array(rhs)
-        guard !left.isEmpty else { return right.count }
-        guard !right.isEmpty else { return left.count }
-
-        var previous = Array(0...right.count)
-        for (leftOffset, leftCharacter) in left.enumerated() {
-            var current = Array(repeating: 0, count: right.count + 1)
-            current[0] = leftOffset + 1
-            for (rightOffset, rightCharacter) in right.enumerated() {
-                let substitutionCost = leftCharacter == rightCharacter ? 0 : 1
-                current[rightOffset + 1] = min(
-                    previous[rightOffset + 1] + 1,
-                    current[rightOffset] + 1,
-                    previous[rightOffset] + substitutionCost
-                )
-            }
-            previous = current
+    static func maximumEditDistance(forTermLength length: Int) -> Int {
+        switch length {
+        case ..<3: return 0
+        case 3...4: return 1
+        case 5...8: return 2
+        default: return 3
         }
-        return previous[right.count]
     }
 
-    private static func damerauLevenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
+    static func damerauLevenshteinDistance(_ lhs: String, _ rhs: String) -> Int {
         let left = Array(lhs)
         let right = Array(rhs)
         guard !left.isEmpty else { return right.count }
         guard !right.isEmpty else { return left.count }
 
+        let maximumDistance = left.count + right.count
         var matrix = Array(
-            repeating: Array(repeating: 0, count: right.count + 1),
-            count: left.count + 1
+            repeating: Array(repeating: 0, count: right.count + 2),
+            count: left.count + 2
         )
+        matrix[0][0] = maximumDistance
         for leftIndex in 0...left.count {
-            matrix[leftIndex][0] = leftIndex
+            matrix[leftIndex + 1][0] = maximumDistance
+            matrix[leftIndex + 1][1] = leftIndex
         }
         for rightIndex in 0...right.count {
-            matrix[0][rightIndex] = rightIndex
+            matrix[0][rightIndex + 1] = maximumDistance
+            matrix[1][rightIndex + 1] = rightIndex
         }
 
+        var lastRowByCharacter: [Character: Int] = [:]
         for leftIndex in 1...left.count {
+            var lastMatchingColumn = 0
             for rightIndex in 1...right.count {
-                let substitutionCost = left[leftIndex - 1] == right[rightIndex - 1] ? 0 : 1
-                matrix[leftIndex][rightIndex] = min(
-                    matrix[leftIndex - 1][rightIndex] + 1,
-                    matrix[leftIndex][rightIndex - 1] + 1,
-                    matrix[leftIndex - 1][rightIndex - 1] + substitutionCost
-                )
-                if leftIndex > 1,
-                    rightIndex > 1,
-                    left[leftIndex - 1] == right[rightIndex - 2],
-                    left[leftIndex - 2] == right[rightIndex - 1]
-                {
-                    matrix[leftIndex][rightIndex] = min(
-                        matrix[leftIndex][rightIndex],
-                        matrix[leftIndex - 2][rightIndex - 2] + 1
-                    )
+                let transpositionRow = lastRowByCharacter[right[rightIndex - 1]] ?? 0
+                let transpositionColumn = lastMatchingColumn
+                var substitutionCost = 1
+                if left[leftIndex - 1] == right[rightIndex - 1] {
+                    substitutionCost = 0
+                    lastMatchingColumn = rightIndex
                 }
+
+                matrix[leftIndex + 1][rightIndex + 1] = min(
+                    matrix[leftIndex][rightIndex] + substitutionCost,
+                    matrix[leftIndex + 1][rightIndex] + 1,
+                    matrix[leftIndex][rightIndex + 1] + 1,
+                    matrix[transpositionRow][transpositionColumn]
+                        + (leftIndex - transpositionRow - 1)
+                        + 1
+                        + (rightIndex - transpositionColumn - 1)
+                )
             }
+            lastRowByCharacter[left[leftIndex - 1]] = leftIndex
         }
-        return matrix[left.count][right.count]
+        return matrix[left.count + 1][right.count + 1]
     }
 }
 
@@ -239,7 +233,7 @@ private struct ClipboardVocabularyIndex: Sendable {
 
             var node = existingRoot
             while true {
-                let distance = ClipboardTextMatcher.levenshteinDistance(term, node.term)
+                let distance = ClipboardTextMatcher.damerauLevenshteinDistance(term, node.term)
                 if let child = node.children[distance] {
                     node = child
                 } else {
@@ -256,24 +250,23 @@ private struct ClipboardVocabularyIndex: Sendable {
             return occurrencesByTerm[queryTerm] == nil ? [:] : [queryTerm: 0]
         }
 
-        let maximumDistance = queryTerm.count <= 5 ? 1 : 2
-        // A transposition costs two in the tree's Levenshtein metric and one in
-        // the final Damerau-style check, so the tree radius must be doubled.
-        let treeRadius = maximumDistance * 2
+        let maximumDistance = ClipboardTextMatcher.maximumEditDistance(
+            forTermLength: queryTerm.count
+        )
         var nodes = root.map { [$0] } ?? []
         var result: [String: Int] = [:]
 
         while let node = nodes.popLast() {
-            let treeDistance = ClipboardTextMatcher.levenshteinDistance(queryTerm, node.term)
-            if let acceptedDistance = ClipboardTextMatcher.acceptedEditDistance(
-                from: queryTerm,
-                to: node.term
-            ) {
-                result[node.term] = acceptedDistance
+            let treeDistance = ClipboardTextMatcher.damerauLevenshteinDistance(
+                queryTerm,
+                node.term
+            )
+            if treeDistance <= maximumDistance {
+                result[node.term] = treeDistance
             }
 
-            let lowerBound = max(0, treeDistance - treeRadius)
-            let upperBound = treeDistance + treeRadius
+            let lowerBound = max(0, treeDistance - maximumDistance)
+            let upperBound = treeDistance + maximumDistance
             for (distance, child) in node.children
             where distance >= lowerBound && distance <= upperBound {
                 nodes.append(child)

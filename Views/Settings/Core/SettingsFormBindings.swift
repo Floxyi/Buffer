@@ -8,6 +8,7 @@ struct SettingsFormBindings {
     let quickPaste: SettingsQuickPasteBindings
     let textDetail: SettingsTextDetailBindings
     let whitespace: SettingsWhitespaceBindings
+    let enableAutomaticOCR: Binding<Bool>
     let privacy: SettingsPrivacyBindings
 }
 
@@ -70,6 +71,10 @@ extension SettingsManager {
             whitespace: SettingsWhitespaceBindings(
                 showSpacesAndTabs: whitespaceModeBinding(for: .showSpacesAndTabs),
                 trimTrailingSpacesAndTabs: whitespaceModeBinding(for: .trimTrailingSpacesAndTabs)
+            ),
+            enableAutomaticOCR: directBinding(
+                value: { $0.enableAutomaticOCR },
+                apply: { settings, enabled in settings.setAutomaticOCREnabled(enabled) }
             ),
             privacy: SettingsPrivacyBindings(
                 historyRetentionPeriod: privacyBinding(\.historyRetentionPeriod),

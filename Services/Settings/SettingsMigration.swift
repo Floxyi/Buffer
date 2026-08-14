@@ -92,6 +92,13 @@ enum SettingsMigration {
             ?? SettingsDefaults.defaultClipboardWhitespaceMode
     }
 
+    static func loadEnableAutomaticOCR(from store: any SettingsPersisting) -> Bool {
+        guard store.object(for: .enableAutomaticOCR) != nil else {
+            return SettingsDefaults.defaultEnableAutomaticOCR
+        }
+        return store.bool(for: .enableAutomaticOCR)
+    }
+
     static func loadPrivacySettings(from store: any SettingsPersisting) -> PrivacySettings {
         let defaults = SettingsDefaults.defaultPrivacySettings
         let historyRetentionPeriod =

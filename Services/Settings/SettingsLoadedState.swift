@@ -15,6 +15,7 @@ struct SettingsLoadedState {
     var textDetailFontStyle: TextDetailFontStyle
     var textDetailFontSize: TextDetailFontSize
     var clipboardWhitespaceMode: ClipboardWhitespaceMode
+    var enableAutomaticOCR: Bool
     var historyRetentionPeriod: HistoryRetentionPeriod
     var menuBarIcon: MenuBarIcon
     var enableWebsitePreviews: Bool
@@ -45,6 +46,7 @@ struct SettingsLoadedState {
             textDetailFontStyle: textDetail.style,
             textDetailFontSize: textDetail.size,
             clipboardWhitespaceMode: SettingsMigration.loadClipboardWhitespaceMode(from: store),
+            enableAutomaticOCR: SettingsMigration.loadEnableAutomaticOCR(from: store),
             historyRetentionPeriod: privacy.historyRetentionPeriod,
             menuBarIcon: SettingsMigration.loadMenuBarIcon(from: store),
             enableWebsitePreviews: privacy.enableWebsitePreviews,
@@ -68,6 +70,7 @@ struct SettingsLoadedState {
         textDetailFontStyle: SettingsDefaults.defaultTextDetailSettings.style,
         textDetailFontSize: SettingsDefaults.defaultTextDetailSettings.size,
         clipboardWhitespaceMode: SettingsDefaults.defaultClipboardWhitespaceMode,
+        enableAutomaticOCR: SettingsDefaults.defaultEnableAutomaticOCR,
         historyRetentionPeriod: SettingsDefaults.defaultPrivacySettings.historyRetentionPeriod,
         menuBarIcon: SettingsDefaults.defaultMenuBarIcon,
         enableWebsitePreviews: SettingsDefaults.defaultPrivacySettings.enableWebsitePreviews,

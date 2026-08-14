@@ -98,6 +98,12 @@ final class HistoryViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        store.$ocrProcessingItemIDs
+            .sink { [weak self] _ in
+                self?.detailModel.refreshOCRProcessingState()
+            }
+            .store(in: &cancellables)
+
         detailModel.$viewState
             .sink { [weak self] state in
                 self?.detailViewState = state
@@ -511,7 +517,7 @@ final class HistoryViewModel: ObservableObject {
             selectedIDs: selectedIDs,
             selectedItemsInActionOrder: selectedItemsInActionOrder,
             allowsJumpToHistory: !activeQuery.isEmpty,
-            isExtractingText: detailViewState.isExtractingText,
+            ocrProcessingItemIDs: store.ocrProcessingItemIDs,
             actionResolver: actionResolver
         )
     }
