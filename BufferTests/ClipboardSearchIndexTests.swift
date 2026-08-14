@@ -131,6 +131,43 @@ final class ClipboardSearchIndexTests: XCTestCase {
         )
     }
 
+    func testCopiedAtFilterUsesHalfOpenInterval() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        let end = Date(timeIntervalSince1970: 2_000)
+        let filters = ClipboardFilters(copiedAt: DateInterval(start: start, end: end))
+
+        XCTAssertTrue(
+            filters.matches(
+                ClipboardItem(timestamp: start, content: .text(.init(inlineText: "start")))
+            )
+        )
+        XCTAssertTrue(
+            filters.matches(
+                ClipboardItem(
+                    timestamp: end.addingTimeInterval(-0.001),
+                    content: .text(.init(inlineText: "before end"))
+                )
+            )
+        )
+        XCTAssertFalse(
+            filters.matches(
+                ClipboardItem(timestamp: end, content: .text(.init(inlineText: "end")))
+            )
+        )
+    }
+
+    func testSourceApplicationFilterNormalizesCapturedBundleIdentifier() {
+        let filters = ClipboardFilters(
+            sourceBundleIdentifiers: ["com.example.App"]
+        )
+        let item = ClipboardItem(
+            sourceAppBundleIdentifier: "  com.example.App\n",
+            content: .text(.init(inlineText: "item"))
+        )
+
+        XCTAssertTrue(filters.matches(item))
+    }
+
     func testTypedQueryCanExcludeOCRMatches() {
         var index = ClipboardSearchIndex()
         let item = ClipboardItem(

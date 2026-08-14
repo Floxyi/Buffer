@@ -5,30 +5,37 @@ import XCTest
 
 @MainActor
 final class ClipboardStoreTests: XCTestCase {
-    func testAddRespectsHistoryLimitWhileKeepingPinnedItems() async throws {
+    func testAddEvictsOldestDeletableItemWhileKeepingPinnedAndBookmarkedItems() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
             defaults: makeTestDefaults(),
             launchAtLoginController: FakeLaunchAtLoginController()
         )
-        settings.setHistoryLimit(2)
+        settings.setHistoryLimit(3)
 
         let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
-        let pinned = ClipboardItem.text("pinned")
+        let pinned = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(),
+            content: .text(TextItemContent(inlineText: "pinned"))
+        )
+        let bookmarked = ClipboardItem(
+            isBookmarked: true,
+            bookmarkedAt: Date(),
+            content: .text(TextItemContent(inlineText: "bookmarked"))
+        )
         let first = ClipboardItem.text("first")
         let second = ClipboardItem.text("second")
 
         try await store.add(pinned)
-        await eventually { store.items.count == 1 }
-        try await store.togglePin(for: pinned)
-        await eventually { store.items.first?.isPinned == true }
-
         try await store.add(first)
+        try await store.add(bookmarked)
         try await store.add(second)
 
         await eventually {
-            store.items.map(\.textContent) == ["pinned", "second"]
+            Set(store.items.map(\.id)) == [pinned.id, bookmarked.id, second.id]
         }
+        XCTAssertFalse(store.items.contains { $0.id == first.id })
     }
 
     func testTogglePinSetsAndClearsPinnedState() async throws {

@@ -109,24 +109,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await Task.yield()
+            async let persistedWebsiteIcons: Void = ClipboardWebsiteIconCache.hydratePersistedIcons()
+            async let legacyCacheCleanup: Void =
+                ClipboardLegacyApplicationIconCacheCleaner.shared.removeLegacyCacheIfNeeded()
+
+            await ClipboardApplicationIconLoader.shared.prewarmIcons(
+                for: HistoryApplicationFilterOptions.make(
+                    from: container.clipboardStore.items
+                ).map(\.iconItem),
+                limit: 120
+            )
+
             self.historyWindowCoordinator.present(.standard(for: .startup))
 
-            Task { @MainActor in
-                async let persistedWebsiteIcons: Void = ClipboardWebsiteIconCache.hydratePersistedIcons()
-                async let applicationIcons: Void = ClipboardApplicationIconLoader.shared.prewarmIcons(
-                    for: container.clipboardStore.items,
-                    limit: 80
-                )
-                async let legacyCacheCleanup: Void =
-                    ClipboardLegacyApplicationIconCacheCleaner.shared.removeLegacyCacheIfNeeded()
-                _ = await (persistedWebsiteIcons, applicationIcons, legacyCacheCleanup)
-
-                await ClipboardItemIconLoader.prewarmPreferredIcons(
-                    for: container.clipboardStore.items,
-                    settings: container.settingsManager,
-                    limit: 80
-                )
-            }
+            _ = await (persistedWebsiteIcons, legacyCacheCleanup)
+            await ClipboardItemIconLoader.prewarmPreferredIcons(
+                for: container.clipboardStore.items,
+                settings: container.settingsManager,
+                limit: 80
+            )
         }
     }
 

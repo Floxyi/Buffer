@@ -4,39 +4,39 @@ import SwiftUI
 struct ClipboardLeadingVisual: View {
     let item: ClipboardItem
     let leadingIcon: NSImage?
+    let leadingIconUsesApplicationAppearance: Bool
     let thumbnail: NSImage?
     let secondaryForegroundColor: Color
     let leadingVisualSize: CGFloat
 
     var body: some View {
-        switch ClipboardItemPresentation.leadingVisualStyle(for: item) {
-        case .document:
-            textVisual
-        case .image:
-            imageVisual
-        case .colorSwatch(let colorValue):
-            colorVisual(colorValue)
-        case .link:
-            linkVisual
-        case .email:
-            emailVisual
+        Group {
+            switch ClipboardItemPresentation.leadingVisualStyle(for: item) {
+            case .document:
+                textVisual
+            case .image:
+                imageVisual
+            case .colorSwatch(let colorValue):
+                colorVisual(colorValue)
+            case .link:
+                linkVisual
+            case .email:
+                emailVisual
+            }
         }
+        .frame(width: leadingVisualSize, height: leadingVisualSize)
     }
 
     @ViewBuilder
     private var textVisual: some View {
-        if let leadingIcon {
-            Image(nsImage: leadingIcon)
-                .resizable()
-                .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: leadingVisualSize, height: leadingVisualSize)
-                .help(item.sourceApp ?? "Source App")
-        } else if item.sourceApp != nil || item.sourceAppBundleIdentifier != nil || item.sourceAppBundlePath != nil {
-            Image(systemName: "app.fill")
-                .font(.system(size: 14))
-                .foregroundColor(secondaryForegroundColor)
-                .help(item.sourceApp ?? "Source App")
+        if item.sourceApp != nil || item.sourceAppBundleIdentifier != nil || item.sourceAppBundlePath != nil {
+            ClipboardApplicationIconView(
+                item: item,
+                size: leadingVisualSize,
+                fallbackIcon: leadingIcon,
+                contentScale: 1.18
+            )
+            .help(item.sourceApp ?? "Source App")
         } else {
             Image(systemName: "doc.text")
                 .font(.system(size: 14))
@@ -71,11 +71,7 @@ struct ClipboardLeadingVisual: View {
             .overlay {
                 if let leadingIcon {
                     ZStack {
-                        Image(nsImage: leadingIcon)
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: leadingVisualSize, height: leadingVisualSize)
+                        linkIcon(leadingIcon, size: leadingVisualSize)
                             .scaleEffect(1.35)
                             .blur(radius: 10)
                             .opacity(0.5)
@@ -89,11 +85,7 @@ struct ClipboardLeadingVisual: View {
                             endPoint: .bottom
                         )
 
-                        Image(nsImage: leadingIcon)
-                            .resizable()
-                            .interpolation(.high)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: leadingVisualSize - 10, height: leadingVisualSize - 10)
+                        linkIcon(leadingIcon, size: leadingVisualSize - 10)
                             .shadow(color: Color.black.opacity(0.08), radius: 1.5, y: 0.5)
                     }
                     .clipShape(shape)
@@ -117,6 +109,24 @@ struct ClipboardLeadingVisual: View {
     }
 
     @ViewBuilder
+    private func linkIcon(_ icon: NSImage, size: CGFloat) -> some View {
+        if leadingIconUsesApplicationAppearance {
+            ClipboardApplicationIconView(
+                item: item,
+                size: size,
+                fallbackIcon: icon,
+                contentScale: 1.18
+            )
+        } else {
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+        }
+    }
+
+    @ViewBuilder
     private var imageVisual: some View {
         if let thumbnail {
             Image(nsImage: thumbnail)
@@ -130,5 +140,69 @@ struct ClipboardLeadingVisual: View {
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.secondary.opacity(0.2))
         }
+    }
+}
+
+struct ClipboardApplicationIconView: View {
+    let item: ClipboardItem
+    let size: CGFloat
+    var fallbackIcon: NSImage?
+    var contentScale = CGFloat(1)
+
+    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var iconLoader = ClipboardApplicationIconLoader.shared
+    @State private var icon: NSImage?
+    @State private var loadedAppearance: ClipboardApplicationIconAppearance?
+
+    private var appearance: ClipboardApplicationIconAppearance {
+        colorScheme == .dark ? .dark : .light
+    }
+
+    private var loadToken: String {
+        "\(item.id.uuidString)-\(appearance.rawValue)-\(iconLoader.iconRevision)"
+    }
+
+    var body: some View {
+        let cachedIcon = iconLoader.cachedIcon(
+            for: item,
+            appearance: appearance
+        )
+
+        Group {
+            if let cachedIcon {
+                applicationImage(cachedIcon)
+            } else if loadedAppearance == appearance, let icon {
+                applicationImage(icon)
+            } else if let fallbackIcon {
+                applicationImage(fallbackIcon)
+            } else {
+                Image(systemName: "app.fill")
+                    .font(.system(size: max(8, size * 0.58)))
+            }
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(contentScale)
+        .frame(width: size, height: size)
+        .clipped()
+        .task(id: loadToken) {
+            let revision = iconLoader.iconRevision
+            if let cachedIcon = iconLoader.cachedIcon(for: item, appearance: appearance) {
+                icon = cachedIcon
+                loadedAppearance = appearance
+                return
+            }
+
+            let loadedIcon = await iconLoader.loadIcon(for: item, appearance: appearance)
+            guard !Task.isCancelled, iconLoader.iconRevision == revision else { return }
+            icon = loadedIcon
+            loadedAppearance = appearance
+        }
+    }
+
+    private func applicationImage(_ image: NSImage) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
     }
 }

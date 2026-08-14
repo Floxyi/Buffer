@@ -78,6 +78,13 @@ struct SettingsPrivacyExcludedAppsSection: View {
         { _ in
             iconRefreshToken &+= 1
         }
+        .onReceive(
+            NSWorkspace.shared.notificationCenter.publisher(
+                for: .workspaceIconAppearanceConfigurationDidChange
+            )
+        ) { _ in
+            iconRefreshToken &+= 1
+        }
     }
 }
 

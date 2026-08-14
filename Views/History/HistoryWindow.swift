@@ -66,7 +66,13 @@ struct HistoryContentView: View {
                 ),
                 filteredItemCount: viewModel.filteredItems.count,
                 isSearchFocused: $searchFocusController.isSearchFocused,
-                searchSelectionToken: viewModel.searchSelectionToken
+                searchSelectionToken: viewModel.searchSelectionToken,
+                filterState: viewModel.filterState,
+                applicationOptions: viewModel.applicationFilterOptions,
+                onSetBookmarkedOnly: { viewModel.setBookmarkedOnly($0) },
+                onSelectApplication: { viewModel.setSelectedApplication(bundleIdentifier: $0) },
+                onSelectKind: { viewModel.setSelectedKind($0) },
+                onSelectDatePreset: { viewModel.setDateFilterPreset($0) }
             )
 
             BufferPanelSeparator()

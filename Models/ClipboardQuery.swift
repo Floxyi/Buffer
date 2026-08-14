@@ -18,7 +18,7 @@ struct ClipboardFilters: Equatable, Sendable {
             return false
         }
         if !sourceBundleIdentifiers.isEmpty {
-            guard let bundleIdentifier = item.sourceAppBundleIdentifier,
+            guard let bundleIdentifier = item.normalizedSourceAppBundleIdentifier,
                 sourceBundleIdentifiers.contains(bundleIdentifier)
             else {
                 return false
@@ -27,8 +27,10 @@ struct ClipboardFilters: Equatable, Sendable {
         if !kinds.isEmpty, !kinds.contains(item.kind) {
             return false
         }
-        if let copiedAt, !copiedAt.contains(item.timestamp) {
-            return false
+        if let copiedAt {
+            guard item.timestamp >= copiedAt.start, item.timestamp < copiedAt.end else {
+                return false
+            }
         }
         return true
     }

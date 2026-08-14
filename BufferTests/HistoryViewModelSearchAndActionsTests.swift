@@ -215,7 +215,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         await populateStore(store, with: [ordinary, bookmarked])
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
 
-        viewModel.setFilters(ClipboardFilters(requiresBookmark: true))
+        viewModel.setBookmarkedOnly(true)
 
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [bookmarked.id])
         XCTAssertFalse(viewModel.isShowingFullHistory)
@@ -229,6 +229,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         viewModel.jumpToHistory(for: bookmarked)
 
         XCTAssertTrue(viewModel.activeQuery.isEmpty)
+        XCTAssertTrue(viewModel.filterState.isEmpty)
         XCTAssertEqual(Set(viewModel.filteredItems.map(\.id)), [ordinary.id, bookmarked.id])
         XCTAssertEqual(viewModel.selectedID, bookmarked.id)
     }
@@ -263,9 +264,40 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
 
         viewModel.searchText = "needle"
+        viewModel.setSelectedKind(.text)
         viewModel.clearSearchAfterCommittedAction()
 
         XCTAssertEqual(viewModel.searchText, "needle")
+        XCTAssertEqual(viewModel.filterState.selectedKind, .text)
+    }
+
+    func testClearSearchAfterCommittedActionClearsTextAndFiltersByDefault() {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "needle"
+        viewModel.setBookmarkedOnly(true)
+        viewModel.setSelectedKind(.text)
+        viewModel.setDateFilterPreset(.last7Days)
+
+        viewModel.clearSearchAfterCommittedAction()
+
+        XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertTrue(viewModel.filterState.isEmpty)
+        XCTAssertTrue(viewModel.activeQuery.isEmpty)
+    }
+
+    func testClearingTextDirectlyDoesNotClearFilters() {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "needle"
+        viewModel.setBookmarkedOnly(true)
+
+        viewModel.searchText = ""
+
+        XCTAssertTrue(viewModel.filterState.isBookmarkedOnly)
+        XCTAssertFalse(viewModel.activeQuery.isEmpty)
     }
 
     func testPrimaryPasteCapturesFuzzyFilteredSelectionWithoutClearingSearchBeforeCommit() async {
@@ -403,9 +435,11 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
 
         viewModel.searchText = "needle"
+        viewModel.setBookmarkedOnly(true)
         viewModel.clearSearchAfterClosingIfNeeded()
 
         XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertTrue(viewModel.filterState.isEmpty)
     }
 
     func testClearSearchAfterClosingKeepsTextWhenEnabled() {
@@ -421,9 +455,232 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
 
         viewModel.searchText = "needle"
+        viewModel.setBookmarkedOnly(true)
         viewModel.clearSearchAfterClosingIfNeeded()
 
         XCTAssertEqual(viewModel.searchText, "needle")
+        XCTAssertTrue(viewModel.filterState.isBookmarkedOnly)
+    }
+
+    func testFiltersCombineSynchronouslyWithFuzzyOCRSearch() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Berlin"))
+        let now = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: 14, hour: 12))
+        )
+        let yesterday = try XCTUnwrap(calendar.date(byAdding: .day, value: -1, to: now))
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let matching = ClipboardItem(
+            timestamp: now,
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            isBookmarked: true,
+            content: .image(.init(filename: "matching.png", ocrText: "invoice total"))
+        )
+        let wrongBookmark = ClipboardItem(
+            timestamp: now,
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            content: .image(.init(filename: "bookmark.png", ocrText: "invoice total"))
+        )
+        let wrongApp = ClipboardItem(
+            timestamp: now,
+            sourceApp: "Preview",
+            sourceAppBundleIdentifier: "com.apple.Preview",
+            isBookmarked: true,
+            content: .image(.init(filename: "app.png", ocrText: "invoice total"))
+        )
+        let wrongType = ClipboardItem(
+            timestamp: now,
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            isBookmarked: true,
+            content: .text(.init(inlineText: "invoice total"))
+        )
+        let wrongDate = ClipboardItem(
+            timestamp: yesterday,
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            isBookmarked: true,
+            content: .image(.init(filename: "date.png", ocrText: "invoice total"))
+        )
+        await populateStore(
+            store,
+            with: [matching, wrongBookmark, wrongApp, wrongType, wrongDate]
+        )
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: ""),
+            filterCalendar: calendar,
+            nowProvider: { now }
+        )
+
+        var revision = viewModel.filteredItemsRevision
+        viewModel.setBookmarkedOnly(true)
+        XCTAssertGreaterThan(viewModel.filteredItemsRevision, revision)
+        revision = viewModel.filteredItemsRevision
+        viewModel.setSelectedApplication(bundleIdentifier: "com.apple.Notes")
+        XCTAssertGreaterThan(viewModel.filteredItemsRevision, revision)
+        revision = viewModel.filteredItemsRevision
+        viewModel.setSelectedKind(.image)
+        XCTAssertGreaterThan(viewModel.filteredItemsRevision, revision)
+        revision = viewModel.filteredItemsRevision
+        viewModel.setDateFilterPreset(.today)
+        XCTAssertGreaterThan(viewModel.filteredItemsRevision, revision)
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [matching.id])
+
+        revision = viewModel.filteredItemsRevision
+        viewModel.searchText = "inovice"
+
+        XCTAssertGreaterThan(viewModel.filteredItemsRevision, revision)
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [matching.id])
+        XCTAssertEqual(viewModel.searchResultsByItemID[matching.id]?.matches.first?.field, .ocr)
+        XCTAssertEqual(
+            viewModel.searchResultsByItemID[matching.id]?.matches.first?.classification,
+            .fuzzy
+        )
+        XCTAssertEqual(viewModel.selectedID, matching.id)
+        XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[matching.id], 1)
+    }
+
+    func testApplicationOptionsDeduplicateSortAndRetainActiveSelection() {
+        let older = ClipboardItem(
+            timestamp: Date(timeIntervalSince1970: 1),
+            sourceApp: "Old Name",
+            sourceAppBundleIdentifier: "com.example.beta",
+            sourceAppBundlePath: "/Applications/Old.app",
+            content: .text(.init(inlineText: "older"))
+        )
+        let newest = ClipboardItem(
+            timestamp: Date(timeIntervalSince1970: 2),
+            sourceApp: "Beta",
+            sourceAppBundleIdentifier: "com.example.beta",
+            sourceAppBundlePath: "/Applications/Beta.app",
+            content: .text(.init(inlineText: "newest"))
+        )
+        let alpha = ClipboardItem(
+            sourceApp: "Alpha",
+            sourceAppBundleIdentifier: "com.example.alpha",
+            content: .text(.init(inlineText: "alpha"))
+        )
+        let unidentified = ClipboardItem(
+            sourceApp: "Unknown",
+            content: .text(.init(inlineText: "unknown"))
+        )
+        let invalidIdentifier = ClipboardItem(
+            sourceApp: "Invalid",
+            sourceAppBundleIdentifier: "  \n",
+            content: .text(.init(inlineText: "invalid"))
+        )
+        let options = HistoryApplicationFilterOptions.make(
+            from: [older, unidentified, newest, invalidIdentifier, alpha]
+        )
+
+        XCTAssertEqual(options.map(\.displayName), ["Alpha", "Beta"])
+        XCTAssertEqual(options.last?.iconItem.id, newest.id)
+        XCTAssertEqual(options.last?.iconItem.sourceAppBundlePath, "/Applications/Beta.app")
+
+        let retained = HistoryApplicationFilterOptions.make(
+            from: [],
+            retaining: options.last
+        )
+        XCTAssertEqual(retained, [options.last].compactMap { $0 })
+    }
+
+    func testFilterBarPresentationProjectsLabelsAccessibilityAndAvailability() {
+        let inactive = HistoryFilterBarPresentation(
+            filterState: HistoryFilterState(),
+            hasApplicationOptions: false
+        )
+
+        XCTAssertEqual(
+            [
+                inactive.bookmarks.title,
+                inactive.application.title,
+                inactive.kind.title,
+                inactive.date.title,
+            ],
+            ["Bookmarks", "App", "Type", "Date"]
+        )
+        XCTAssertEqual(
+            [
+                inactive.bookmarks.accessibilityIdentifier,
+                inactive.application.accessibilityIdentifier,
+                inactive.kind.accessibilityIdentifier,
+                inactive.date.accessibilityIdentifier,
+            ],
+            [
+                "historyFilter.bookmarks",
+                "historyFilter.app",
+                "historyFilter.type",
+                "historyFilter.date",
+            ]
+        )
+        XCTAssertFalse(inactive.bookmarks.isActive)
+        XCTAssertFalse(inactive.application.isEnabled)
+
+        let item = ClipboardItem(
+            sourceApp: "Very Long Application Name",
+            sourceAppBundleIdentifier: "com.example.long-name",
+            content: .text(.init(inlineText: "item"))
+        )
+        let application = HistoryApplicationFilterOption(
+            bundleIdentifier: "com.example.long-name",
+            displayName: "Very Long Application Name",
+            representativeItem: item
+        )
+        let activeState = HistoryFilterState(
+            isBookmarkedOnly: true,
+            selectedApplication: application,
+            selectedKind: .image,
+            datePreset: .last30Days
+        )
+        let active = HistoryFilterBarPresentation(
+            filterState: activeState,
+            hasApplicationOptions: true
+        )
+
+        XCTAssertEqual(active.application.title, "Very Long Application Name")
+        XCTAssertEqual(active.application.accessibilityValue, "Very Long Application Name")
+        XCTAssertEqual(active.kind.title, "Image")
+        XCTAssertEqual(active.date.title, "Last 30 Days")
+        XCTAssertTrue(active.bookmarks.isActive)
+        XCTAssertTrue(active.application.isActive)
+        XCTAssertTrue(active.kind.isActive)
+        XCTAssertTrue(active.date.isActive)
+        XCTAssertTrue(active.application.isEnabled)
+    }
+
+    func testViewModelRetainsSelectedApplicationAfterItsItemsDisappear() async throws {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let item = ClipboardItem(
+            sourceApp: "Notes",
+            sourceAppBundleIdentifier: "com.apple.Notes",
+            content: .text(.init(inlineText: "note"))
+        )
+        await populateStore(store, with: [item])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.setSelectedApplication(bundleIdentifier: "com.apple.Notes")
+
+        try await store.delete(item)
+        await eventually { store.items.isEmpty }
+
+        XCTAssertEqual(viewModel.applicationFilterOptions.map(\.bundleIdentifier), ["com.apple.Notes"])
+        XCTAssertEqual(
+            viewModel.filterState.selectedApplication?.bundleIdentifier,
+            "com.apple.Notes"
+        )
+        XCTAssertTrue(viewModel.filteredItems.isEmpty)
+        XCTAssertFalse(viewModel.activeQuery.isEmpty)
+
+        viewModel.setSelectedApplication(bundleIdentifier: nil)
+
+        XCTAssertTrue(viewModel.applicationFilterOptions.isEmpty)
+        XCTAssertTrue(viewModel.filterState.isEmpty)
+        XCTAssertTrue(viewModel.activeQuery.isEmpty)
     }
 }
 

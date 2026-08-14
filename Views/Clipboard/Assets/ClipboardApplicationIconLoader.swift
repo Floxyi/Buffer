@@ -1,5 +1,13 @@
 import AppKit
+import Combine
 import Foundation
+
+extension Notification.Name {
+    /// Posted by AppKit when the system app-icon style or tint changes.
+    static let workspaceIconAppearanceConfigurationDidChange = Notification.Name(
+        "NSWorkspaceIconAppearanceConfigurationDidChangeNotification"
+    )
+}
 
 private final class ClipboardApplicationIconValue: @unchecked Sendable {
     let image: NSImage?
@@ -9,14 +17,36 @@ private final class ClipboardApplicationIconValue: @unchecked Sendable {
     }
 }
 
+enum ClipboardApplicationIconAppearance: String, Sendable {
+    case light
+    case dark
+
+    @MainActor
+    static var current: Self {
+        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? .dark : .light
+    }
+
+    var appKitName: NSAppearance.Name {
+        self == .dark ? .darkAqua : .aqua
+    }
+}
+
 /// Loads native macOS application icons without flattening their size-specific
 /// representations. AppKit can therefore select the best representation for the
 /// display scale and rendered size.
 @MainActor
-final class ClipboardApplicationIconLoader {
+final class ClipboardApplicationIconLoader: ObservableObject {
     typealias IconResolver = @MainActor (ClipboardItem) async -> NSImage?
+    typealias AppearanceIconResolver =
+        @MainActor (
+            ClipboardItem,
+            ClipboardApplicationIconAppearance
+        ) async -> NSImage?
 
     static let shared = ClipboardApplicationIconLoader()
+
+    @Published private(set) var iconRevision = UInt(0)
 
     private struct ActiveLoad {
         let id: UUID
@@ -24,18 +54,37 @@ final class ClipboardApplicationIconLoader {
     }
 
     private let cache: NSCache<NSString, NSImage>
-    private let resolver: IconResolver
+    private let resolver: AppearanceIconResolver
     private var missingIconKeys = Set<String>()
     private var activeLoads: [String: ActiveLoad] = [:]
+    private var iconAppearanceCancellable: AnyCancellable?
 
     init(
         cacheLimit: Int = 120,
+        notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
         resolver: IconResolver? = nil
     ) {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = cacheLimit
         self.cache = cache
-        self.resolver = resolver ?? Self.resolveNativeIcon
+        if let resolver {
+            self.resolver = { item, _ in await resolver(item) }
+        } else {
+            self.resolver = Self.resolveNativeIcon
+        }
+        observeIconAppearanceChanges(in: notificationCenter)
+    }
+
+    init(
+        cacheLimit: Int = 120,
+        notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter,
+        appearanceResolver: @escaping AppearanceIconResolver
+    ) {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = cacheLimit
+        self.cache = cache
+        self.resolver = appearanceResolver
+        observeIconAppearanceChanges(in: notificationCenter)
     }
 
     deinit {
@@ -44,13 +93,23 @@ final class ClipboardApplicationIconLoader {
         }
     }
 
-    func cachedIcon(for item: ClipboardItem) -> NSImage? {
-        guard let key = Self.cacheKey(for: item) else { return nil }
+    func cachedIcon(
+        for item: ClipboardItem,
+        appearance: ClipboardApplicationIconAppearance = .current
+    ) -> NSImage? {
+        guard let key = Self.resolvedCacheKey(for: item, appearance: appearance) else {
+            return nil
+        }
         return cache.object(forKey: key as NSString)
     }
 
-    func loadIcon(for item: ClipboardItem) async -> NSImage? {
-        guard let key = Self.cacheKey(for: item) else { return nil }
+    func loadIcon(
+        for item: ClipboardItem,
+        appearance: ClipboardApplicationIconAppearance = .current
+    ) async -> NSImage? {
+        guard let key = Self.resolvedCacheKey(for: item, appearance: appearance) else {
+            return nil
+        }
 
         if let cachedIcon = cache.object(forKey: key as NSString) {
             return cachedIcon
@@ -68,7 +127,7 @@ final class ClipboardApplicationIconLoader {
             guard !Task.isCancelled else {
                 return ClipboardApplicationIconValue(nil)
             }
-            let icon = await resolver(item)
+            let icon = await resolver(item, appearance)
             guard !Task.isCancelled else {
                 return ClipboardApplicationIconValue(nil)
             }
@@ -90,12 +149,19 @@ final class ClipboardApplicationIconLoader {
         return value.image
     }
 
-    func prewarmIcons(for items: [ClipboardItem], limit: Int = 80) async {
+    func prewarmIcons(
+        for items: [ClipboardItem],
+        appearance: ClipboardApplicationIconAppearance = .current,
+        limit: Int = 80
+    ) async {
+        guard limit > 0 else { return }
         var seenKeys = Set<String>()
         var candidates: [ClipboardItem] = []
 
         for item in items {
-            guard let key = Self.cacheKey(for: item), seenKeys.insert(key).inserted else {
+            guard let key = Self.resolvedCacheKey(for: item, appearance: appearance),
+                seenKeys.insert(key).inserted
+            else {
                 continue
             }
             guard cache.object(forKey: key as NSString) == nil,
@@ -114,7 +180,7 @@ final class ClipboardApplicationIconLoader {
             let batchEnd = min(candidates.count, batchStart + maximumConcurrentLoads)
             let tasks = candidates[batchStart..<batchEnd].map { item in
                 Task { @MainActor [weak self] in
-                    _ = await self?.loadIcon(for: item)
+                    _ = await self?.loadIcon(for: item, appearance: appearance)
                 }
             }
             for task in tasks {
@@ -131,40 +197,66 @@ final class ClipboardApplicationIconLoader {
         activeLoads.removeAll()
         cache.removeAllObjects()
         missingIconKeys.removeAll()
+        iconRevision &+= 1
     }
 
     static func cacheKey(for item: ClipboardItem) -> String? {
         guard item.kind != .email else { return nil }
 
+        if let bundleIdentifier = item.normalizedSourceAppBundleIdentifier {
+            return "bundle:\(bundleIdentifier)"
+        }
         if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty {
             return "path:\(bundlePath)"
-        }
-        if let bundleIdentifier = item.sourceAppBundleIdentifier, !bundleIdentifier.isEmpty {
-            return "bundle:\(bundleIdentifier)"
         }
         return nil
     }
 
-    private static func resolveNativeIcon(for item: ClipboardItem) async -> NSImage? {
+    private static func resolvedCacheKey(
+        for item: ClipboardItem,
+        appearance: ClipboardApplicationIconAppearance
+    ) -> String? {
+        cacheKey(for: item).map { "\($0)|appearance:\(appearance.rawValue)" }
+    }
+
+    private func observeIconAppearanceChanges(in notificationCenter: NotificationCenter) {
+        iconAppearanceCancellable = notificationCenter.publisher(
+            for: .workspaceIconAppearanceConfigurationDidChange
+        )
+        .sink { [weak self] _ in
+            self?.clear()
+        }
+    }
+
+    private static func resolveNativeIcon(
+        for item: ClipboardItem,
+        appearance: ClipboardApplicationIconAppearance
+    ) async -> NSImage? {
         let value = await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 let icon: NSImage?
-                if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty {
-                    icon = NSWorkspace.shared.icon(forFile: bundlePath)
-                } else if let bundleIdentifier = item.sourceAppBundleIdentifier,
-                    let applicationURL = NSWorkspace.shared.urlForApplication(
-                        withBundleIdentifier: bundleIdentifier
-                    )
-                {
-                    icon = NSWorkspace.shared.icon(forFile: applicationURL.path)
-                } else {
-                    icon = nil
+                var appearanceIcon: NSImage?
+                let drawingAppearance = NSAppearance(named: appearance.appKitName)
+                drawingAppearance?.performAsCurrentDrawingAppearance {
+                    if let bundleIdentifier = item.normalizedSourceAppBundleIdentifier,
+                        let applicationURL = NSWorkspace.shared.urlForApplication(
+                            withBundleIdentifier: bundleIdentifier
+                        )
+                    {
+                        appearanceIcon = NSWorkspace.shared.icon(forFile: applicationURL.path)
+                    } else if let bundlePath = item.sourceAppBundlePath, !bundlePath.isEmpty,
+                        FileManager.default.fileExists(atPath: bundlePath)
+                    {
+                        appearanceIcon = NSWorkspace.shared.icon(forFile: bundlePath)
+                    }
                 }
+                icon = appearanceIcon
 
                 continuation.resume(
-                    returning: ClipboardApplicationIconValue(
-                        icon.map(Self.preservedCopy)
-                    )
+                    // Keep the IconServices-backed image live. On macOS 26,
+                    // generated renditions for legacy app icons can update in
+                    // place after the system icon appearance changes.
+                    returning: ClipboardApplicationIconValue(icon)
                 )
             }
         }
@@ -173,6 +265,12 @@ final class ClipboardApplicationIconLoader {
 
     nonisolated static func preservedCopy(of image: NSImage) -> NSImage {
         image.copy() as? NSImage ?? image
+    }
+
+    nonisolated static func logicalSizeCopy(of image: NSImage, size: CGFloat) -> NSImage {
+        let copy = preservedCopy(of: image)
+        copy.size = NSSize(width: size, height: size)
+        return copy
     }
 }
 

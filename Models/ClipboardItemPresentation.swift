@@ -25,6 +25,7 @@ enum ClipboardLeadingVisualStyle: Sendable {
 
 struct ClipboardItemPresentationDefinition: Sendable {
     let displayName: String
+    let symbolName: String
     let detailContentKind: ClipboardDetailContentKind
     let detailActions: Set<ClipboardDetailAction>
 }
@@ -33,33 +34,42 @@ enum ClipboardItemPresentation {
     private static let definitions: [ClipboardItemKind: ClipboardItemPresentationDefinition] = [
         .text: ClipboardItemPresentationDefinition(
             displayName: "Text",
+            symbolName: "doc.text",
             detailContentKind: .text,
             detailActions: []
         ),
         .image: ClipboardItemPresentationDefinition(
             displayName: "Image",
+            symbolName: "photo",
             detailContentKind: .image,
             detailActions: [.saveImage, .extractImageText]
         ),
         .color: ClipboardItemPresentationDefinition(
             displayName: "Color",
+            symbolName: "paintpalette.fill",
             detailContentKind: .color,
             detailActions: []
         ),
         .link: ClipboardItemPresentationDefinition(
             displayName: "Link",
+            symbolName: "link",
             detailContentKind: .link,
             detailActions: [.openLink]
         ),
         .email: ClipboardItemPresentationDefinition(
             displayName: "Email",
+            symbolName: "envelope",
             detailContentKind: .email,
             detailActions: [.composeEmail]
         ),
     ]
 
+    static func definition(for kind: ClipboardItemKind) -> ClipboardItemPresentationDefinition {
+        definitions[kind]!
+    }
+
     static func definition(for item: ClipboardItem) -> ClipboardItemPresentationDefinition {
-        definitions[item.kind]!
+        definition(for: item.kind)
     }
 
     static func previewText(for item: ClipboardItem) -> String {

@@ -23,6 +23,8 @@ final class HistoryViewModel: ObservableObject {
     @Published private var selectionViewState = HistorySelectionViewState()
     @Published private var presentationState = HistoryViewPresentationState()
     @Published private(set) var detailViewState = HistoryDetailViewState()
+    private(set) var filterState = HistoryFilterState()
+    @Published private(set) var applicationFilterOptions: [HistoryApplicationFilterOption] = []
     @Published var mutationFailure: HistoryMutationFailure?
 
     private let store: ClipboardStore
@@ -38,6 +40,8 @@ final class HistoryViewModel: ObservableObject {
     private let selectionViewStateProjector = HistorySelectionViewStateProjector()
     private let keyboardScrollRouter: HistoryKeyboardScrollRouter
     private let detailModel: HistoryDetailModel
+    private let filterCalendar: Calendar
+    private let nowProvider: @MainActor () -> Date
     private var selectionState = HistorySelectionState()
     private var quickPasteState = HistoryQuickPasteState()
     private var navigationState = HistoryNavigationState()
@@ -55,10 +59,14 @@ final class HistoryViewModel: ObservableObject {
         settingsManager: SettingsManager,
         ocrService: OCRServicing,
         assetProvider: (any ClipboardItemAssetProviding)? = nil,
-        keyboardScrollRouter: HistoryKeyboardScrollRouter = HistoryKeyboardScrollRouter()
+        keyboardScrollRouter: HistoryKeyboardScrollRouter = HistoryKeyboardScrollRouter(),
+        filterCalendar: Calendar = .autoupdatingCurrent,
+        nowProvider: @escaping @MainActor () -> Date = Date.init
     ) {
         self.store = store
         self.settingsManager = settingsManager
+        self.filterCalendar = filterCalendar
+        self.nowProvider = nowProvider
         let resolvedAssetProvider =
             assetProvider ?? ClipboardItemAssetProvider(store: store, settings: settingsManager)
         self.detailModel = HistoryDetailModel(
@@ -67,6 +75,7 @@ final class HistoryViewModel: ObservableObject {
             ocrService: ocrService
         )
         self.keyboardScrollRouter = keyboardScrollRouter
+        applicationFilterOptions = HistoryApplicationFilterOptions.make(from: store.items)
 
         let initialQuerySnapshot = queryModel.evaluate(
             items: store.items,
@@ -79,7 +88,8 @@ final class HistoryViewModel: ObservableObject {
         store.$items
             .sink { [weak self] items in
                 guard let self else { return }
-                if self.activeQuery.isEmpty || self.store.isSearchIndexReady {
+                self.refreshApplicationFilterOptions(from: items)
+                if self.activeQuery.normalizedText.isEmpty || self.store.isSearchIndexReady {
                     self.applyQuery(to: items)
                 } else {
                     self.reconcilePendingIndexedItems(items)
@@ -87,6 +97,15 @@ final class HistoryViewModel: ObservableObject {
                 self.syncSelection()
             }
             .store(in: &cancellables)
+
+        Publishers.Merge(
+            NotificationCenter.default.publisher(for: .NSCalendarDayChanged),
+            NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)
+        )
+        .sink { [weak self] _ in
+            self?.refreshActiveDateFilter()
+        }
+        .store(in: &cancellables)
 
         store.$searchIndexState
             .sink { [weak self] searchIndexState in
@@ -240,11 +259,24 @@ final class HistoryViewModel: ObservableObject {
         )
     }
 
-    func setFilters(_ filters: ClipboardFilters) {
-        guard queryFilters != filters else { return }
-        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
-            queryFilters = filters
+    func setBookmarkedOnly(_ isEnabled: Bool) {
+        mutateFilterState { $0.isBookmarkedOnly = isEnabled }
+    }
+
+    func setSelectedApplication(bundleIdentifier: String?) {
+        let selectedApplication = bundleIdentifier.flatMap { bundleIdentifier in
+            applicationFilterOptions.first { $0.bundleIdentifier == bundleIdentifier }
         }
+        guard bundleIdentifier == nil || selectedApplication != nil else { return }
+        mutateFilterState { $0.selectedApplication = selectedApplication }
+    }
+
+    func setSelectedKind(_ kind: ClipboardItemKind?) {
+        mutateFilterState { $0.selectedKind = kind }
+    }
+
+    func setDateFilterPreset(_ preset: HistoryDateFilterPreset) {
+        mutateFilterState { $0.datePreset = preset }
     }
 
     func setIncludesOCRTextInSearch(_ isEnabled: Bool) {
@@ -258,6 +290,7 @@ final class HistoryViewModel: ObservableObject {
         focusSearch: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
     ) {
+        refreshActiveDateFilter()
         let plan = sessionController.makeWindowOpenPlan(
             searchText: searchText,
             focusSearch: focusSearch,
@@ -323,21 +356,11 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func clearSearchAfterCommittedAction() {
-        if let clearedSearchText = sessionController.clearedSearchText(
-            currentSearchText: searchText,
-            shouldKeepSearchText: settingsManager.keepSearchTextAfterPaste
-        ) {
-            searchText = clearedSearchText
-        }
+        clearQueryIfNeeded(shouldKeepQuery: settingsManager.keepSearchTextAfterPaste)
     }
 
     func clearSearchAfterClosingIfNeeded() {
-        if let clearedSearchText = sessionController.clearedSearchText(
-            currentSearchText: searchText,
-            shouldKeepSearchText: settingsManager.keepSearchTextAfterClosing
-        ) {
-            searchText = clearedSearchText
-        }
+        clearQueryIfNeeded(shouldKeepQuery: settingsManager.keepSearchTextAfterClosing)
     }
 
     func selectSingle(_ id: UUID) {
@@ -528,7 +551,7 @@ final class HistoryViewModel: ObservableObject {
 
     func jumpToHistory(for item: ClipboardItem) {
         let targetID = item.id
-        let hadActiveFilters = !queryFilters.isEmpty
+        let hadActiveFilters = !filterState.isEmpty || !queryFilters.isEmpty
         navigationState = jumpNavigationController.beginJump(to: targetID, state: navigationState)
         updatePresentationState { $0.jumpToHistoryState = navigationState.jumpToHistoryState }
 
@@ -542,6 +565,7 @@ final class HistoryViewModel: ObservableObject {
         )
         if jumpPlan.searchText != nil || hadActiveFilters {
             updateQueryConfiguration(preferredID: jumpPlan.preferredSelectionID) {
+                filterState = HistoryFilterState()
                 queryFilters = ClipboardFilters()
                 if let nextSearchText = jumpPlan.searchText {
                     searchText = nextSearchText
@@ -683,6 +707,70 @@ final class HistoryViewModel: ObservableObject {
     private func rebuildFilteredItems(preferredID: UUID? = nil) {
         applyQuery(to: store.items)
         syncSelection(preferredID: preferredID)
+    }
+
+    private func mutateFilterState(_ mutation: (inout HistoryFilterState) -> Void) {
+        var nextState = filterState
+        mutation(&nextState)
+        guard nextState != filterState else { return }
+        let didChangeApplication =
+            nextState.selectedApplication?.bundleIdentifier
+            != filterState.selectedApplication?.bundleIdentifier
+
+        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
+            filterState = nextState
+            queryFilters = nextState.clipboardFilters(
+                now: nowProvider(),
+                calendar: filterCalendar
+            )
+        }
+
+        if didChangeApplication {
+            refreshApplicationFilterOptions(from: store.items)
+        }
+    }
+
+    private func clearQueryIfNeeded(shouldKeepQuery: Bool) {
+        guard !shouldKeepQuery,
+            !searchText.isEmpty || !filterState.isEmpty || !queryFilters.isEmpty
+        else { return }
+        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
+            filterState = HistoryFilterState()
+            queryFilters = ClipboardFilters()
+            searchText = ""
+        }
+    }
+
+    private func refreshActiveDateFilter() {
+        guard filterState.datePreset != .allDates else { return }
+        let nextFilters = filterState.clipboardFilters(
+            now: nowProvider(),
+            calendar: filterCalendar
+        )
+        guard nextFilters != queryFilters else { return }
+        updateQueryConfiguration(preferredID: filteredItems.first?.id) {
+            queryFilters = nextFilters
+        }
+    }
+
+    private func refreshApplicationFilterOptions(from items: [ClipboardItem]) {
+        let options = HistoryApplicationFilterOptions.make(
+            from: items,
+            retaining: filterState.selectedApplication
+        )
+        if let selectedApplication = filterState.selectedApplication,
+            let refreshedSelection = options.first(where: {
+                $0.bundleIdentifier == selectedApplication.bundleIdentifier
+            }), refreshedSelection != selectedApplication
+        {
+            var nextState = filterState
+            nextState.selectedApplication = refreshedSelection
+            filterState = nextState
+        }
+
+        if options != applicationFilterOptions {
+            applicationFilterOptions = options
+        }
     }
 
     /// Applies related query mutations as one transaction. User-entered search

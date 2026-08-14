@@ -124,6 +124,8 @@ struct ClipboardItemRow: View {
             ClipboardLeadingVisual(
                 item: item,
                 leadingIcon: leadingIcon,
+                leadingIconUsesApplicationAppearance: item.kind == .text
+                    || (item.kind == .link && !websitePreviewsEnabled),
                 thumbnail: displayedThumbnail,
                 secondaryForegroundColor: secondaryForegroundColor,
                 leadingVisualSize: leadingVisualSize

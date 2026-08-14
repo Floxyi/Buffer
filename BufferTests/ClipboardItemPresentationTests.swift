@@ -40,6 +40,11 @@ final class ClipboardItemPresentationTests: XCTestCase {
             ClipboardItemPresentation.definition(for: image).detailActions,
             [.saveImage, .extractImageText]
         )
+        XCTAssertEqual(ClipboardItemPresentation.definition(for: .text).symbolName, "doc.text")
+        XCTAssertEqual(ClipboardItemPresentation.definition(for: .image).symbolName, "photo")
+        XCTAssertEqual(ClipboardItemPresentation.definition(for: .color).symbolName, "paintpalette.fill")
+        XCTAssertEqual(ClipboardItemPresentation.definition(for: .link).symbolName, "link")
+        XCTAssertEqual(ClipboardItemPresentation.definition(for: .email).symbolName, "envelope")
     }
 
     func testEmailPresentationUsesDedicatedTypeAndComposeAction() throws {

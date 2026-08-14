@@ -13,6 +13,17 @@ struct ClipboardItemSourceApplication: Equatable, Sendable {
 }
 
 extension ClipboardItem {
+    var normalizedSourceAppBundleIdentifier: String? {
+        guard
+            let bundleIdentifier = sourceAppBundleIdentifier?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ), !bundleIdentifier.isEmpty
+        else {
+            return nil
+        }
+        return bundleIdentifier
+    }
+
     var sourceAppDisplayName: String? {
         if let sourceApp, !sourceApp.isEmpty {
             return sourceApp
@@ -24,8 +35,8 @@ extension ClipboardItem {
                 .lastPathComponent
         }
 
-        if let sourceAppBundleIdentifier, !sourceAppBundleIdentifier.isEmpty {
-            return sourceAppBundleIdentifier
+        if let normalizedSourceAppBundleIdentifier {
+            return normalizedSourceAppBundleIdentifier
         }
 
         return nil

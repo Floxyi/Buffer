@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class ClipboardApplicationIconLoaderTests: XCTestCase {
-    func testCacheKeyPrefersBundlePath() {
+    func testCacheKeyPrefersStableBundleIdentifier() {
         let item = makeItem(
             bundleIdentifier: "com.example.app",
             bundlePath: "/Applications/Example.app"
@@ -13,16 +13,16 @@ final class ClipboardApplicationIconLoaderTests: XCTestCase {
 
         XCTAssertEqual(
             ClipboardApplicationIconLoader.cacheKey(for: item),
-            "path:/Applications/Example.app"
+            "bundle:com.example.app"
         )
     }
 
-    func testCacheKeyFallsBackToBundleIdentifier() {
-        let item = makeItem(bundleIdentifier: "com.example.app")
+    func testCacheKeyFallsBackToBundlePath() {
+        let item = makeItem(bundlePath: "/Applications/Example.app")
 
         XCTAssertEqual(
             ClipboardApplicationIconLoader.cacheKey(for: item),
-            "bundle:com.example.app"
+            "path:/Applications/Example.app"
         )
     }
 
@@ -40,6 +40,37 @@ final class ClipboardApplicationIconLoaderTests: XCTestCase {
         XCTAssertNil(ClipboardApplicationIconLoader.cacheKey(for: item))
     }
 
+    func testRegisteredBundleIdentifierOverridesStaleRecordedPath() async throws {
+        let finderBundleIdentifier = "com.apple.finder"
+        XCTAssertNotNil(
+            NSWorkspace.shared.urlForApplication(
+                withBundleIdentifier: finderBundleIdentifier
+            )
+        )
+        let item = makeItem(
+            bundleIdentifier: finderBundleIdentifier,
+            bundlePath: "/Applications/Removed Finder Copy.app"
+        )
+        let loader = ClipboardApplicationIconLoader()
+
+        let icon = await loader.loadIcon(for: item)
+
+        XCTAssertNotNil(icon)
+    }
+
+    func testMissingRemoteApplicationPathDoesNotProduceGenericLightIcon() async {
+        let identifier = "com.buffer-tests.missing-\(UUID().uuidString)"
+        let item = makeItem(
+            bundleIdentifier: identifier,
+            bundlePath: "/Applications/Missing Buffer Test App \(UUID().uuidString).app"
+        )
+        let loader = ClipboardApplicationIconLoader()
+
+        let icon = await loader.loadIcon(for: item)
+
+        XCTAssertNil(icon)
+    }
+
     func testPreservedCopyRetainsLogicalSizeAndEveryRepresentation() throws {
         let icon = makeMultiRepresentationIcon()
         let expectedRepresentations = representationDescriptors(for: icon)
@@ -48,6 +79,16 @@ final class ClipboardApplicationIconLoaderTests: XCTestCase {
 
         XCTAssertFalse(copy === icon)
         XCTAssertEqual(copy.size, icon.size)
+        XCTAssertEqual(representationDescriptors(for: copy), expectedRepresentations)
+    }
+
+    func testLogicalSizeCopyUsesNativeMenuDimensionsWithoutFlatteningRepresentations() {
+        let icon = makeMultiRepresentationIcon()
+        let expectedRepresentations = representationDescriptors(for: icon)
+
+        let copy = ClipboardApplicationIconLoader.logicalSizeCopy(of: icon, size: 16)
+
+        XCTAssertEqual(copy.size, NSSize(width: 16, height: 16))
         XCTAssertEqual(representationDescriptors(for: copy), expectedRepresentations)
     }
 
@@ -72,6 +113,58 @@ final class ClipboardApplicationIconLoaderTests: XCTestCase {
             representationDescriptors(for: firstIcon),
             representationDescriptors(for: sourceIcon)
         )
+    }
+
+    func testLightAndDarkIconsUseSeparateCacheEntries() async throws {
+        let lightIcon = makeTestImage(color: .white)
+        let darkIcon = makeTestImage(color: .black)
+        var resolvedAppearances: [ClipboardApplicationIconAppearance] = []
+        let loader = ClipboardApplicationIconLoader { _, appearance in
+            resolvedAppearances.append(appearance)
+            return appearance == .dark ? darkIcon : lightIcon
+        }
+        let item = makeItem(bundlePath: "/Applications/Example.app")
+
+        let firstLightIcon = await loader.loadIcon(for: item, appearance: .light)
+        let loadedDarkIcon = await loader.loadIcon(for: item, appearance: .dark)
+        let secondLightIcon = await loader.loadIcon(for: item, appearance: .light)
+
+        XCTAssertTrue(try XCTUnwrap(firstLightIcon) === lightIcon)
+        XCTAssertTrue(try XCTUnwrap(loadedDarkIcon) === darkIcon)
+        XCTAssertTrue(try XCTUnwrap(secondLightIcon) === lightIcon)
+        XCTAssertEqual(resolvedAppearances, [.light, .dark])
+        XCTAssertTrue(loader.cachedIcon(for: item, appearance: .light) === lightIcon)
+        XCTAssertTrue(loader.cachedIcon(for: item, appearance: .dark) === darkIcon)
+    }
+
+    func testSystemIconAppearanceChangeInvalidatesCacheAndPublishesRevision() async throws {
+        let notificationCenter = NotificationCenter()
+        let originalIcon = makeTestImage(color: .white)
+        let updatedIcon = makeTestImage(color: .blue)
+        var resolutionCount = 0
+        let loader = ClipboardApplicationIconLoader(
+            notificationCenter: notificationCenter
+        ) { _ in
+            resolutionCount += 1
+            return resolutionCount == 1 ? originalIcon : updatedIcon
+        }
+        let item = makeItem(bundlePath: "/Applications/Example.app")
+
+        let firstIcon = await loader.loadIcon(for: item)
+        XCTAssertTrue(try XCTUnwrap(firstIcon) === originalIcon)
+        XCTAssertEqual(loader.iconRevision, 0)
+
+        notificationCenter.post(
+            name: .workspaceIconAppearanceConfigurationDidChange,
+            object: nil
+        )
+
+        XCTAssertEqual(loader.iconRevision, 1)
+        XCTAssertNil(loader.cachedIcon(for: item))
+
+        let reloadedIcon = await loader.loadIcon(for: item)
+        XCTAssertTrue(try XCTUnwrap(reloadedIcon) === updatedIcon)
+        XCTAssertEqual(resolutionCount, 2)
     }
 
     private func makeItem(
