@@ -1,6 +1,7 @@
 import Foundation
 
 struct HistoryQuerySnapshot: Equatable {
+    let id = UUID()
     var revision: UInt = 0
     var query = ClipboardQuery()
     var items: [ClipboardItem] = []

@@ -50,6 +50,3 @@ mv "${buffer_new_app}" "${buffer_dist_app}"
 echo
 echo "Created ${buffer_dist_app}"
 echo "Architectures: $(/usr/bin/lipo -archs "${buffer_dist_app}/Contents/MacOS/Buffer")"
-echo
-echo "Run this on the client Mac:"
-echo "scp -r <ssh-host>:'${buffer_dist_app}' ~/Applications/"

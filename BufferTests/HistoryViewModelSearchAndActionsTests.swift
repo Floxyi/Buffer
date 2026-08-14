@@ -31,6 +31,39 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         }
     }
 
+    func testRapidSearchAlwaysProjectsRowsFromLatestQuerySnapshot() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let alpha = ClipboardItem.text("alpha needle")
+        let beta = ClipboardItem.text("beta haystack")
+        await populateStore(store, with: [alpha, beta])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        let staleCache = ClipboardListStructure.makeDisplayCache(
+            from: viewModel.filteredItems,
+            sourceSnapshotID: viewModel.filteredItemsSnapshotID
+        )
+        let projector = ClipboardListDisplayStateProjector()
+
+        let expectations: [(query: String, visibleIDs: [UUID])] = [
+            ("alpha", [alpha.id]),
+            ("beta", [beta.id]),
+            ("needle", [alpha.id]),
+        ]
+
+        for expectation in expectations {
+            viewModel.searchText = expectation.query
+
+            let state = projector.project(
+                items: viewModel.filteredItems,
+                itemsSnapshotID: viewModel.filteredItemsSnapshotID,
+                cache: staleCache,
+                viewportHeight: 200
+            )
+
+            XCTAssertEqual(state.layoutIndex.entries.map(\.id), expectation.visibleIDs)
+        }
+    }
+
     func testActiveSearchRefreshesWhenDelayedIndexBecomesReady() async throws {
         let indexer = SuspendedClipboardSearchIndexer()
         let settings = makeHistoryTestSettings()

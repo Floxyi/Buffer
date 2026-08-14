@@ -18,7 +18,7 @@ struct HistoryClipboardListPane: View {
                 ClipboardListView(
                     state: ClipboardListViewState(
                         items: viewModel.filteredItems,
-                        itemsRevision: viewModel.filteredItemsRevision,
+                        itemsSnapshotID: viewModel.filteredItemsSnapshotID,
                         selectedIDs: viewModel.selectedIDs,
                         quickPasteBadgeNumberByItemID: viewModel.showsQuickPasteNumbers
                             ? viewModel.quickPasteBadgeNumberByItemID

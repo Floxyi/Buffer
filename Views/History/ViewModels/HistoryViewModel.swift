@@ -126,6 +126,10 @@ final class HistoryViewModel: ObservableObject {
         querySnapshot.revision
     }
 
+    var filteredItemsSnapshotID: UUID {
+        querySnapshot.id
+    }
+
     var searchResultsByItemID: [UUID: ClipboardSearchResult] {
         querySnapshot.resultsByItemID
     }

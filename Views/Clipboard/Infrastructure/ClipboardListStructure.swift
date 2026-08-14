@@ -28,6 +28,7 @@ enum ClipboardListStructure {
     }
 
     struct DisplayCache {
+        let sourceSnapshotID: UUID?
         let sectionGroupingSignature: SectionGroupingSignature
         let itemIDs: [UUID]
         let displayRows: [DisplayRow]
@@ -36,6 +37,7 @@ enum ClipboardListStructure {
         let layoutIndex: ClipboardListLayoutIndex
 
         static let empty = DisplayCache(
+            sourceSnapshotID: nil,
             sectionGroupingSignature: .current(),
             itemIDs: [],
             displayRows: [],
@@ -43,6 +45,19 @@ enum ClipboardListStructure {
             primaryLabelTextByID: [:],
             layoutIndex: .empty
         )
+
+        func matches(
+            sourceSnapshotID: UUID,
+            referenceDate: Date = Date(),
+            calendar: Calendar = .current
+        ) -> Bool {
+            self.sourceSnapshotID == sourceSnapshotID
+                && sectionGroupingSignature
+                    == SectionGroupingSignature(
+                        referenceDate: referenceDate,
+                        calendar: calendar
+                    )
+        }
 
         func matches(
             items: [ClipboardItem],
@@ -119,6 +134,7 @@ enum ClipboardListStructure {
 
     static func makeDisplayCache(
         from items: [ClipboardItem],
+        sourceSnapshotID: UUID? = nil,
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> DisplayCache {
@@ -137,6 +153,7 @@ enum ClipboardListStructure {
         )
 
         return DisplayCache(
+            sourceSnapshotID: sourceSnapshotID,
             sectionGroupingSignature: SectionGroupingSignature(
                 referenceDate: referenceDate,
                 calendar: calendar

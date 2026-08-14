@@ -7,11 +7,31 @@ enum ClipboardListCoordinateSpace {
 
 struct ClipboardListViewState {
     let items: [ClipboardItem]
-    let itemsRevision: UInt
+    let itemsSnapshotID: UUID
     let selectedIDs: Set<UUID>
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let searchResultsByItemID: [UUID: ClipboardSearchResult]
     let queryText: String
+
+    var contentSnapshot: ClipboardListContentSnapshot {
+        ClipboardListContentSnapshot(
+            id: itemsSnapshotID,
+            items: items
+        )
+    }
+}
+
+/// The authoritative item payload for one query publication. Equality intentionally
+/// uses the snapshot identity: the payload lets lifecycle callbacks consume the
+/// exact items associated with the new query publication instead of recapturing stale
+/// SwiftUI view values.
+struct ClipboardListContentSnapshot: Equatable {
+    let id: UUID
+    let items: [ClipboardItem]
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 struct ClipboardListNavigationState {
