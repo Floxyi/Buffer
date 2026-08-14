@@ -85,10 +85,7 @@ struct HistoryPanelConfigurator {
         panel.isMovableByWindowBackground = configuration.allowsMoving
         panel.hasShadow = true
 
-        panel.contentView?.wantsLayer = true
-        panel.contentView?.layer?.cornerRadius = HistoryWindowStyle.panelCornerRadius
-        panel.contentView?.layer?.masksToBounds = true
-        panel.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+        panel.updateRoundedSurface(cornerRadius: HistoryWindowStyle.panelCornerRadius)
 
         panel.center()
 
@@ -111,7 +108,10 @@ struct HistoryPanelConfigurator {
         containerView.autoresizingMask = [.width, .height]
         containerView.wantsLayer = true
         containerView.layer?.backgroundColor = NSColor.clear.cgColor
-        containerView.layer?.masksToBounds = false
+        containerView.layer?.cornerRadius = HistoryWindowStyle.panelCornerRadius
+        containerView.layer?.cornerCurve = .continuous
+        containerView.layer?.masksToBounds = true
+        containerView.layer?.allowsEdgeAntialiasing = true
 
         let effectView = makeBufferEffectView(appearance: configuration.appearance)
         effectView.frame = containerView.bounds

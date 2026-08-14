@@ -41,6 +41,13 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertFalse(panel.isMovable)
         XCTAssertFalse(panel.isMovableByWindowBackground)
         XCTAssertTrue(panel.hasShadow)
+        XCTAssertEqual(panel.contentView?.layer?.cornerRadius, HistoryWindowStyle.panelCornerRadius)
+        XCTAssertTrue(panel.contentView?.layer?.masksToBounds == true)
+        XCTAssertEqual(
+            panel.contentView?.superview?.layer?.cornerRadius,
+            HistoryWindowStyle.panelCornerRadius
+        )
+        XCTAssertTrue(panel.contentView?.superview?.layer?.masksToBounds == true)
     }
 
     func testConfigurationControlsSizingAndWindowCapabilities() {
@@ -94,7 +101,10 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
     }
 
     func testNativeAlertAttachesToBorderlessHistoryPanel() {
-        let panel = HistoryPanelConfigurator().makePanel()
+        let configurator = HistoryPanelConfigurator()
+        let panel = configurator.makePanel()
+        let observer = configurator.configure(panel) {}
+        defer { NotificationCenter.default.removeObserver(observer) }
         panel.orderFront(nil)
         defer { panel.close() }
 
@@ -105,9 +115,26 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
 
         let attachedSheet = panel.attachedSheet
         XCTAssertNotNil(attachedSheet)
+        XCTAssertTrue(panel.contentView?.layer?.masksToBounds == true)
+        XCTAssertTrue(panel.contentView?.superview?.layer?.masksToBounds == true)
         if let attachedSheet {
             panel.endSheet(attachedSheet)
         }
+    }
+
+    func testReplacingPanelContentPreservesRoundedSurfaceForDialogs() {
+        let configurator = HistoryPanelConfigurator()
+        let panel = configurator.makePanel()
+        let observer = configurator.configure(panel) {}
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let replacement = NSView(frame: NSRect(origin: .zero, size: HistoryWindowStyle.panelSize))
+        panel.contentView = replacement
+
+        XCTAssertEqual(replacement.layer?.cornerRadius, HistoryWindowStyle.panelCornerRadius)
+        XCTAssertEqual(replacement.layer?.cornerCurve, .continuous)
+        XCTAssertTrue(replacement.layer?.masksToBounds == true)
+        XCTAssertTrue(replacement.layer?.allowsEdgeAntialiasing == true)
     }
 
     func testMakeContentConfigurationReturnsAnimatedEffectContainer() {
@@ -120,6 +147,11 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertEqual(configuration.containerView.subviews.count, 1)
         XCTAssertTrue(configuration.containerView.subviews[0] === configuration.animatedContentView)
         XCTAssertEqual(configuration.animatedContentView.subviews.count, 1)
+        XCTAssertEqual(
+            configuration.containerView.layer?.cornerRadius,
+            HistoryWindowStyle.panelCornerRadius
+        )
+        XCTAssertTrue(configuration.containerView.layer?.masksToBounds == true)
     }
 }
 

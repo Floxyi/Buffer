@@ -295,6 +295,7 @@ final class HistoryPasteCoordinator {
 final class HistoryPanel: NSPanel {
     var onClickOutside: (() -> Void)?
     var dismissesWhenResigningKey = true
+    private var surfaceCornerRadius = CGFloat.zero
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -325,6 +326,17 @@ final class HistoryPanel: NSPanel {
         orderOut(nil)
     }
 
+    func updateRoundedSurface(cornerRadius: CGFloat) {
+        surfaceCornerRadius = cornerRadius
+        applyRoundedSurface()
+    }
+
+    override var contentView: NSView? {
+        didSet {
+            applyRoundedSurface()
+        }
+    }
+
     override func resignKey() {
         super.resignKey()
 
@@ -333,6 +345,19 @@ final class HistoryPanel: NSPanel {
         }
 
         onClickOutside?()
+    }
+
+    private func applyRoundedSurface() {
+        guard surfaceCornerRadius > 0 else { return }
+
+        for view in [contentView, contentView?.superview].compactMap({ $0 }) {
+            view.wantsLayer = true
+            view.layer?.backgroundColor = NSColor.clear.cgColor
+            view.layer?.cornerRadius = surfaceCornerRadius
+            view.layer?.cornerCurve = .continuous
+            view.layer?.masksToBounds = true
+            view.layer?.allowsEdgeAntialiasing = true
+        }
     }
 }
 
