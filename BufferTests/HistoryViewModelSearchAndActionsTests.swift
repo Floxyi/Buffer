@@ -219,7 +219,6 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
 
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [bookmarked.id])
         XCTAssertFalse(viewModel.isShowingFullHistory)
-        XCTAssertTrue(viewModel.detailViewState.canJumpToHistorySelection)
         XCTAssertTrue(
             viewModel.contextMenuActions(for: bookmarked.id).contains {
                 $0.action == .jumpToHistory

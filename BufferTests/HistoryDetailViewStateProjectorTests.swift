@@ -27,7 +27,6 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertEqual(state.selectedItemSourceName, nil)
         XCTAssertEqual(state.linkSelectionCount, 1)
         XCTAssertEqual(state.selectedItemsTotalSizeText, "512 bytes")
-        XCTAssertTrue(state.canJumpToHistorySelection)
         XCTAssertEqual(
             state.actions.map(\.action),
             [.copy, .openLink, .jumpToHistory, .toggleBookmark, .togglePin, .delete]
@@ -51,7 +50,6 @@ final class HistoryDetailViewStateProjectorTests: XCTestCase {
         XCTAssertEqual(state.imageSelectionCount, 1)
         XCTAssertTrue(state.canSaveSelectedImage)
         XCTAssertTrue(state.canExtractSelectedImageText)
-        XCTAssertFalse(state.canJumpToHistorySelection)
     }
 
     func testProjectsBookmarkAndPinStateAcrossActionTargets() {

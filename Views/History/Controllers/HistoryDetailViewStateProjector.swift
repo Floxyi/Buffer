@@ -54,8 +54,7 @@ struct HistoryDetailViewStateProjector {
             canSaveSelectedImage: canSaveSelectedImage,
             canExtractSelectedImageText: canExtractSelectedImageText,
             selectedItemIsBookmarked: !actionTargets.isEmpty && actionTargets.allSatisfy(\.isBookmarked),
-            selectedItemIsPinned: !actionTargets.isEmpty && actionTargets.allSatisfy(\.isPinned),
-            canJumpToHistorySelection: canJumpToHistorySelection
+            selectedItemIsPinned: !actionTargets.isEmpty && actionTargets.allSatisfy(\.isPinned)
         )
     }
 

@@ -100,8 +100,6 @@ struct HistoryContentView: View {
                 showsBookmarkedShortcutAsRemove: viewModel.detailViewState.selectedItemIsBookmarked,
                 showsPinnedShortcutAsUnpin: viewModel.detailViewState.selectedItemIsPinned,
                 showsSaveShortcut: viewModel.detailViewState.canSaveSelectedImage,
-                showsJumpToHistory: viewModel.detailViewState.canJumpToHistorySelection,
-                onJumpToHistory: actionHandler.jumpToHistorySelection,
                 onPaste: actionHandler.performPrimaryPasteAction
             )
         }

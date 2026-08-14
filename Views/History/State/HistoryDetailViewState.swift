@@ -22,5 +22,4 @@ struct HistoryDetailViewState {
     var canExtractSelectedImageText = false
     var selectedItemIsBookmarked = false
     var selectedItemIsPinned = false
-    var canJumpToHistorySelection = false
 }

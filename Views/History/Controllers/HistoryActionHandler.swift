@@ -37,11 +37,6 @@ struct HistoryActionHandler {
         }
     }
 
-    func jumpToHistorySelection() {
-        guard let item = viewModel.selectedItem else { return }
-        viewModel.jumpToHistory(for: item)
-    }
-
     func performDetailAction(_ action: HistoryItemAction) {
         performAction(action, items: currentSelectionSnapshot())
     }
