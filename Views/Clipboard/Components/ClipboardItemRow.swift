@@ -13,7 +13,8 @@ struct ClipboardItemRow: View {
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
-    let matchedQueryText: String?
+    let queryPlan: ClipboardQueryPlan?
+    let contentMatchClassification: ClipboardMatchClassification?
     let isHovered: Bool
     private let assetProvider: any ClipboardItemAssetProviding
     @State private var thumbnail: NSImage?
@@ -29,7 +30,8 @@ struct ClipboardItemRow: View {
         joinsSelectionBelow: Bool,
         selectionJoinOverlap: CGFloat,
         quickPasteNumber: Int?,
-        matchedQueryText: String? = nil,
+        queryPlan: ClipboardQueryPlan? = nil,
+        contentMatchClassification: ClipboardMatchClassification? = nil,
         isHovered: Bool,
         assetProvider: any ClipboardItemAssetProviding
     ) {
@@ -41,7 +43,8 @@ struct ClipboardItemRow: View {
         self.joinsSelectionBelow = joinsSelectionBelow
         self.selectionJoinOverlap = selectionJoinOverlap
         self.quickPasteNumber = quickPasteNumber
-        self.matchedQueryText = matchedQueryText
+        self.queryPlan = queryPlan
+        self.contentMatchClassification = contentMatchClassification
         self.isHovered = isHovered
         self.assetProvider = assetProvider
         self._thumbnail = State(
@@ -129,7 +132,8 @@ struct ClipboardItemRow: View {
 
             ClipboardMatchedText(
                 text: displayedPrimaryLabelText,
-                query: matchedQueryText
+                queryPlan: queryPlan,
+                matchClassification: contentMatchClassification
             )
             .font(.system(size: 13))
             .foregroundColor(foregroundColor)

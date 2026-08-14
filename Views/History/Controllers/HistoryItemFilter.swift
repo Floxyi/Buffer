@@ -21,11 +21,19 @@ struct HistoryItemFilter {
         }
 
         return BufferPerformanceDiagnostics.measure(.historyFilter) {
-            items.compactMap { item in
-                guard let result = searchIndex.result(for: item, query: query) else {
-                    return nil
+            let eligibleItems = items.filter(query.filters.matches)
+            guard !query.normalizedText.isEmpty else {
+                return eligibleItems.map {
+                    ($0, ClipboardSearchResult(itemID: $0.id, score: 0, matches: []))
                 }
-                return (item, result)
+            }
+
+            let resultsByItemID = searchIndex.results(
+                for: eligibleItems.map(\.id),
+                query: query
+            )
+            return eligibleItems.compactMap { item in
+                resultsByItemID[item.id].map { (item, $0) }
             }
         }
     }

@@ -15,6 +15,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         let expectations: [(query: String, itemIDs: Set<UUID>)] = [
             ("a", [alpha.id, beta.id]),
             ("al", [alpha.id]),
+            ("alhpa", [alpha.id]),
             ("alpha n", [alpha.id]),
             ("alpha needle", [alpha.id]),
             ("beta", [beta.id]),
@@ -125,6 +126,15 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         viewModel.searchText = "ocr needle"
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [imageItem.id])
 
+        viewModel.searchText = "orc needel"
+        XCTAssertEqual(viewModel.filteredItems.map(\.id), [imageItem.id])
+        XCTAssertEqual(
+            viewModel.searchResultsByItemID[imageItem.id]?.matches.first {
+                $0.field == .ocr
+            }?.classification,
+            .fuzzy
+        )
+
         viewModel.searchText = "inline needle"
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [inlineItem.id])
 
@@ -174,7 +184,12 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             originalText: "openai.com/research"
         )
         await populateStore(store, with: [item])
-        XCTAssertNotNil(store.searchResult(for: item, query: ClipboardQuery(text: "openai")))
+        XCTAssertNotNil(
+            store.searchIndexSnapshot.results(
+                for: [item.id],
+                query: ClipboardQuery(text: "openai")
+            )[item.id]
+        )
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
         viewModel.searchText = "openai"
@@ -253,7 +268,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(viewModel.searchText, "needle")
     }
 
-    func testPrimaryPasteCapturesFilteredSelectionWithoutClearingSearchBeforeCommit() async {
+    func testPrimaryPasteCapturesFuzzyFilteredSelectionWithoutClearingSearchBeforeCommit() async {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)
         await populateStore(
@@ -265,7 +280,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             ]
         )
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
-        viewModel.searchText = "matching"
+        viewModel.searchText = "macthing"
         let selectedItem = viewModel.filteredItems[1]
         viewModel.selectSingle(selectedItem.id)
         var pastedItem: ClipboardItem?
@@ -279,7 +294,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         actionHandler.performPrimaryPasteAction()
 
         XCTAssertEqual(pastedItem?.id, selectedItem.id)
-        XCTAssertEqual(viewModel.searchText, "matching")
+        XCTAssertEqual(viewModel.searchText, "macthing")
     }
 
     func testPrimaryPasteCapturesFilteredMultiSelectionInActionOrderWithoutClearingSearch() async {

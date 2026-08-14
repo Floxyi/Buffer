@@ -54,8 +54,14 @@ enum ClipboardMatchField: Hashable, Sendable {
     case ocr
 }
 
+enum ClipboardMatchClassification: Equatable, Sendable {
+    case exact
+    case fuzzy
+}
+
 struct ClipboardTextMatch: Equatable, Sendable {
     let field: ClipboardMatchField
+    let classification: ClipboardMatchClassification
     let ranges: [Range<String.Index>]
 }
 

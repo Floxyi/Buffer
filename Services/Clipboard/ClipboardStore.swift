@@ -358,14 +358,6 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         searchIndexState.index.searchableText(for: item.id)
     }
 
-    func matchesSearchQuery(_ normalizedQuery: String, for item: ClipboardItem) -> Bool {
-        searchIndexState.index.matches(normalizedQuery, for: item.id)
-    }
-
-    func searchResult(for item: ClipboardItem, query: ClipboardQuery) -> ClipboardSearchResult? {
-        searchIndexState.index.result(for: item, query: query)
-    }
-
     var searchIndexSnapshot: ClipboardSearchIndex {
         searchIndexState.index
     }

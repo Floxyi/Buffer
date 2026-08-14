@@ -97,6 +97,9 @@ struct ClipboardListRowsSection: View {
         let index = indexForItem(item)
         let previousItemID = adjacentItemID(before: index)
         let nextItemID = adjacentItemID(after: index)
+        let contentMatch = searchResultsByItemID[item.id]?.matches.first {
+            $0.field == .content
+        }
 
         return ClipboardInteractiveItemRow(
             item: item,
@@ -109,9 +112,8 @@ struct ClipboardListRowsSection: View {
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
-            matchedQueryText: searchResultsByItemID[item.id]?.matches.contains {
-                $0.field == .content
-            } == true ? queryText : nil,
+            queryPlan: contentMatch == nil ? nil : ClipboardQueryPlan(queryText),
+            contentMatchClassification: contentMatch?.classification,
             isContextMenuHighlighted: contextMenuState.highlightedItemID == item.id,
             contextMenuIsActive: contextMenuState.highlightedItemID != nil,
             onCommitSelection: onCommitSelection,
@@ -172,7 +174,8 @@ private struct ClipboardInteractiveItemRow: View {
     let joinsSelectionBelow: Bool
     let selectionJoinOverlap: CGFloat
     let quickPasteNumber: Int?
-    let matchedQueryText: String?
+    let queryPlan: ClipboardQueryPlan?
+    let contentMatchClassification: ClipboardMatchClassification?
     let isContextMenuHighlighted: Bool
     let contextMenuIsActive: Bool
     let onCommitSelection: () -> Void
@@ -197,7 +200,8 @@ private struct ClipboardInteractiveItemRow: View {
             joinsSelectionBelow: joinsSelectionBelow,
             selectionJoinOverlap: selectionJoinOverlap,
             quickPasteNumber: quickPasteNumber,
-            matchedQueryText: matchedQueryText,
+            queryPlan: queryPlan,
+            contentMatchClassification: contentMatchClassification,
             isHovered: isHovered || isContextMenuHighlighted,
             assetProvider: assetProvider
         )
