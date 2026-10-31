@@ -217,6 +217,12 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         }
     }
 
+    func reorderPinnedItems(_ request: ClipboardPinnedReorderRequest) async throws {
+        try await runRepositoryMutation { repository in
+            try await repository.reorderPinnedItems(request)
+        }
+    }
+
     func toggleBookmark(for item: ClipboardItem) async throws {
         try await runRepositoryMutation { repository in
             try await repository.toggleBookmark(for: item)

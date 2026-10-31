@@ -42,6 +42,7 @@ final class HistoryViewModel: ObservableObject {
     private let actionResolver = HistoryActionResolver()
     private let contextMenuController = HistoryContextMenuController()
     private let itemMutationController = HistoryItemMutationController()
+    private var pinnedReorderCommitIsInFlight = false
     private let sessionController = HistorySessionController()
     private let selectionViewStateProjector = HistorySelectionViewStateProjector()
     private let keyboardScrollRouter: HistoryKeyboardScrollRouter
@@ -90,7 +91,7 @@ final class HistoryViewModel: ObservableObject {
             .sink { [weak self] items in
                 guard let self else { return }
                 self.scheduleQuery(
-                    preferredID: self.pendingMutationPreferredSelectionID ?? self.selectedID,
+                    preferredID: self.pendingMutationPreferredSelectionID,
                     itemsSnapshot: items
                 )
             }
@@ -114,7 +115,7 @@ final class HistoryViewModel: ObservableObject {
                         > (self.publishedSearchContext?.session.committedState.indexGeneration ?? 0)
                 else { return }
                 self.scheduleQuery(
-                    preferredID: self.selectedID
+                    preferredID: self.selectionState.selectedIDs.isEmpty ? self.selectedID : nil
                 )
             }
             .store(in: &cancellables)
@@ -388,6 +389,12 @@ final class HistoryViewModel: ObservableObject {
             return
         }
 
+        guard
+            selectionState.selectedIDs != [id]
+                || selectionState.selectedID != id
+                || selectionState.selectedIndex != resolvedIndex
+        else { return }
+
         let selectionToken = BufferPerformanceDiagnostics.begin(.pointerSelection)
         navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
         selectionState = selectionController.applySingleSelection(
@@ -516,6 +523,22 @@ final class HistoryViewModel: ObservableObject {
         focusSingleMutationTargetIfNeeded(items)
         performMutation { [self] in
             try await itemMutationController.togglePinForSelectedItems(items, store: store)
+        }
+    }
+
+    @discardableResult
+    func reorderPinnedItems(_ request: ClipboardPinnedReorderRequest) async -> Bool {
+        guard isShowingFullHistory, !pinnedReorderCommitIsInFlight else { return false }
+
+        pinnedReorderCommitIsInFlight = true
+        defer { pinnedReorderCommitIsInFlight = false }
+
+        do {
+            try await itemMutationController.reorderPinnedItems(request, store: store)
+            return true
+        } catch {
+            mutationFailure = HistoryMutationFailure(message: error.localizedDescription)
+            return false
         }
     }
 

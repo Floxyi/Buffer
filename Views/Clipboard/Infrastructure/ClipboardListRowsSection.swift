@@ -54,6 +54,7 @@ final class ClipboardListHoverCoordinator {
 struct ClipboardListRowsSection: View {
     let rows: [ClipboardListStructure.DisplayRow]
     let items: [ClipboardItem]
+    let pinnedItemIDs: [UUID]
     let websitePreviewsEnabled: Bool
     let assetProvider: any ClipboardItemAssetProviding
     let quickPasteBadgeNumberByItemID: [UUID: Int]
@@ -61,25 +62,150 @@ struct ClipboardListRowsSection: View {
     let searchResultsByItemID: [UUID: ClipboardSearchHit]
     let queryText: String
     let committedQueryText: String
-    let searchResultAnimationID: UUID?
     let searchResultAnimationPolicy: SearchResultAnimationPolicy
+    let allowsPinnedReordering: Bool
+    let reduceMotion: Bool
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
     let onExtendSelectionTo: (UUID) -> Void
     let contextMenuActions: (UUID) -> [HistoryItemActionDescriptor]
     let onContextMenuAction: (UUID, HistoryItemAction) -> Void
+    let onReorderPinnedItems: (ClipboardPinnedReorderRequest) async -> Bool
 
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
+    @ObservedObject var pinnedReorderCoordinator: ClipboardPinnedReorderCoordinator
+    let scrollController: ScrollController
     let hoverCoordinator: ClipboardListHoverCoordinator
 
     let primaryLabelText: (ClipboardItem) -> String
     let indexForItem: (ClipboardItem) -> Int
+    let itemForID: (UUID) -> ClipboardItem?
 
+    @ViewBuilder
     var body: some View {
         let highlightPlan = queryText.isEmpty ? nil : ClipboardQueryPlan(queryText)
-        ForEach(rows) { row in
+        if allowsPinnedReordering, !pinnedItemIDs.isEmpty {
+            reorderableRows(highlightPlan: highlightPlan)
+        } else {
+            standardRows(highlightPlan: highlightPlan)
+        }
+    }
+
+    private var displayedPinnedItemIDs: [UUID] {
+        let transientIDs = pinnedReorderCoordinator.displayedItemIDs
+        return transientIDs.isEmpty ? pinnedItemIDs : transientIDs
+    }
+
+    private var pinnedDragItems: [ClipboardPinnedDragItem] {
+        displayedPinnedItemIDs.enumerated().map { index, itemID in
+            ClipboardPinnedDragItem(id: itemID, visualIndex: index)
+        }
+    }
+
+    private var rowsAfterPinnedSection: ArraySlice<ClipboardListStructure.DisplayRow> {
+        rows.dropFirst(min(rows.count, pinnedItemIDs.count + 1))
+    }
+
+    private var usesPinnedDragInteraction: Bool {
+        allowsPinnedReordering && pinnedItemIDs.count > 1
+    }
+
+    private var canReorderPinnedItems: Bool {
+        usesPinnedDragInteraction && !pinnedReorderCoordinator.isCommitInFlight
+    }
+
+    private func standardRows(highlightPlan: ClipboardQueryPlan?) -> some View {
+        LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
+            displayRows(rows, highlightPlan: highlightPlan)
+        }
+    }
+
+    private func reorderableRows(highlightPlan: ClipboardQueryPlan?) -> some View {
+        LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
+            pinnedHeader
+            ForEach(pinnedDragItems) { dragItem in
+                pinnedItemRow(for: dragItem, highlightPlan: highlightPlan)
+            }
+            displayRows(rowsAfterPinnedSection, highlightPlan: highlightPlan)
+        }
+    }
+
+    private func pinnedRowInteraction(
+        for dragItem: ClipboardPinnedDragItem
+    ) -> ClipboardPinnedRowInteraction {
+        ClipboardPinnedRowInteraction(
+            itemID: dragItem.id,
+            nextItemID: displayedPinnedItemIDs[safe: dragItem.visualIndex + 1],
+            onBeginDrag: {
+                !dragPayload(startingAt: dragItem.id).isEmpty
+            },
+            canAcceptDrop: {
+                pinnedReorderCoordinator.hasActiveDrag
+            },
+            onPreviewDrop: { destination in
+                pinnedReorderCoordinator.preview(destination: destination)
+            },
+            onPerformDrop: { destination in
+                pinnedReorderCoordinator.acceptDrop(
+                    destination: destination,
+                    animation: reduceMotion ? nil : .easeInOut(duration: 0.16),
+                    commit: onReorderPinnedItems
+                )
+            },
+            onDragLocationChanged: { pointerY, onAutoscrollFrame in
+                pinnedReorderCoordinator.updateAutoscroll(
+                    pointerY: pointerY,
+                    scrollOffset: scrollController.scrollOffset,
+                    viewportHeight: scrollController.viewportHeight,
+                    scrollBy: scrollController.scrollBy(deltaY:),
+                    onAutoscrollFrame: onAutoscrollFrame
+                )
+            },
+            onDragEnded: {
+                pinnedReorderCoordinator.dragSessionEnded()
+            },
+            onPrimaryMouseDown: { modifiers in
+                selectUnselectedPinnedItemOnMouseDown(
+                    dragItem.id,
+                    modifiers: modifiers
+                )
+            },
+            onClickWithModifiers: { modifiers in
+                selectPinnedItem(dragItem.id, modifiers: modifiers)
+            },
+            onDoubleClick: {
+                commitPinnedItem(dragItem.id)
+            },
+            onSecondaryClick: {
+                contextMenuState.highlight(dragItem.id)
+            },
+            contextMenuActions: contextMenuActions(dragItem.id),
+            onContextMenuAction: { action in
+                contextMenuState.clear()
+                onContextMenuAction(dragItem.id, action)
+            },
+            onContextMenuDismissed: {
+                contextMenuState.clear()
+            }
+        )
+    }
+
+    private var pinnedHeader: some View {
+        ClipboardSectionHeader(
+            title: String(localized: "PINNED"),
+            systemImage: nil
+        )
+        .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
+    }
+
+    @ViewBuilder
+    private func displayRows<Data: RandomAccessCollection>(
+        _ displayRows: Data,
+        highlightPlan: ClipboardQueryPlan?
+    ) -> some View where Data.Element == ClipboardListStructure.DisplayRow {
+        ForEach(displayRows) { row in
             switch row.kind {
             case .header(let title, let systemImage):
                 ClipboardSectionHeader(
@@ -97,13 +223,122 @@ struct ClipboardListRowsSection: View {
         }
     }
 
-    private func itemRow(
-        for item: ClipboardItem,
+    @ViewBuilder
+    private func pinnedItemRow(
+        for dragItem: ClipboardPinnedDragItem,
         highlightPlan: ClipboardQueryPlan?
     ) -> some View {
+        let itemID = dragItem.id
+        if let item = itemForID(itemID) {
+            itemRow(
+                for: item,
+                highlightPlan: highlightPlan,
+                pinnedInteraction: usesPinnedDragInteraction
+                    ? pinnedRowInteraction(for: dragItem) : nil,
+                visualAdjacentItemIDs: (
+                    displayedPinnedItemIDs[safe: dragItem.visualIndex - 1],
+                    displayedPinnedItemIDs[safe: dragItem.visualIndex + 1]
+                )
+            )
+            .accessibilityRepresentation {
+                Button(primaryLabelText(item)) {
+                    onSelectSingle(itemID, indexForItem(item))
+                }
+                .accessibilityValue(
+                    item.isBookmarked
+                        ? String(localized: "Pinned, Bookmarked")
+                        : String(localized: "Pinned")
+                )
+                .accessibilityAction(named: Text("Move Up")) {
+                    performAccessibilityMove(.up, itemID: itemID)
+                }
+                .accessibilityAction(named: Text("Move Down")) {
+                    performAccessibilityMove(.down, itemID: itemID)
+                }
+            }
+        }
+    }
+
+    private func dragPayload(startingAt itemID: UUID) -> [ClipboardPinnedDragItem] {
+        guard canReorderPinnedItems else { return [] }
+        let payload = pinnedReorderCoordinator.beginDrag(
+            itemID: itemID,
+            selectedItemIDs: selectedIDs
+        )
+        if !selectedIDs.contains(itemID), let item = itemForID(itemID) {
+            onSelectSingle(itemID, indexForItem(item))
+        }
+        return payload
+    }
+
+    private func selectUnselectedPinnedItemOnMouseDown(
+        _ itemID: UUID,
+        modifiers: NSEvent.ModifierFlags
+    ) -> Bool {
+        guard !modifiers.hasCommand,
+            !modifiers.hasShift,
+            !selectedIDs.contains(itemID),
+            let item = itemForID(itemID)
+        else { return false }
+
+        contextMenuState.clear()
+        onSelectSingle(itemID, indexForItem(item))
+        return true
+    }
+
+    private func selectPinnedItem(_ itemID: UUID, modifiers: NSEvent.ModifierFlags) {
+        guard let item = itemForID(itemID) else { return }
+        contextMenuState.clear()
+        if modifiers.hasCommand {
+            onToggleSelection(itemID)
+        } else if modifiers.hasShift {
+            onExtendSelectionTo(itemID)
+        } else {
+            onSelectSingle(itemID, indexForItem(item))
+        }
+    }
+
+    private func commitPinnedItem(_ itemID: UUID) {
+        guard let item = itemForID(itemID) else { return }
+        contextMenuState.clear()
+        onSelectSingle(itemID, indexForItem(item))
+        onCommitSelection()
+    }
+
+    private func performAccessibilityMove(
+        _ direction: ClipboardPinnedAccessibilityMove,
+        itemID: UUID
+    ) {
+        guard canReorderPinnedItems,
+            let request = pinnedReorderCoordinator.accessibilityRequest(
+                for: itemID,
+                direction: direction,
+                selectedItemIDs: selectedIDs
+            )
+        else { return }
+        pinnedReorderCoordinator.commitAccessibilityMove(
+            request,
+            animation: reduceMotion ? nil : .easeInOut(duration: 0.16),
+            commit: onReorderPinnedItems
+        )
+    }
+
+    private func itemRow(
+        for item: ClipboardItem,
+        highlightPlan: ClipboardQueryPlan?,
+        pinnedInteraction: ClipboardPinnedRowInteraction? = nil,
+        visualAdjacentItemIDs: (previous: UUID?, next: UUID?)? = nil
+    ) -> some View {
         let index = indexForItem(item)
-        let previousItemID = adjacentItemID(before: index)
-        let nextItemID = adjacentItemID(after: index)
+        let previousItemID: UUID?
+        let nextItemID: UUID?
+        if let visualAdjacentItemIDs {
+            previousItemID = visualAdjacentItemIDs.previous
+            nextItemID = visualAdjacentItemIDs.next
+        } else {
+            previousItemID = adjacentItemID(before: index)
+            nextItemID = adjacentItemID(after: index)
+        }
         let searchResult = searchResultsByItemID[item.id]
         let usesCommittedEvidence = queryText == committedQueryText
         let evidence = usesCommittedEvidence ? searchResult?.evidence : nil
@@ -132,6 +367,7 @@ struct ClipboardListRowsSection: View {
             searchSnippet: searchSnippet,
             isContextMenuHighlighted: contextMenuState.highlightedItemID == item.id,
             contextMenuIsActive: contextMenuState.highlightedItemID != nil,
+            pinnedInteraction: pinnedInteraction,
             onCommitSelection: onCommitSelection,
             onSelectSingle: onSelectSingle,
             onToggleSelection: onToggleSelection,
@@ -198,6 +434,24 @@ struct ClipboardListRowsSection: View {
     }
 }
 
+private struct ClipboardPinnedRowInteraction {
+    let itemID: UUID
+    let nextItemID: UUID?
+    let onBeginDrag: () -> Bool
+    let canAcceptDrop: () -> Bool
+    let onPreviewDrop: (ClipboardPinnedReorderDestination) -> Bool
+    let onPerformDrop: (ClipboardPinnedReorderDestination) -> Void
+    let onDragLocationChanged: (CGFloat, @escaping @MainActor () -> Void) -> Void
+    let onDragEnded: () -> Void
+    let onPrimaryMouseDown: (NSEvent.ModifierFlags) -> Bool
+    let onClickWithModifiers: (NSEvent.ModifierFlags) -> Void
+    let onDoubleClick: () -> Void
+    let onSecondaryClick: () -> Void
+    let contextMenuActions: [HistoryItemActionDescriptor]
+    let onContextMenuAction: (HistoryItemAction) -> Void
+    let onContextMenuDismissed: () -> Void
+}
+
 private struct ClipboardInteractiveItemRow: View {
     let item: ClipboardItem
     let index: Int
@@ -215,6 +469,7 @@ private struct ClipboardInteractiveItemRow: View {
     let searchSnippet: ClipboardSearchSnippet?
     let isContextMenuHighlighted: Bool
     let contextMenuIsActive: Bool
+    let pinnedInteraction: ClipboardPinnedRowInteraction?
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
@@ -228,6 +483,19 @@ private struct ClipboardInteractiveItemRow: View {
     @State private var isHovered = false
 
     var body: some View {
+        Group {
+            if let pinnedInteraction {
+                dragCompatibleRow(pinnedInteraction)
+            } else {
+                standardInteractionRow
+            }
+        }
+        .onDisappear {
+            hoverCoordinator.deactivate(itemID: item.id)
+        }
+    }
+
+    private var baseRow: some View {
         ClipboardItemRow(
             item: item,
             websitePreviewsEnabled: websitePreviewsEnabled,
@@ -245,26 +513,56 @@ private struct ClipboardInteractiveItemRow: View {
             assetProvider: assetProvider
         )
         .contentShape(Rectangle())
-        .overlay {
-            ClickModifierDetector(
-                onClickWithModifiers: handlePrimaryMouseDown(modifiers:),
-                onDoubleClick: handleDoubleClick,
-                onHoverChanged: handleHoverChanged(_:),
-                onPointerMoved: handlePointerMoved,
-                onSecondaryClick: onSecondaryClick
-            )
-        }
-        .contextMenu {
-            HistoryActionMenuContent(
-                actions: contextMenuActions,
-                onSelect: { action in
-                    onContextMenuAction(item.id, action)
-                }
-            )
-        }
-        .onDisappear {
-            hoverCoordinator.deactivate(itemID: item.id)
-        }
+    }
+
+    private var standardInteractionRow: some View {
+        baseRow
+            .overlay {
+                ClickModifierDetector(
+                    onClickWithModifiers: handlePrimaryMouseDown(modifiers:),
+                    onDoubleClick: handleDoubleClick,
+                    onHoverChanged: handleHoverChanged(_:),
+                    onPointerMoved: handlePointerMoved,
+                    onSecondaryClick: onSecondaryClick
+                )
+            }
+            .contextMenu {
+                HistoryActionMenuContent(
+                    actions: contextMenuActions,
+                    onSelect: { action in
+                        onContextMenuAction(item.id, action)
+                    }
+                )
+                .onAppear(perform: onSecondaryClick)
+            }
+    }
+
+    private func dragCompatibleRow(
+        _ interaction: ClipboardPinnedRowInteraction
+    ) -> some View {
+        baseRow
+            .overlay {
+                ClipboardPinnedRowDragBridge(
+                    itemID: interaction.itemID,
+                    nextItemID: interaction.nextItemID,
+                    onBeginDrag: interaction.onBeginDrag,
+                    canAcceptDrop: interaction.canAcceptDrop,
+                    onPreviewDrop: interaction.onPreviewDrop,
+                    onPerformDrop: interaction.onPerformDrop,
+                    onDragLocationChanged: interaction.onDragLocationChanged,
+                    onDragEnded: interaction.onDragEnded,
+                    onPrimaryMouseDown: interaction.onPrimaryMouseDown,
+                    onClickWithModifiers: interaction.onClickWithModifiers,
+                    onDoubleClick: interaction.onDoubleClick,
+                    onSecondaryClick: interaction.onSecondaryClick,
+                    onHoverChanged: handleHoverChanged(_:),
+                    onPointerMoved: handlePointerMoved,
+                    contextMenuActions: interaction.contextMenuActions,
+                    onContextMenuAction: interaction.onContextMenuAction,
+                    onContextMenuDismissed: interaction.onContextMenuDismissed
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
     }
 
     private func handlePrimaryMouseDown(modifiers: NSEvent.ModifierFlags) {

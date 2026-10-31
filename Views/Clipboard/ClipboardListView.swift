@@ -8,8 +8,8 @@ struct ClipboardListView: View {
     @StateObject private var scrollCoordinator = ClipboardListScrollCoordinator()
     @StateObject private var measuredScrollCoordinator = ClipboardMeasuredScrollCoordinator()
     @StateObject private var contextMenuState = ClipboardListContextMenuState()
+    @StateObject private var pinnedReorderCoordinator = ClipboardPinnedReorderCoordinator()
     @State private var hoverCoordinator = ClipboardListHoverCoordinator()
-    @State private var listCache = ClipboardListStructure.DisplayCache.empty
     @State private var keyboardScrollRegistrationID: UUID?
     private let lifecycleCoordinator = ClipboardListLifecycleCoordinator()
     private let displayStateProjector = ClipboardListDisplayStateProjector()
@@ -49,8 +49,10 @@ struct ClipboardListView: View {
             scrollCoordinator: scrollCoordinator,
             measuredScrollCoordinator: measuredScrollCoordinator,
             contextMenuState: contextMenuState,
+            pinnedReorderCoordinator: pinnedReorderCoordinator,
             hoverCoordinator: hoverCoordinator,
             items: items,
+            pinnedItemIDs: currentDisplayState.cache.pinnedItemIDs,
             displayRowsForRendering: currentDisplayState.displayRows,
             contentTrailingPadding: currentDisplayState.contentTrailingPadding,
             websitePreviewsEnabled: websitePreviewsEnabled,
@@ -66,6 +68,8 @@ struct ClipboardListView: View {
                 resultCount: items.count,
                 reduceMotion: accessibilityReduceMotion
             ),
+            allowsPinnedReordering: state.allowsPinnedReordering,
+            reduceMotion: accessibilityReduceMotion,
             isAwaitingInitialOpenScroll: scrollCoordinator.isAwaitingInitialOpenScroll,
             onCommitSelection: actions.commitSelection,
             onSelectSingle: actions.selectSingle,
@@ -73,8 +77,10 @@ struct ClipboardListView: View {
             onExtendSelectionTo: actions.extendSelection,
             contextMenuActions: actions.contextMenuActions,
             onContextMenuAction: actions.performContextMenuAction,
+            onReorderPinnedItems: actions.reorderPinnedItems,
             primaryLabelText: { currentDisplayState.cache.primaryLabelText(for: $0) },
             indexForItem: { currentDisplayState.cache.index(for: $0, in: items) },
+            itemForID: { currentDisplayState.cache.item(for: $0, in: items) },
             onScrollViewReady: configureScrollView(_:),
             onScrollToTopRequested: handleScrollToTopRequest(using:),
             onMeasuredTargetFrameChanged: handleMeasuredTargetFrameChanged(_:),
@@ -84,6 +90,9 @@ struct ClipboardListView: View {
         .onDisappear(perform: handleDisappear)
         .onChange(of: state.contentSnapshot) { _, snapshot in
             handleContentChange(snapshot)
+        }
+        .onChange(of: state.allowsPinnedReordering) {
+            synchronizePinnedReordering()
         }
         .onChange(of: scrollController.viewportHeight) {
             updateVisibleAssetPrewarm()
@@ -190,6 +199,7 @@ struct ClipboardListView: View {
             applyOpenScrollRequestIfPossible: applyOpenScrollRequestIfPossible
         )
         updateVisibleAssetPrewarm(items: snapshot.items, layoutIndex: currentDisplayState.layoutIndex)
+        synchronizePinnedReordering(cache: cache)
     }
 
     private func handleDisappear() {
@@ -274,6 +284,16 @@ struct ClipboardListView: View {
         installKeyboardScrollHandler(items: snapshot.items, displayState: currentDisplayState)
         configureMetricsCallback(items: snapshot.items, layoutIndex: currentDisplayState.layoutIndex)
         updateVisibleAssetPrewarm(items: snapshot.items, layoutIndex: currentDisplayState.layoutIndex)
+        synchronizePinnedReordering(cache: cache)
+    }
+
+    private func synchronizePinnedReordering(
+        cache: ClipboardListStructure.DisplayCache? = nil
+    ) {
+        pinnedReorderCoordinator.synchronize(
+            authoritativeItemIDs: (cache ?? state.preparedDisplayCache).pinnedItemIDs,
+            allowsReordering: state.allowsPinnedReordering
+        )
     }
 
     @discardableResult
@@ -285,7 +305,6 @@ struct ClipboardListView: View {
             cache.matches(sourceSnapshotID: snapshot.id),
             "A list publication must include its matching display cache"
         )
-        listCache = cache
         return cache
     }
 

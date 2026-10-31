@@ -18,7 +18,8 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
             searchResultsByItemID: [:],
             queryText: "",
             committedQueryText: "",
-            preparedDisplayCache: cache
+            preparedDisplayCache: cache,
+            allowsPinnedReordering: false
         )
 
         let publication = state.contentSnapshot

@@ -158,6 +158,33 @@ actor ClipboardRepository {
         return try commit(nextItems)
     }
 
+    func reorderPinnedItems(
+        _ request: ClipboardPinnedReorderRequest
+    ) throws -> ClipboardRepositoryMutation {
+        let pinnedIndices = items.indices.filter { items[$0].isPinned }
+        let pinnedItems = pinnedIndices.map { items[$0] }
+        guard
+            let reorderedIDs = ClipboardPinnedOrderResolver().reorderedItemIDs(
+                currentItemIDs: pinnedItems.map(\.id),
+                request: request
+            )
+        else {
+            return .unchanged(items, historyRevision: searchHistoryRevision)
+        }
+
+        let pinnedItemByID = Dictionary(uniqueKeysWithValues: pinnedItems.map { ($0.id, $0) })
+        var nextItems = items
+        for (index, itemID) in zip(pinnedIndices, reorderedIDs) {
+            guard let item = pinnedItemByID[itemID] else {
+                assertionFailure("Resolved pin order contains an unknown item")
+                return .unchanged(items, historyRevision: searchHistoryRevision)
+            }
+            nextItems[index] = item
+        }
+
+        return try commit(nextItems)
+    }
+
     func toggleBookmark(for item: ClipboardItem) throws -> ClipboardRepositoryMutation {
         guard let index = items.firstIndex(where: { $0.id == item.id }) else {
             return .unchanged(items, historyRevision: searchHistoryRevision)

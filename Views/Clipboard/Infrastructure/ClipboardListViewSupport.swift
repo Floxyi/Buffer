@@ -46,6 +46,7 @@ struct ClipboardListViewState {
     let queryText: String
     let committedQueryText: String
     let preparedDisplayCache: ClipboardListStructure.DisplayCache
+    let allowsPinnedReordering: Bool
 
     var contentSnapshot: ClipboardListContentSnapshot {
         ClipboardListContentSnapshot(
@@ -90,6 +91,7 @@ struct ClipboardListActions {
     let scrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let scrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let visibleItemIDsChanged: ([UUID]) -> Void
+    let reorderPinnedItems: (ClipboardPinnedReorderRequest) async -> Bool
 }
 
 struct ClipboardScrollTargetFramePreferenceKey: PreferenceKey {

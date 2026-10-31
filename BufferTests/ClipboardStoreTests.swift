@@ -5,6 +5,132 @@ import XCTest
 
 @MainActor
 final class ClipboardStoreTests: XCTestCase {
+    func testReorderPinnedItemsPersistsOnlyPinnedSlotPermutation() async throws {
+        let paths = TestStorageFactory.makePaths()
+        try FileManager.default.createDirectory(
+            at: paths.storageDirectory,
+            withIntermediateDirectories: true
+        )
+        let unpinnedA = ClipboardItem.text("unpinned-a")
+        let unpinnedB = ClipboardItem.text("unpinned-b")
+        let unpinnedC = ClipboardItem.text("unpinned-c")
+        let pinnedA = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 1),
+            content: .text(TextItemContent(inlineText: "pinned-a"))
+        )
+        let pinnedB = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 2),
+            content: .text(TextItemContent(inlineText: "pinned-b"))
+        )
+        let pinnedC = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 3),
+            content: .text(TextItemContent(inlineText: "pinned-c"))
+        )
+        let persistence = ClipboardHistoryPersistence(paths: paths)
+        try persistence.saveHistory([
+            unpinnedA, pinnedA, unpinnedB, pinnedB, unpinnedC, pinnedC,
+        ])
+        let settings = SettingsManager(
+            defaults: makeTestDefaults(),
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+        let store = ClipboardStore(settingsManager: settings, storagePaths: paths)
+        let originalRevision = store.currentHistoryRevision
+
+        try await store.reorderPinnedItems(
+            ClipboardPinnedReorderRequest(
+                movingItemIDs: [pinnedC.id],
+                destination: .before(pinnedA.id)
+            )
+        )
+
+        XCTAssertEqual(
+            store.items.map(\.id),
+            [pinnedC.id, pinnedA.id, pinnedB.id, unpinnedA.id, unpinnedB.id, unpinnedC.id]
+        )
+        XCTAssertEqual(store.currentHistoryRevision, originalRevision)
+        let persistedItems = try persistence.loadHistory()
+        XCTAssertEqual(
+            persistedItems.map(\.id),
+            [unpinnedA.id, pinnedC.id, unpinnedB.id, pinnedA.id, unpinnedC.id, pinnedB.id]
+        )
+        XCTAssertEqual(
+            persistedItems.filter(\.isPinned).map(\.pinnedAt),
+            [pinnedC.pinnedAt, pinnedA.pinnedAt, pinnedB.pinnedAt]
+        )
+    }
+
+    func testRepositoryReorderCommitsOnceWithoutSearchChanges() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let first = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 1),
+            content: .text(TextItemContent(inlineText: "first"))
+        )
+        let second = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 2),
+            content: .text(TextItemContent(inlineText: "second"))
+        )
+        let persistence = RecordingClipboardHistoryPersistence(initialItems: [first, second])
+        let repository = ClipboardRepository(
+            initialItems: [first, second],
+            persistence: persistence,
+            assetStore: ClipboardAssetStore(paths: paths)
+        )
+
+        let mutation = try await repository.reorderPinnedItems(
+            ClipboardPinnedReorderRequest(
+                movingItemIDs: [second.id],
+                destination: .before(first.id)
+            )
+        )
+
+        XCTAssertEqual(persistence.saveCount, 1)
+        XCTAssertEqual(mutation.snapshot.map(\.id), [second.id, first.id])
+        XCTAssertEqual(mutation.historyRevision, 0)
+        XCTAssertTrue(mutation.searchChangeSet.isEmpty)
+    }
+
+    func testRepositoryReorderKeepsAuthoritativeOrderWhenPersistenceFails() async throws {
+        let paths = TestStorageFactory.makePaths()
+        let first = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 1),
+            content: .text(TextItemContent(inlineText: "first"))
+        )
+        let second = ClipboardItem(
+            isPinned: true,
+            pinnedAt: Date(timeIntervalSince1970: 2),
+            content: .text(TextItemContent(inlineText: "second"))
+        )
+        let repository = ClipboardRepository(
+            initialItems: [first, second],
+            persistence: FailingClipboardHistoryPersistence(),
+            assetStore: ClipboardAssetStore(paths: paths)
+        )
+
+        do {
+            _ = try await repository.reorderPinnedItems(
+                ClipboardPinnedReorderRequest(
+                    movingItemIDs: [second.id],
+                    destination: .before(first.id)
+                )
+            )
+            XCTFail("Expected persistence failure")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Expected persistence failure")
+        }
+
+        let snapshot = await repository.snapshot()
+        let historyRevision = await repository.currentHistoryRevision()
+        XCTAssertEqual(snapshot.map(\.id), [first.id, second.id])
+        XCTAssertEqual(historyRevision, 0)
+    }
+
     func testAddEvictsOldestDeletableItemWhileKeepingPinnedAndBookmarkedItems() async throws {
         let paths = TestStorageFactory.makePaths()
         let settings = SettingsManager(
@@ -452,6 +578,70 @@ final class ClipboardStoreTests: XCTestCase {
     }
 }
 
+final class ClipboardPinnedOrderResolverTests: XCTestCase {
+    private let resolver = ClipboardPinnedOrderResolver()
+
+    func testMovesSingleItemBeforeAnotherItem() throws {
+        let ids = makeIDs(4)
+
+        let result = resolver.reorderedItemIDs(
+            currentItemIDs: ids,
+            request: ClipboardPinnedReorderRequest(
+                movingItemIDs: [ids[2]],
+                destination: .before(ids[0])
+            )
+        )
+
+        XCTAssertEqual(result, [ids[2], ids[0], ids[1], ids[3]])
+    }
+
+    func testMovesGroupInVisualOrderAndIgnoresDuplicatesAndStaleIDs() throws {
+        let ids = makeIDs(5)
+
+        let result = resolver.reorderedItemIDs(
+            currentItemIDs: ids,
+            request: ClipboardPinnedReorderRequest(
+                movingItemIDs: [ids[3], UUID(), ids[1], ids[3]],
+                destination: .before(ids[0])
+            )
+        )
+
+        XCTAssertEqual(result, [ids[1], ids[3], ids[0], ids[2], ids[4]])
+    }
+
+    func testMovingBeforeItemInsideGroupIsNoOp() throws {
+        let ids = makeIDs(4)
+
+        let result = resolver.reorderedItemIDs(
+            currentItemIDs: ids,
+            request: ClipboardPinnedReorderRequest(
+                movingItemIDs: [ids[1], ids[2]],
+                destination: .before(ids[2])
+            )
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testMovesGroupToEnd() throws {
+        let ids = makeIDs(5)
+
+        let result = resolver.reorderedItemIDs(
+            currentItemIDs: ids,
+            request: ClipboardPinnedReorderRequest(
+                movingItemIDs: [ids[0], ids[2]],
+                destination: .end
+            )
+        )
+
+        XCTAssertEqual(result, [ids[1], ids[3], ids[4], ids[0], ids[2]])
+    }
+
+    private func makeIDs(_ count: Int) -> [UUID] {
+        (0..<count).map { _ in UUID() }
+    }
+}
+
 private final class CountingSearchAssetAccess: ClipboardAssetAccessing, @unchecked Sendable {
     private let lock = NSLock()
     private let text: String
@@ -508,5 +698,33 @@ private struct FailingClipboardHistoryPersistence: ClipboardHistoryPersisting {
 
     func saveHistory(_ items: [ClipboardItem]) throws {
         throw ExpectedFailure()
+    }
+}
+
+private final class RecordingClipboardHistoryPersistence:
+    ClipboardHistoryPersisting,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private var items: [ClipboardItem]
+    private var saves = 0
+
+    init(initialItems: [ClipboardItem]) {
+        self.items = initialItems
+    }
+
+    var saveCount: Int {
+        lock.withLock { saves }
+    }
+
+    func loadHistory() throws -> [ClipboardItem] {
+        lock.withLock { items }
+    }
+
+    func saveHistory(_ items: [ClipboardItem]) throws {
+        lock.withLock {
+            self.items = items
+            saves += 1
+        }
     }
 }

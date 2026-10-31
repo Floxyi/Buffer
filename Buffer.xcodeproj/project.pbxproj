@@ -159,6 +159,7 @@
 		AAA00126 /* ClipboardListAssetPrewarmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00128 /* ClipboardListAssetPrewarmer.swift */; };
 		AAA00127 /* ClipboardListOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00129 /* ClipboardListOverlays.swift */; };
 		AAA00128 /* ClipboardListRowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00130 /* ClipboardListRowsSection.swift */; };
+		CPR10001 /* ClipboardPinnedReordering.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPR20001 /* ClipboardPinnedReordering.swift */; };
 		AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */; };
 		AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00132 /* ClipboardListScrollCoordinator.swift */; };
 		AAA00131 /* ScrollActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00133 /* ScrollActivityTracker.swift */; };
@@ -504,6 +505,7 @@
 		BBB00128 /* ClipboardListAssetPrewarmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListAssetPrewarmer.swift; sourceTree = "<group>"; };
 		BBB00129 /* ClipboardListOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListOverlays.swift; sourceTree = "<group>"; };
 		BBB00130 /* ClipboardListRowsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListRowsSection.swift; sourceTree = "<group>"; };
+		CPR20001 /* ClipboardPinnedReordering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPinnedReordering.swift; sourceTree = "<group>"; };
 		BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollCoordinator.swift; sourceTree = "<group>"; };
 		BBB00132 /* ClipboardListScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListScrollCoordinator.swift; sourceTree = "<group>"; };
 		BBB00133 /* ScrollActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollActivityTracker.swift; sourceTree = "<group>"; };
@@ -960,6 +962,7 @@
 				BBB00195 /* ClipboardListLifecycleCoordinator.swift */,
 				BBB00129 /* ClipboardListOverlays.swift */,
 				BBB00130 /* ClipboardListRowsSection.swift */,
+				CPR20001 /* ClipboardPinnedReordering.swift */,
 				BBB00192 /* ClipboardListSectionBuilder.swift */,
 				BBB00132 /* ClipboardListScrollCoordinator.swift */,
 				BBB00163 /* ClipboardKeyboardNavigationResolver.swift */,
@@ -1354,6 +1357,7 @@
 				AAA00126 /* ClipboardListAssetPrewarmer.swift in Sources */,
 				AAA00127 /* ClipboardListOverlays.swift in Sources */,
 				AAA00128 /* ClipboardListRowsSection.swift in Sources */,
+				CPR10001 /* ClipboardPinnedReordering.swift in Sources */,
 				AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */,
 				AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */,
 				AAA00167 /* ClipboardKeyboardNavigationCoordinator.swift in Sources */,

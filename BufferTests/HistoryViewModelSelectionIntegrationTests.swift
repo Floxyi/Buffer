@@ -296,4 +296,46 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
             [oldest.id]
         )
     }
+
+    func testPinnedGroupReorderPreservesEntireSelectionAfterStoreProjection() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        var items = (0..<3).map { index in
+            ClipboardItem(
+                type: .text,
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                textContent: "pinned-\(index)"
+            )
+        }
+        for index in items.indices {
+            items[index].isPinned = true
+            items[index].pinnedAt = Date(timeIntervalSince1970: TimeInterval(index + 10))
+        }
+        await populateStore(store, with: items)
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        await waitForHistorySearch(viewModel)
+
+        let initialOrder = viewModel.filteredItems.map(\.id)
+        let movingIDs = Array(initialOrder.prefix(2))
+        viewModel.selectSingle(movingIDs[0], at: 0)
+        viewModel.toggleSelection(movingIDs[1])
+
+        let didReorder = await viewModel.reorderPinnedItems(
+            ClipboardPinnedReorderRequest(
+                movingItemIDs: movingIDs,
+                destination: .end
+            )
+        )
+        await eventually {
+            !viewModel.isSearching
+                && viewModel.filteredItems.map(\.id)
+                    == [initialOrder[2], movingIDs[0], movingIDs[1]]
+        }
+
+        XCTAssertTrue(didReorder)
+        XCTAssertEqual(viewModel.selectedIDs, Set(movingIDs))
+        XCTAssertEqual(viewModel.selectedItemsInActionOrder.map(\.id), movingIDs)
+        XCTAssertEqual(viewModel.selectedID, movingIDs[1])
+        XCTAssertEqual(viewModel.selectedIndex, 2)
+    }
 }

@@ -594,6 +594,41 @@ final class ClickModifierDetectorTests: XCTestCase {
 }
 
 @MainActor
+final class ClipboardPinnedRowDragBridgeHoverTests: XCTestCase {
+    func testNativeInteractionViewForwardsHoverLifecycle() throws {
+        let view = ClipboardPinnedRowDragBridge.InteractionView()
+        var hoverStates: [Bool] = []
+        var pointerMoveCount = 0
+        view.onHoverChanged = { hoverStates.append($0) }
+        view.onPointerMoved = { pointerMoveCount += 1 }
+
+        let event = try mouseEvent(type: .mouseMoved)
+        view.mouseEntered(with: event)
+        view.mouseMoved(with: try mouseEvent(type: .mouseMoved))
+        view.mouseExited(with: event)
+
+        XCTAssertEqual(hoverStates, [true, false])
+        XCTAssertEqual(pointerMoveCount, 1)
+    }
+
+    private func mouseEvent(type: NSEvent.EventType) throws -> NSEvent {
+        try XCTUnwrap(
+            NSEvent.mouseEvent(
+                with: type,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 0,
+                pressure: 0
+            )
+        )
+    }
+}
+
+@MainActor
 final class ClipboardListHoverCoordinatorTests: XCTestCase {
     func testScrollClearsActiveHoverAndSuppressesSyntheticEnterEvents() {
         let coordinator = ClipboardListHoverCoordinator()

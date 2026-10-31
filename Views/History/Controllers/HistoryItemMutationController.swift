@@ -65,4 +65,11 @@ struct HistoryItemMutationController {
             : .bookmarked
         try await store.updateBookmarkState(bookmarkState, for: items)
     }
+
+    func reorderPinnedItems(
+        _ request: ClipboardPinnedReorderRequest,
+        store: ClipboardStore
+    ) async throws {
+        try await store.reorderPinnedItems(request)
+    }
 }

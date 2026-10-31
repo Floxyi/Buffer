@@ -6,9 +6,11 @@ struct ClipboardListContent: View {
     @ObservedObject var scrollCoordinator: ClipboardListScrollCoordinator
     @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
+    @ObservedObject var pinnedReorderCoordinator: ClipboardPinnedReorderCoordinator
     let hoverCoordinator: ClipboardListHoverCoordinator
 
     let items: [ClipboardItem]
+    let pinnedItemIDs: [UUID]
     let displayRowsForRendering: [ClipboardListStructure.DisplayRow]
     let contentTrailingPadding: CGFloat
     let websitePreviewsEnabled: Bool
@@ -20,6 +22,8 @@ struct ClipboardListContent: View {
     let committedQueryText: String
     let searchResultAnimationID: UUID?
     let searchResultAnimationPolicy: SearchResultAnimationPolicy
+    let allowsPinnedReordering: Bool
+    let reduceMotion: Bool
     let isAwaitingInitialOpenScroll: Bool
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
@@ -27,8 +31,10 @@ struct ClipboardListContent: View {
     let onExtendSelectionTo: (UUID) -> Void
     let contextMenuActions: (UUID) -> [HistoryItemActionDescriptor]
     let onContextMenuAction: (UUID, HistoryItemAction) -> Void
+    let onReorderPinnedItems: (ClipboardPinnedReorderRequest) async -> Bool
     let primaryLabelText: (ClipboardItem) -> String
     let indexForItem: (ClipboardItem) -> Int
+    let itemForID: (UUID) -> ClipboardItem?
     let onScrollViewReady: (NSScrollView) -> Void
     let onScrollToTopRequested: (ScrollViewProxy) -> Void
     let onMeasuredTargetFrameChanged: (CGRect?) -> Void
@@ -38,32 +44,36 @@ struct ClipboardListContent: View {
     var body: some View {
         ScrollViewReader { scrollProxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
-                    ClipboardListRowsSection(
-                        rows: displayRowsForRendering,
-                        items: items,
-                        websitePreviewsEnabled: websitePreviewsEnabled,
-                        assetProvider: assetProvider,
-                        quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
-                        selectedIDs: selectedIDs,
-                        searchResultsByItemID: searchResultsByItemID,
-                        queryText: queryText,
-                        committedQueryText: committedQueryText,
-                        searchResultAnimationID: searchResultAnimationID,
-                        searchResultAnimationPolicy: searchResultAnimationPolicy,
-                        onCommitSelection: onCommitSelection,
-                        onSelectSingle: onSelectSingle,
-                        onToggleSelection: onToggleSelection,
-                        onExtendSelectionTo: onExtendSelectionTo,
-                        contextMenuActions: contextMenuActions,
-                        onContextMenuAction: onContextMenuAction,
-                        contextMenuState: contextMenuState,
-                        measuredScrollCoordinator: measuredScrollCoordinator,
-                        hoverCoordinator: hoverCoordinator,
-                        primaryLabelText: primaryLabelText,
-                        indexForItem: indexForItem
-                    )
-                }
+                ClipboardListRowsSection(
+                    rows: displayRowsForRendering,
+                    items: items,
+                    pinnedItemIDs: pinnedItemIDs,
+                    websitePreviewsEnabled: websitePreviewsEnabled,
+                    assetProvider: assetProvider,
+                    quickPasteBadgeNumberByItemID: quickPasteBadgeNumberByItemID,
+                    selectedIDs: selectedIDs,
+                    searchResultsByItemID: searchResultsByItemID,
+                    queryText: queryText,
+                    committedQueryText: committedQueryText,
+                    searchResultAnimationPolicy: searchResultAnimationPolicy,
+                    allowsPinnedReordering: allowsPinnedReordering,
+                    reduceMotion: reduceMotion,
+                    onCommitSelection: onCommitSelection,
+                    onSelectSingle: onSelectSingle,
+                    onToggleSelection: onToggleSelection,
+                    onExtendSelectionTo: onExtendSelectionTo,
+                    contextMenuActions: contextMenuActions,
+                    onContextMenuAction: onContextMenuAction,
+                    onReorderPinnedItems: onReorderPinnedItems,
+                    contextMenuState: contextMenuState,
+                    measuredScrollCoordinator: measuredScrollCoordinator,
+                    pinnedReorderCoordinator: pinnedReorderCoordinator,
+                    scrollController: scrollController,
+                    hoverCoordinator: hoverCoordinator,
+                    primaryLabelText: primaryLabelText,
+                    indexForItem: indexForItem,
+                    itemForID: itemForID
+                )
                 .animation(
                     searchResultAnimationID == nil
                         ? nil : searchResultAnimationPolicy.insertion,

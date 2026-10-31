@@ -31,6 +31,7 @@ enum ClipboardListStructure {
         let sourceSnapshotID: UUID?
         let sectionGroupingSignature: SectionGroupingSignature
         let itemIDs: [UUID]
+        let pinnedItemIDs: [UUID]
         let displayRows: [DisplayRow]
         let itemIndexByID: [UUID: Int]
         let primaryLabelTextByID: [UUID: String]
@@ -40,6 +41,7 @@ enum ClipboardListStructure {
             sourceSnapshotID: nil,
             sectionGroupingSignature: .current(),
             itemIDs: [],
+            pinnedItemIDs: [],
             displayRows: [],
             itemIndexByID: [:],
             primaryLabelTextByID: [:],
@@ -108,6 +110,17 @@ enum ClipboardListStructure {
 
             assertionFailure("Display cache is inconsistent with the published item snapshot")
             return false
+        }
+
+        func item(for itemID: UUID, in items: [ClipboardItem]) -> ClipboardItem? {
+            guard let cachedIndex = itemIndexByID[itemID],
+                items.indices.contains(cachedIndex),
+                items[cachedIndex].id == itemID
+            else {
+                assertionFailure("Display cache is inconsistent with the published item snapshot")
+                return nil
+            }
+            return items[cachedIndex]
         }
 
         func primaryLabelText(for item: ClipboardItem) -> String {
@@ -204,14 +217,19 @@ enum ClipboardListStructure {
         var primaryLabelTextByID: [UUID: String] = [:]
         var itemIndexByID: [UUID: Int] = [:]
         var itemIDs: [UUID] = []
+        var pinnedItemIDs: [UUID] = []
         primaryLabelTextByID.reserveCapacity(items.count)
         itemIndexByID.reserveCapacity(items.count)
         itemIDs.reserveCapacity(items.count)
+        pinnedItemIDs.reserveCapacity(items.count)
         for (index, item) in items.enumerated() {
             try checkCancellation(index)
             primaryLabelTextByID[item.id] = primaryLabelText(for: item)
             itemIndexByID[item.id] = index
             itemIDs.append(item.id)
+            if item.isPinned {
+                pinnedItemIDs.append(item.id)
+            }
         }
         let displayRows = try makeRows()
         return DisplayCache(
@@ -221,6 +239,7 @@ enum ClipboardListStructure {
                 calendar: calendar
             ),
             itemIDs: itemIDs,
+            pinnedItemIDs: pinnedItemIDs,
             displayRows: displayRows,
             itemIndexByID: itemIndexByID,
             primaryLabelTextByID: primaryLabelTextByID,
@@ -238,10 +257,12 @@ enum ClipboardListStructure {
         var primaryLabelTextByID: [UUID: String] = [:]
         var itemIndexByID: [UUID: Int] = [:]
         var itemIDs: [UUID] = []
+        var pinnedItemIDs: [UUID] = []
         var displayRows: [DisplayRow] = []
         primaryLabelTextByID.reserveCapacity(items.count)
         itemIndexByID.reserveCapacity(items.count)
         itemIDs.reserveCapacity(items.count)
+        pinnedItemIDs.reserveCapacity(items.count)
         displayRows.reserveCapacity(items.count + (similarItemIDs.isEmpty ? 0 : 1))
 
         var insertedSimilarHeader = false
@@ -262,6 +283,9 @@ enum ClipboardListStructure {
             primaryLabelTextByID[item.id] = primaryLabelText(for: item)
             itemIndexByID[item.id] = index
             itemIDs.append(item.id)
+            if item.isPinned {
+                pinnedItemIDs.append(item.id)
+            }
             displayRows.append(
                 DisplayRow(
                     id: clipboardListScrollID(for: item.id),
@@ -277,6 +301,7 @@ enum ClipboardListStructure {
                 calendar: calendar
             ),
             itemIDs: itemIDs,
+            pinnedItemIDs: pinnedItemIDs,
             displayRows: displayRows,
             itemIndexByID: itemIndexByID,
             primaryLabelTextByID: primaryLabelTextByID,

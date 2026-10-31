@@ -197,11 +197,13 @@ struct ClipboardItemRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .frame(height: ClipboardListStructure.LayoutMetrics.itemRowHeight)
-        .background(selectionBackground)
-        .accessibilityHint(matchBadgeText == nil ? matchBadgeAccessibilityLabel : "")
-        .transaction { transaction in
-            transaction.animation = nil
+        .background {
+            selectionBackground
+                .transaction { transaction in
+                    transaction.animation = nil
+                }
         }
+        .accessibilityHint(matchBadgeText == nil ? matchBadgeAccessibilityLabel : "")
         .task(id: assetLoadToken) {
             if thumbnail == nil, ClipboardItemTypeRegistry.supportsImageAssets(for: item) {
                 thumbnail = assetProvider.cachedThumbnail(

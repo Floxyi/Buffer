@@ -124,19 +124,18 @@ final class ScrollController: ObservableObject {
         }
     }
 
-    func scrollBy(deltaY: CGFloat) {
+    @discardableResult
+    func scrollBy(deltaY: CGFloat) -> Bool {
         settledScrollScheduler.cancel()
         guard abs(deltaY) > 0.5,
             let scrollView
         else {
-            return
+            return false
         }
-
-        scrollView.layoutSubtreeIfNeeded()
-        scrollView.documentView?.layoutSubtreeIfNeeded()
 
         let currentOffset = scrollView.contentView.bounds.minY
         scrollToOffset(currentOffset + deltaY)
+        return abs(scrollView.contentView.bounds.minY - currentOffset) > 0.5
     }
 
     func scrollToTop(retryCount: Int = 4) {

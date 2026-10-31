@@ -26,7 +26,8 @@ struct HistoryClipboardListPane: View {
                         searchResultsByItemID: viewModel.searchResultsByItemID,
                         queryText: viewModel.searchText,
                         committedQueryText: viewModel.committedSearchText,
-                        preparedDisplayCache: viewModel.preparedDisplayCache
+                        preparedDisplayCache: viewModel.preparedDisplayCache,
+                        allowsPinnedReordering: viewModel.isShowingFullHistory
                     ),
                     navigation: ClipboardListNavigationState(
                         openScrollRequest: viewModel.openListScrollRequest,
@@ -46,7 +47,8 @@ struct HistoryClipboardListPane: View {
                         jumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
                         scrollOffsetProviderChanged: onScrollOffsetProviderChanged,
                         scrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
-                        visibleItemIDsChanged: viewModel.visibleSearchItemIDsChanged
+                        visibleItemIDsChanged: viewModel.visibleSearchItemIDsChanged,
+                        reorderPinnedItems: viewModel.reorderPinnedItems
                     ),
                     websitePreviewsEnabled: settings.enableWebsitePreviews,
                     assetProvider: assetProvider,
