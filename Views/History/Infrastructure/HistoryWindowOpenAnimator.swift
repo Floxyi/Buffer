@@ -28,6 +28,12 @@ final class HistoryWindowOpenAnimator {
 
     func setAnimatedContentView(_ view: NSView) {
         animatedContentView = view
+        view.wantsLayer = true
+        guard let layer = view.layer else { return }
+        performWithoutLayerActions {
+            layer.allowsEdgeAntialiasing = true
+            layer.masksToBounds = true
+        }
     }
 
     func beginPresentationCycle(for window: NSWindow) -> (shouldAnimate: Bool, generation: Int) {
@@ -150,24 +156,9 @@ final class HistoryWindowOpenAnimator {
             return nil
         }
 
-        animatedContentView.superview?.layoutSubtreeIfNeeded()
-        animatedContentView.layoutSubtreeIfNeeded()
-        animatedContentView.wantsLayer = true
-
         guard let layer = animatedContentView.layer else {
             return nil
         }
-
-        performWithoutLayerActions {
-            layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
-            layer.position = CGPoint(
-                x: animatedContentView.frame.midX,
-                y: animatedContentView.frame.midY
-            )
-            layer.allowsEdgeAntialiasing = true
-            layer.masksToBounds = true
-        }
-
         return layer
     }
 

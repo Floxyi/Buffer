@@ -216,7 +216,7 @@ struct HistoryDetailHeaderActionButtons: View {
                 BufferGlassSymbolButton(
                     help: descriptor.title,
                     systemName: descriptor.systemImage,
-                    tint: descriptor.isPinnedVariant ? .accentColor : .secondary,
+                    tint: symbolTint(for: descriptor),
                     action: {
                         onSelect(descriptor.action)
                     }
@@ -224,6 +224,13 @@ struct HistoryDetailHeaderActionButtons: View {
                 .disabled(!descriptor.isEnabled)
             }
         }
+    }
+
+    private func symbolTint(for descriptor: HistoryItemActionDescriptor) -> Color {
+        if descriptor.isPinnedVariant || descriptor.isBookmarkedVariant {
+            return .accentColor
+        }
+        return .primary.opacity(0.82)
     }
 }
 

@@ -60,10 +60,12 @@ struct HistorySearchBar: View {
     let searchSelectionToken: Int
     let filterState: HistoryFilterState
     let applicationOptions: [HistoryApplicationFilterOption]
+    let dateAvailability: HistoryDateAvailability
+    let filterCalendar: Calendar
     let onSetBookmarkedOnly: @MainActor @Sendable (Bool) -> Void
     let onSelectApplication: @MainActor @Sendable (String?) -> Void
     let onSelectKind: @MainActor @Sendable (ClipboardItemKind?) -> Void
-    let onSelectDatePreset: @MainActor @Sendable (HistoryDateFilterPreset) -> Void
+    let onSelectDate: @MainActor @Sendable (HistoryDateFilterSelection?) -> Void
 
     @State private var prefetchedApplicationIconToken: String?
     @State private var searchActivityPhase = HistorySearchActivityPhase.idle
@@ -72,7 +74,8 @@ struct HistorySearchBar: View {
     private var filterPresentation: HistoryFilterBarPresentation {
         HistoryFilterBarPresentation(
             filterState: filterState,
-            hasApplicationOptions: !applicationOptions.isEmpty
+            hasApplicationOptions: !applicationOptions.isEmpty,
+            calendar: filterCalendar
         )
     }
 
@@ -224,180 +227,81 @@ struct HistorySearchBar: View {
     }
 
     private var applicationControl: some View {
-        ZStack(alignment: .trailing) {
-            Menu {
-                Picker(
-                    String(localized: "Application"),
-                    selection: Binding(
-                        get: { filterState.selectedApplication?.bundleIdentifier },
-                        set: onSelectApplication
-                    )
-                ) {
-                    ForEach(applicationOptions) { option in
-                        HistoryApplicationMenuOptionLabel(
-                            option: option,
-                            appearance: applicationIconAppearance
-                        )
-                        .tag(Optional(option.bundleIdentifier))
-                    }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                HistoryFilterControlLabel(
-                    title: filterPresentation.application.title,
-                    symbolName: "circle.grid.3x3.fill",
-                    showsMenuChevron: true,
-                    trailingAccessoryWidth: filterPresentation.application.isActive ? 26 : 0,
-                    applicationIconItem: filterState.selectedApplication?.iconItem
+        HistoryFilterPickerControl(
+            title: filterPresentation.application.title,
+            symbolName: "circle.grid.3x3.fill",
+            selectedID: filterState.selectedApplication?.bundleIdentifier,
+            options: applicationOptions.map {
+                HistoryFilterPickerOption(
+                    id: $0.bundleIdentifier,
+                    title: $0.displayName,
+                    icon: .application($0.iconItem)
                 )
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .disabled(
-                !filterPresentation.application.isEnabled
-                    || prefetchedApplicationIconToken != applicationIconPrefetchToken
-            )
-            .accessibilityLabel(filterPresentation.application.accessibilityLabel)
-            .accessibilityValue(filterPresentation.application.accessibilityValue)
-            .accessibilityIdentifier(filterPresentation.application.accessibilityIdentifier)
-
-            if filterPresentation.application.isActive {
-                HistoryFilterClearButton(
-                    accessibilityLabel: String(localized: "Clear Application Filter"),
-                    accessibilityIdentifier: "historyFilter.app.clear"
-                ) {
-                    onSelectApplication(nil)
-                }
-            }
-        }
-        .historyFilterControlSurface(isActive: filterPresentation.application.isActive)
-        .opacity(filterPresentation.application.isEnabled ? 1 : 0.45)
-        .help(String(localized: "Filter by source application"))
+            },
+            selectedApplicationIconItem: filterState.selectedApplication?.iconItem,
+            isEnabled: filterPresentation.application.isEnabled
+                && prefetchedApplicationIconToken == applicationIconPrefetchToken,
+            accessibilityLabel: filterPresentation.application.accessibilityLabel,
+            accessibilityValue: filterPresentation.application.accessibilityValue,
+            accessibilityIdentifier: filterPresentation.application.accessibilityIdentifier,
+            clearAccessibilityLabel: String(localized: "Clear Application Filter"),
+            clearAccessibilityIdentifier: "historyFilter.app.clear",
+            help: String(localized: "Filter by source application"),
+            onSelect: onSelectApplication
+        )
     }
 
     private var kindControl: some View {
-        ZStack(alignment: .trailing) {
-            Menu {
-                Picker(
-                    String(localized: "Type"),
-                    selection: Binding(
-                        get: { filterState.selectedKind },
-                        set: onSelectKind
-                    )
-                ) {
-                    ForEach(ClipboardItemKind.allCases, id: \.self) { kind in
-                        let definition = ClipboardItemPresentation.definition(for: kind)
-                        Label(definition.displayName, systemImage: definition.symbolName)
-                            .tag(Optional(kind))
-                    }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                let definition = filterState.selectedKind.map(ClipboardItemPresentation.definition(for:))
-                HistoryFilterControlLabel(
-                    title: filterPresentation.kind.title,
-                    symbolName: definition?.symbolName ?? "square.stack.3d.up",
-                    showsMenuChevron: true,
-                    trailingAccessoryWidth: filterPresentation.kind.isActive ? 26 : 0
+        let selectedDefinition = filterState.selectedKind.map(
+            ClipboardItemPresentation.definition(for:)
+        )
+        return HistoryFilterPickerControl(
+            title: filterPresentation.kind.title,
+            symbolName: selectedDefinition?.symbolName ?? "square.stack.3d.up",
+            selectedID: filterState.selectedKind,
+            options: ClipboardItemKind.allCases.map { kind in
+                let definition = ClipboardItemPresentation.definition(for: kind)
+                return HistoryFilterPickerOption(
+                    id: kind,
+                    title: definition.displayName,
+                    icon: .symbol(definition.symbolName)
                 )
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .accessibilityLabel(filterPresentation.kind.accessibilityLabel)
-            .accessibilityValue(filterPresentation.kind.accessibilityValue)
-            .accessibilityIdentifier(filterPresentation.kind.accessibilityIdentifier)
-
-            if filterPresentation.kind.isActive {
-                HistoryFilterClearButton(
-                    accessibilityLabel: String(localized: "Clear Item Type Filter"),
-                    accessibilityIdentifier: "historyFilter.type.clear"
-                ) {
-                    onSelectKind(nil)
-                }
-            }
-        }
-        .historyFilterControlSurface(isActive: filterPresentation.kind.isActive)
-        .help(String(localized: "Filter by item type"))
+            },
+            selectedApplicationIconItem: nil,
+            isEnabled: true,
+            accessibilityLabel: filterPresentation.kind.accessibilityLabel,
+            accessibilityValue: filterPresentation.kind.accessibilityValue,
+            accessibilityIdentifier: filterPresentation.kind.accessibilityIdentifier,
+            clearAccessibilityLabel: String(localized: "Clear Item Type Filter"),
+            clearAccessibilityIdentifier: "historyFilter.type.clear",
+            help: String(localized: "Filter by item type"),
+            onSelect: onSelectKind
+        )
     }
 
     private var dateControl: some View {
-        ZStack(alignment: .trailing) {
-            Menu {
-                Picker(
-                    String(localized: "Date"),
-                    selection: Binding(
-                        get: { filterState.datePreset },
-                        set: onSelectDatePreset
-                    )
-                ) {
-                    ForEach(HistoryDateFilterPreset.selectableCases) { preset in
-                        Label(preset.displayName, systemImage: "calendar")
-                            .tag(preset)
-                    }
-                }
-                .pickerStyle(.inline)
-            } label: {
-                HistoryFilterControlLabel(
-                    title: filterPresentation.date.title,
-                    symbolName: "calendar",
-                    showsMenuChevron: true,
-                    trailingAccessoryWidth: filterPresentation.date.isActive ? 26 : 0
-                )
-            }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .accessibilityLabel(filterPresentation.date.accessibilityLabel)
-            .accessibilityValue(filterPresentation.date.accessibilityValue)
-            .accessibilityIdentifier(filterPresentation.date.accessibilityIdentifier)
-
-            if filterPresentation.date.isActive {
-                HistoryFilterClearButton(
-                    accessibilityLabel: String(localized: "Clear Date Filter"),
-                    accessibilityIdentifier: "historyFilter.date.clear"
-                ) {
-                    onSelectDatePreset(.allDates)
-                }
-            }
-        }
-        .historyFilterControlSurface(isActive: filterPresentation.date.isActive)
-        .help(String(localized: "Filter by copied date"))
+        HistoryDateFilterControl(
+            title: filterPresentation.date.title,
+            selection: filterState.dateSelection,
+            availability: dateAvailability,
+            calendar: filterCalendar,
+            accessibilityLabel: filterPresentation.date.accessibilityLabel,
+            accessibilityValue: filterPresentation.date.accessibilityValue,
+            accessibilityIdentifier: filterPresentation.date.accessibilityIdentifier,
+            onApply: onSelectDate
+        )
     }
 }
 
-private struct HistoryApplicationMenuOptionLabel: View {
-    let option: HistoryApplicationFilterOption
-    let appearance: ClipboardApplicationIconAppearance
-
-    var body: some View {
-        Label {
-            Text(option.displayName)
-        } icon: {
-            if let icon = ClipboardApplicationIconLoader.shared.cachedIcon(
-                for: option.iconItem,
-                appearance: appearance
-            ) {
-                Image(
-                    nsImage: ClipboardApplicationIconLoader.logicalSizeCopy(
-                        of: icon,
-                        size: 16
-                    )
-                )
-            } else {
-                Image(systemName: "app.fill")
-            }
-        }
-    }
-}
-
-private struct HistoryFilterControlLabel: View {
+struct HistoryFilterControlLabel: View {
     let title: String
     let symbolName: String
     let showsMenuChevron: Bool
+    var isExpanded = false
     var trailingAccessoryWidth: CGFloat = 0
     var applicationIconItem: ClipboardItem?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 7) {
@@ -436,10 +340,15 @@ private struct HistoryFilterControlLabel: View {
         Image(systemName: "chevron.down")
             .font(.system(size: 8, weight: .bold))
             .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.16),
+                value: isExpanded
+            )
     }
 }
 
-private struct HistoryFilterClearButton: View {
+struct HistoryFilterClearButton: View {
     let accessibilityLabel: String
     let accessibilityIdentifier: String
     let action: @MainActor @Sendable () -> Void
@@ -449,7 +358,7 @@ private struct HistoryFilterClearButton: View {
             Image(systemName: "xmark")
                 .font(.system(size: 8, weight: .bold))
                 .frame(width: 24, height: 28)
-                .contentShape(Rectangle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -459,18 +368,75 @@ private struct HistoryFilterClearButton: View {
 }
 
 extension View {
-    fileprivate func historyFilterControlSurface(isActive: Bool) -> some View {
-        self
-            .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.82))
-            .background(
-                isActive ? Color.accentColor.opacity(0.10) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+    func historyFilterControlSurface(
+        isActive: Bool,
+        isExpanded: Bool = false
+    ) -> some View {
+        modifier(
+            HistoryFilterControlSurfaceModifier(
+                isActive: isActive,
+                isExpanded: isExpanded
             )
+        )
+    }
+}
+
+private struct HistoryFilterControlSurfaceModifier: ViewModifier {
+    let isActive: Bool
+    let isExpanded: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var emphasizesControl: Bool {
+        isActive || isExpanded
+    }
+
+    private var foregroundColor: Color {
+        emphasizesControl ? .accentColor : .primary.opacity(0.82)
+    }
+
+    private var overlayOpacity: Double {
+        if isExpanded {
+            return isActive ? 0.10 : 0.06
+        }
+        if isActive {
+            return 0.07
+        }
+        return 0
+    }
+
+    private var strokeOpacity: Double {
+        if isExpanded {
+            return 0.15
+        }
+        if isActive {
+            return 0.12
+        }
+        return 0
+    }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
+        content
+            .foregroundStyle(foregroundColor)
+            .background(Color.accentColor.opacity(overlayOpacity), in: shape)
+            .overlay {
+                shape.stroke(Color.accentColor.opacity(strokeOpacity), lineWidth: 0.75)
+            }
             .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
             .bufferGlassSurface(
                 cornerRadius: 14,
-                tint: isActive ? Color.accentColor.opacity(0.12) : nil,
+                tint: isActive ? Color.accentColor.opacity(0.05) : nil,
                 interactive: true
+            )
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.16),
+                value: isActive
+            )
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.16),
+                value: isExpanded
             )
     }
 }

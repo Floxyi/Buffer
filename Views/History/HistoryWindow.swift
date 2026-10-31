@@ -76,10 +76,12 @@ struct HistoryContentView: View {
                 searchSelectionToken: viewModel.searchSelectionToken,
                 filterState: viewModel.filterState,
                 applicationOptions: viewModel.applicationFilterOptions,
+                dateAvailability: viewModel.dateAvailability,
+                filterCalendar: viewModel.dateFilterCalendar,
                 onSetBookmarkedOnly: { viewModel.setBookmarkedOnly($0) },
                 onSelectApplication: { viewModel.setSelectedApplication(bundleIdentifier: $0) },
                 onSelectKind: { viewModel.setSelectedKind($0) },
-                onSelectDatePreset: { viewModel.setDateFilterPreset($0) }
+                onSelectDate: { viewModel.setDateFilterSelection($0) }
             )
 
             BufferPanelSeparator()

@@ -39,11 +39,20 @@ struct PreparedHistoryQuerySnapshot: Sendable {
     let historyRevision: UInt64
     let querySnapshot: HistoryQuerySnapshot
     let applicationFilterOptions: [HistoryApplicationFilterOption]
+    let dateAvailability: HistoryDateAvailability
 }
 
 actor HistorySearchProjectionCoordinator {
+    private struct DateAvailabilityCacheKey: Equatable {
+        let historyRevision: UInt64
+        let calendarIdentifier: String
+        let timeZoneIdentifier: String
+    }
+
     private var cachedApplicationOptionsRevision: UInt64?
     private var cachedApplicationOptions: [HistoryApplicationFilterOption] = []
+    private var cachedDateAvailabilityKey: DateAvailabilityCacheKey?
+    private var cachedDateAvailability = HistoryDateAvailability.empty
 
     func projectLatest(
         response: ClipboardSearchResponse?,
@@ -96,13 +105,44 @@ actor HistorySearchProjectionCoordinator {
             historyRevision: historyRevision,
             retaining: selectedApplication
         )
+        let dateAvailability = try dateAvailability(
+            for: items,
+            historyRevision: historyRevision,
+            calendar: calendar
+        )
         try Task.checkCancellation()
         return PreparedHistoryQuerySnapshot(
             queryGeneration: queryGeneration,
             historyRevision: historyRevision,
             querySnapshot: snapshot,
-            applicationFilterOptions: options
+            applicationFilterOptions: options,
+            dateAvailability: dateAvailability
         )
+    }
+
+    private func dateAvailability(
+        for items: [ClipboardItem],
+        historyRevision: UInt64,
+        calendar: Calendar
+    ) throws -> HistoryDateAvailability {
+        let key = DateAvailabilityCacheKey(
+            historyRevision: historyRevision,
+            calendarIdentifier: String(describing: calendar.identifier),
+            timeZoneIdentifier: calendar.timeZone.identifier
+        )
+        guard key != cachedDateAvailabilityKey else {
+            return cachedDateAvailability
+        }
+        let availability = try HistoryDateAvailability.make(
+            from: items,
+            calendar: calendar,
+            checkCancellation: { index in
+                if index.isMultiple(of: 256) { try Task.checkCancellation() }
+            }
+        )
+        cachedDateAvailabilityKey = key
+        cachedDateAvailability = availability
+        return availability
     }
 
     private func applicationOptions(

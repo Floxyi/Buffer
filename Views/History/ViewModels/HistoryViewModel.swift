@@ -29,6 +29,7 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var detailViewState = HistoryDetailViewState()
     private(set) var filterState = HistoryFilterState()
     @Published private(set) var applicationFilterOptions: [HistoryApplicationFilterOption] = []
+    @Published private(set) var dateAvailability = HistoryDateAvailability.empty
     @Published private(set) var isSearching = false
     @Published private(set) var searchStatus = ClipboardSearchStatus.initial
     @Published var mutationFailure: HistoryMutationFailure?
@@ -48,7 +49,6 @@ final class HistoryViewModel: ObservableObject {
     private let keyboardScrollRouter: HistoryKeyboardScrollRouter
     private let detailModel: HistoryDetailModel
     private let filterCalendar: Calendar
-    private let nowProvider: @MainActor () -> Date
     private var selectionState = HistorySelectionState()
     private var quickPasteState = HistoryQuickPasteState()
     private var navigationState = HistoryNavigationState()
@@ -72,13 +72,11 @@ final class HistoryViewModel: ObservableObject {
         ocrService: OCRServicing,
         assetProvider: (any ClipboardItemAssetProviding)? = nil,
         keyboardScrollRouter: HistoryKeyboardScrollRouter = HistoryKeyboardScrollRouter(),
-        filterCalendar: Calendar = .autoupdatingCurrent,
-        nowProvider: @escaping @MainActor () -> Date = Date.init
+        filterCalendar: Calendar = .autoupdatingCurrent
     ) {
         self.store = store
         self.settingsManager = settingsManager
         self.filterCalendar = filterCalendar
-        self.nowProvider = nowProvider
         let resolvedAssetProvider =
             assetProvider ?? ClipboardItemAssetProvider(store: store, settings: settingsManager)
         self.detailModel = HistoryDetailModel(
@@ -270,6 +268,10 @@ final class HistoryViewModel: ObservableObject {
         )
     }
 
+    var dateFilterCalendar: Calendar {
+        filterCalendar
+    }
+
     func setBookmarkedOnly(_ isEnabled: Bool) {
         mutateFilterState { $0.isBookmarkedOnly = isEnabled }
     }
@@ -286,8 +288,8 @@ final class HistoryViewModel: ObservableObject {
         mutateFilterState { $0.selectedKind = kind }
     }
 
-    func setDateFilterPreset(_ preset: HistoryDateFilterPreset) {
-        mutateFilterState { $0.datePreset = preset }
+    func setDateFilterSelection(_ selection: HistoryDateFilterSelection?) {
+        mutateFilterState { $0.dateSelection = selection }
     }
 
     func setIncludesOCRTextInSearch(_ isEnabled: Bool) {
@@ -760,10 +762,7 @@ final class HistoryViewModel: ObservableObject {
         guard nextState != filterState else { return }
         updateQueryConfiguration(preferredID: filteredItems.first?.id) {
             filterState = nextState
-            queryFilters = nextState.clipboardFilters(
-                now: nowProvider(),
-                calendar: filterCalendar
-            )
+            queryFilters = nextState.clipboardFilters(calendar: filterCalendar)
         }
 
     }
@@ -780,14 +779,11 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func refreshActiveDateFilter() {
-        guard filterState.datePreset != .allDates else {
+        guard filterState.dateSelection != nil else {
             scheduleQuery(preferredID: selectedID)
             return
         }
-        let nextFilters = filterState.clipboardFilters(
-            now: nowProvider(),
-            calendar: filterCalendar
-        )
+        let nextFilters = filterState.clipboardFilters(calendar: filterCalendar)
         guard nextFilters != queryFilters else { return }
         updateQueryConfiguration(preferredID: filteredItems.first?.id) {
             queryFilters = nextFilters
@@ -838,7 +834,8 @@ final class HistoryViewModel: ObservableObject {
                         query: query,
                         queryGeneration: UInt64(generation),
                         historyRevision: historyRevision,
-                        retaining: selectedApplication
+                        retaining: selectedApplication,
+                        calendar: filterCalendar
                     )
                 } catch {
                     return
@@ -846,7 +843,7 @@ final class HistoryViewModel: ObservableObject {
                 guard !Task.isCancelled, generation == searchGeneration, query == activeQuery else {
                     return
                 }
-                applyPreparedProjection(prepared)
+                guard applyPreparedProjection(prepared) else { return }
                 syncSelection(preferredID: preferredID)
                 if pendingMutationPreferredSelectionID == preferredID {
                     pendingMutationPreferredSelectionID = nil
@@ -888,7 +885,8 @@ final class HistoryViewModel: ObservableObject {
                     query: query,
                     queryGeneration: UInt64(generation),
                     historyRevision: response.session.committedState.historyRevision,
-                    retaining: filterState.selectedApplication
+                    retaining: filterState.selectedApplication,
+                    calendar: filterCalendar
                 )
                 guard !Task.isCancelled,
                     response.session.queryGeneration == UInt64(searchGeneration),
@@ -896,7 +894,7 @@ final class HistoryViewModel: ObservableObject {
                     query == activeQuery
                 else { return }
                 publishedSearchContext = PublishedSearchContext(session: response.session)
-                applyPreparedProjection(prepared)
+                guard applyPreparedProjection(prepared) else { return }
                 syncSelection(preferredID: preferredID)
                 if pendingMutationPreferredSelectionID == preferredID {
                     pendingMutationPreferredSelectionID = nil
@@ -914,10 +912,11 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
-    private func applyPreparedProjection(_ prepared: PreparedHistoryQuerySnapshot) {
+    @discardableResult
+    private func applyPreparedProjection(_ prepared: PreparedHistoryQuerySnapshot) -> Bool {
         guard prepared.queryGeneration == UInt64(searchGeneration),
             prepared.historyRevision == store.currentHistoryRevision
-        else { return }
+        else { return false }
         if let selectedApplication = filterState.selectedApplication,
             let refreshed = prepared.applicationFilterOptions.first(where: {
                 $0.bundleIdentifier == selectedApplication.bundleIdentifier
@@ -926,7 +925,16 @@ final class HistoryViewModel: ObservableObject {
             filterState.selectedApplication = refreshed
         }
         applicationFilterOptions = prepared.applicationFilterOptions
+        dateAvailability = prepared.dateAvailability
+        if let selection = filterState.dateSelection {
+            let normalizedSelection = dateAvailability.normalizedSelection(selection)
+            if normalizedSelection != selection {
+                setDateFilterSelection(normalizedSelection)
+                return false
+            }
+        }
         publishQuerySnapshot(prepared.querySnapshot)
+        return true
     }
 
     private func publishQuerySnapshot(_ snapshot: HistoryQuerySnapshot) {

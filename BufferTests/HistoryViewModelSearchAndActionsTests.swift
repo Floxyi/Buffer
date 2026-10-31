@@ -297,7 +297,9 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         viewModel.searchText = "needle"
         viewModel.setBookmarkedOnly(true)
         viewModel.setSelectedKind(.text)
-        viewModel.setDateFilterPreset(.last7Days)
+        viewModel.setDateFilterSelection(
+            HistoryDateFilterSelection(day: HistoryCalendarDay(year: 2026, month: 8, day: 14))
+        )
 
         viewModel.clearSearchAfterCommittedAction()
 
@@ -581,8 +583,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             store: store,
             settingsManager: settings,
             ocrService: FakeOCRService(result: ""),
-            filterCalendar: calendar,
-            nowProvider: { now }
+            filterCalendar: calendar
         )
 
         var revision = viewModel.filteredItemsRevision
@@ -595,7 +596,11 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         viewModel.setSelectedKind(.image)
         await eventually { viewModel.filteredItemsRevision > revision }
         revision = viewModel.filteredItemsRevision
-        viewModel.setDateFilterPreset(.today)
+        viewModel.setDateFilterSelection(
+            HistoryDateFilterSelection(
+                day: HistoryCalendarDay(date: now, calendar: calendar)
+            )
+        )
         await eventually { viewModel.filteredItemsRevision > revision }
         XCTAssertEqual(viewModel.filteredItems.map(\.id), [matching.id])
 
@@ -612,6 +617,88 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.selectedID, matching.id)
         XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[matching.id], 1)
+    }
+
+    func testDateAvailabilityUsesEntireHistoryRegardlessOfOtherFilters() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let textDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 5, day: 3, hour: 12))
+        )
+        let imageDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 5, day: 8, hour: 12))
+        )
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        await populateStore(
+            store,
+            with: [
+                ClipboardItem(timestamp: textDate, content: .text(.init(inlineText: "text"))),
+                ClipboardItem(timestamp: imageDate, content: .image(.init(filename: "image.png"))),
+            ]
+        )
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: ""),
+            filterCalendar: calendar
+        )
+        await waitForHistorySearch(viewModel)
+
+        viewModel.setSelectedKind(.text)
+        await waitForHistorySearch(viewModel)
+
+        XCTAssertEqual(
+            viewModel.dateAvailability.copiedDays,
+            Set([
+                HistoryCalendarDay(date: textDate, calendar: calendar),
+                HistoryCalendarDay(date: imageDate, calendar: calendar),
+            ])
+        )
+    }
+
+    func testDeletingRangeEndpointShrinksSelectionToRemainingCopiedDays() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let firstDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 5, day: 3, hour: 12))
+        )
+        let lastDate = try XCTUnwrap(
+            calendar.date(from: DateComponents(year: 2026, month: 5, day: 8, hour: 12))
+        )
+        let firstItem = ClipboardItem(
+            timestamp: firstDate,
+            content: .text(.init(inlineText: "first"))
+        )
+        let lastItem = ClipboardItem(
+            timestamp: lastDate,
+            content: .text(.init(inlineText: "last"))
+        )
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        await populateStore(store, with: [firstItem, lastItem])
+        let viewModel = HistoryViewModel(
+            store: store,
+            settingsManager: settings,
+            ocrService: FakeOCRService(result: ""),
+            filterCalendar: calendar
+        )
+        await waitForHistorySearch(viewModel)
+        let lastDay = HistoryCalendarDay(date: lastDate, calendar: calendar)
+        viewModel.setDateFilterSelection(
+            HistoryDateFilterSelection(
+                startDay: HistoryCalendarDay(date: firstDate, calendar: calendar),
+                endDay: lastDay
+            )
+        )
+        await waitForHistorySearch(viewModel)
+
+        try await store.delete(firstItem)
+
+        await eventually {
+            viewModel.filterState.dateSelection == HistoryDateFilterSelection(day: lastDay)
+                && viewModel.filteredItems.map(\.id) == [lastItem.id]
+        }
     }
 
     func testApplicationOptionsDeduplicateSortAndRetainActiveSelection() {
@@ -704,7 +791,10 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             isBookmarkedOnly: true,
             selectedApplication: application,
             selectedKind: .image,
-            datePreset: .last30Days
+            dateSelection: HistoryDateFilterSelection(
+                startDay: HistoryCalendarDay(year: 2026, month: 7, day: 16),
+                endDay: HistoryCalendarDay(year: 2026, month: 8, day: 14)
+            )
         )
         let active = HistoryFilterBarPresentation(
             filterState: activeState,
@@ -714,7 +804,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(active.application.title, "Very Long Application Name")
         XCTAssertEqual(active.application.accessibilityValue, "Very Long Application Name")
         XCTAssertEqual(active.kind.title, "Image")
-        XCTAssertEqual(active.date.title, "Last 30 Days")
+        XCTAssertNotEqual(active.date.title, "Date")
         XCTAssertTrue(active.bookmarks.isActive)
         XCTAssertTrue(active.application.isActive)
         XCTAssertTrue(active.kind.isActive)

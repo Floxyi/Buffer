@@ -172,9 +172,6 @@ final class ScrollController: ObservableObject {
 
     func syncMetricsImmediately() {
         guard let scrollView else { return }
-
-        scrollView.layoutSubtreeIfNeeded()
-        scrollView.documentView?.layoutSubtreeIfNeeded()
         syncMetricsNow(from: scrollView)
     }
 
@@ -202,14 +199,7 @@ final class ScrollController: ObservableObject {
     }
 
     private func scrollToTopNow() {
-        guard let scrollView,
-            let documentView = scrollView.documentView
-        else {
-            return
-        }
-
-        scrollView.layoutSubtreeIfNeeded()
-        documentView.layoutSubtreeIfNeeded()
+        guard let scrollView, scrollView.documentView != nil else { return }
 
         let proposedBounds = NSRect(
             x: scrollView.contentView.bounds.minX,
@@ -232,9 +222,6 @@ final class ScrollController: ObservableObject {
         else {
             return
         }
-
-        scrollView.layoutSubtreeIfNeeded()
-        documentView.layoutSubtreeIfNeeded()
 
         let viewportHeight = max(
             scrollView.contentView.bounds.height,

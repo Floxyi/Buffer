@@ -1,49 +1,138 @@
 import Foundation
 
-enum HistoryDateFilterPreset: String, CaseIterable, Identifiable, Sendable {
-    case allDates
-    case today
-    case yesterday
-    case last7Days
-    case last30Days
+struct HistoryCalendarDay: Hashable, Comparable, Sendable {
+    let era: Int
+    let year: Int
+    let month: Int
+    let day: Int
 
-    var id: Self { self }
+    init(date: Date, calendar: Calendar) {
+        let components = calendar.dateComponents([.era, .year, .month, .day], from: date)
+        era = components.era ?? 1
+        year = components.year ?? 1
+        month = components.month ?? 1
+        day = components.day ?? 1
+    }
 
-    static let selectableCases = allCases.filter { $0 != .allDates }
+    init(era: Int = 1, year: Int, month: Int, day: Int) {
+        self.era = era
+        self.year = year
+        self.month = month
+        self.day = day
+    }
 
-    var displayName: String {
-        switch self {
-        case .allDates: String(localized: "All Dates")
-        case .today: String(localized: "Today")
-        case .yesterday: String(localized: "Yesterday")
-        case .last7Days: String(localized: "Last 7 Days")
-        case .last30Days: String(localized: "Last 30 Days")
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        (lhs.era, lhs.year, lhs.month, lhs.day)
+            < (rhs.era, rhs.year, rhs.month, rhs.day)
+    }
+
+    func date(in calendar: Calendar) -> Date? {
+        guard
+            let date = calendar.date(
+                from: DateComponents(
+                    calendar: calendar,
+                    timeZone: calendar.timeZone,
+                    era: era,
+                    year: year,
+                    month: month,
+                    day: day
+                )
+            )
+        else { return nil }
+        return calendar.startOfDay(for: date)
+    }
+}
+
+struct HistoryDateFilterSelection: Equatable, Sendable {
+    let startDay: HistoryCalendarDay
+    let endDay: HistoryCalendarDay
+
+    init(startDay: HistoryCalendarDay, endDay: HistoryCalendarDay) {
+        if startDay <= endDay {
+            self.startDay = startDay
+            self.endDay = endDay
+        } else {
+            self.startDay = endDay
+            self.endDay = startDay
         }
     }
 
-    func dateInterval(containing date: Date, calendar: Calendar) -> DateInterval? {
-        let dayOffsets: (start: Int, end: Int)
-        switch self {
-        case .allDates:
-            return nil
-        case .today:
-            dayOffsets = (0, 1)
-        case .yesterday:
-            dayOffsets = (-1, 0)
-        case .last7Days:
-            dayOffsets = (-6, 1)
-        case .last30Days:
-            dayOffsets = (-29, 1)
-        }
+    init(day: HistoryCalendarDay) {
+        self.init(startDay: day, endDay: day)
+    }
 
-        let today = calendar.startOfDay(for: date)
-        guard
-            let start = calendar.date(byAdding: .day, value: dayOffsets.start, to: today),
-            let end = calendar.date(byAdding: .day, value: dayOffsets.end, to: today)
-        else {
+    var isSingleDay: Bool {
+        startDay == endDay
+    }
+
+    func contains(_ day: HistoryCalendarDay) -> Bool {
+        day >= startDay && day <= endDay
+    }
+
+    func dateInterval(calendar: Calendar) -> DateInterval? {
+        guard let start = startDay.date(in: calendar),
+            let inclusiveEnd = endDay.date(in: calendar),
+            let end = calendar.date(byAdding: .day, value: 1, to: inclusiveEnd)
+        else { return nil }
+        return DateInterval(start: start, end: end)
+    }
+
+    func displayName(calendar: Calendar, locale: Locale = .autoupdatingCurrent) -> String {
+        guard let start = startDay.date(in: calendar), let end = endDay.date(in: calendar) else {
+            return String(localized: "Date")
+        }
+        if isSingleDay {
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.locale = locale
+            formatter.timeZone = calendar.timeZone
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .none
+            return formatter.string(from: start)
+        }
+        let formatter = DateIntervalFormatter()
+        formatter.calendar = calendar
+        formatter.locale = locale
+        formatter.timeZone = calendar.timeZone
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: start, to: end)
+    }
+}
+
+struct HistoryDateAvailability: Equatable, Sendable {
+    static let empty = Self(copiedDays: [])
+
+    let copiedDays: Set<HistoryCalendarDay>
+    let earliestDay: HistoryCalendarDay?
+    let latestDay: HistoryCalendarDay?
+
+    init(copiedDays: Set<HistoryCalendarDay>) {
+        self.copiedDays = copiedDays
+        earliestDay = copiedDays.min()
+        latestDay = copiedDays.max()
+    }
+
+    static func make(
+        from items: [ClipboardItem],
+        calendar: Calendar,
+        checkCancellation: ((Int) throws -> Void)? = nil
+    ) rethrows -> Self {
+        var copiedDays: Set<HistoryCalendarDay> = []
+        copiedDays.reserveCapacity(min(items.count, 366))
+        for (index, item) in items.enumerated() {
+            try checkCancellation?(index)
+            copiedDays.insert(HistoryCalendarDay(date: item.timestamp, calendar: calendar))
+        }
+        return Self(copiedDays: copiedDays)
+    }
+
+    func normalizedSelection(_ selection: HistoryDateFilterSelection) -> HistoryDateFilterSelection? {
+        let containedDays = copiedDays.filter(selection.contains)
+        guard let startDay = containedDays.min(), let endDay = containedDays.max() else {
             return nil
         }
-        return DateInterval(start: start, end: end)
+        return HistoryDateFilterSelection(startDay: startDay, endDay: endDay)
     }
 }
 
@@ -79,21 +168,21 @@ struct HistoryFilterState: Equatable, Sendable {
     var isBookmarkedOnly = false
     var selectedApplication: HistoryApplicationFilterOption?
     var selectedKind: ClipboardItemKind?
-    var datePreset = HistoryDateFilterPreset.allDates
+    var dateSelection: HistoryDateFilterSelection?
 
     var isEmpty: Bool {
         !isBookmarkedOnly
             && selectedApplication == nil
             && selectedKind == nil
-            && datePreset == .allDates
+            && dateSelection == nil
     }
 
-    func clipboardFilters(now: Date, calendar: Calendar) -> ClipboardFilters {
+    func clipboardFilters(calendar: Calendar) -> ClipboardFilters {
         ClipboardFilters(
             requiresBookmark: isBookmarkedOnly,
             sourceBundleIdentifiers: selectedApplication.map { [$0.bundleIdentifier] } ?? [],
             kinds: selectedKind.map { [$0] } ?? [],
-            copiedAt: datePreset.dateInterval(containing: now, calendar: calendar)
+            copiedAt: dateSelection?.dateInterval(calendar: calendar)
         )
     }
 }
@@ -113,7 +202,11 @@ struct HistoryFilterBarPresentation: Equatable, Sendable {
     let kind: HistoryFilterControlPresentation
     let date: HistoryFilterControlPresentation
 
-    init(filterState: HistoryFilterState, hasApplicationOptions: Bool) {
+    init(
+        filterState: HistoryFilterState,
+        hasApplicationOptions: Bool,
+        calendar: Calendar = .autoupdatingCurrent
+    ) {
         bookmarks = HistoryFilterControlPresentation(
             title: String(localized: "Bookmarks"),
             accessibilityLabel: String(localized: "Bookmarks Filter"),
@@ -147,12 +240,13 @@ struct HistoryFilterBarPresentation: Equatable, Sendable {
         )
 
         date = HistoryFilterControlPresentation(
-            title: filterState.datePreset == .allDates
-                ? String(localized: "Date") : filterState.datePreset.displayName,
+            title: filterState.dateSelection?.displayName(calendar: calendar)
+                ?? String(localized: "Date"),
             accessibilityLabel: String(localized: "Date Filter"),
-            accessibilityValue: filterState.datePreset.displayName,
+            accessibilityValue: filterState.dateSelection?.displayName(calendar: calendar)
+                ?? String(localized: "All Dates"),
             accessibilityIdentifier: "historyFilter.date",
-            isActive: filterState.datePreset != .allDates,
+            isActive: filterState.dateSelection != nil,
             isEnabled: true
         )
     }
