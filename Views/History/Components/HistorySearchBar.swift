@@ -1,12 +1,61 @@
 import AppKit
 import SwiftUI
 
+enum HistorySearchActivityPhase: Equatable, Sendable {
+    case idle
+    case updating
+    case searching
+}
+
+protocol HistorySearchActivityClock: Sendable {
+    func sleep(for duration: Duration) async throws
+}
+
+struct ContinuousHistorySearchActivityClock: HistorySearchActivityClock {
+    func sleep(for duration: Duration) async throws {
+        try await Task.sleep(for: duration)
+    }
+}
+
+struct HistorySearchActivityStateMachine: Sendable {
+    let clock: any HistorySearchActivityClock
+
+    init(clock: any HistorySearchActivityClock = ContinuousHistorySearchActivityClock()) {
+        self.clock = clock
+    }
+
+    func run(
+        isSearching: Bool,
+        publish: @escaping @MainActor @Sendable (HistorySearchActivityPhase) -> Void
+    ) async {
+        await publish(.idle)
+        guard isSearching else { return }
+        do {
+            try await clock.sleep(for: .milliseconds(200))
+            try Task.checkCancellation()
+            await publish(.updating)
+            try await clock.sleep(for: .milliseconds(800))
+            try Task.checkCancellation()
+            await publish(.searching)
+        } catch {
+            return
+        }
+    }
+}
+
+private struct HistorySearchActivityID: Hashable {
+    let isSearching: Bool
+    let query: String
+}
+
 struct HistorySearchBar: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var applicationIconLoader = ClipboardApplicationIconLoader.shared
 
     @Binding var searchText: String
     let filteredItemCount: Int
+    let isSearching: Bool
+    let searchStatus: ClipboardSearchStatus
     @Binding var isSearchFocused: Bool
     let searchSelectionToken: Int
     let filterState: HistoryFilterState
@@ -17,6 +66,8 @@ struct HistorySearchBar: View {
     let onSelectDatePreset: @MainActor @Sendable (HistoryDateFilterPreset) -> Void
 
     @State private var prefetchedApplicationIconToken: String?
+    @State private var searchActivityPhase = HistorySearchActivityPhase.idle
+    private let searchActivityStateMachine = HistorySearchActivityStateMachine()
 
     private var filterPresentation: HistoryFilterBarPresentation {
         HistoryFilterBarPresentation(
@@ -59,6 +110,11 @@ struct HistorySearchBar: View {
             guard !Task.isCancelled else { return }
             prefetchedApplicationIconToken = applicationIconPrefetchToken
         }
+        .task(id: HistorySearchActivityID(isSearching: isSearching, query: searchText)) {
+            await searchActivityStateMachine.run(isSearching: isSearching) { phase in
+                searchActivityPhase = phase
+            }
+        }
     }
 
     private var searchRow: some View {
@@ -86,18 +142,52 @@ struct HistorySearchBar: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(searchText.isEmpty ? 0 : 1)
+                .scaleEffect(searchText.isEmpty ? 0.86 : 1)
+                .animation(.easeOut(duration: 0.14), value: searchText.isEmpty)
                 .disabled(searchText.isEmpty)
             }
             .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24, alignment: .center)
 
-            Text("\(filteredItemCount) items")
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(.secondary.opacity(0.72))
-                .frame(width: 80, height: 24, alignment: .trailing)
-                .padding(.trailing, 2)
+            HStack(spacing: 5) {
+                if isSearching, searchActivityPhase == .searching {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
+                Text(searchStatusText)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(.secondary.opacity(0.72))
+                    .contentTransition(.opacity)
+            }
+            .animation(.easeOut(duration: 0.16), value: searchActivityPhase)
+            .frame(width: 80, height: 24, alignment: .trailing)
+            .padding(.trailing, 2)
         }
         .padding(.horizontal, 12)
         .frame(height: 52, alignment: .center)
+    }
+
+    private var searchStatusText: String {
+        if isSearching {
+            switch searchActivityPhase {
+            case .idle:
+                return "\(filteredItemCount) items"
+            case .updating:
+                return String(localized: "Updating…")
+            case .searching:
+                return String(localized: "Searching…")
+            }
+        }
+        if case .degraded = searchStatus.phase {
+            return String(localized: "Search paused")
+        }
+        if case .recovering = searchStatus.phase {
+            return String(localized: "Rebuilding…")
+        }
+        if !searchStatus.isReady, searchStatus.totalItemCount > 0 {
+            return "\(searchStatus.indexedItemCount)/\(searchStatus.totalItemCount)"
+        }
+        return "\(filteredItemCount) items"
     }
 
     private var filterRow: some View {
@@ -417,7 +507,8 @@ private struct SearchFieldBridge: NSViewRepresentable {
         context.coordinator.text = $text
         context.coordinator.isFocused = $isFocused
 
-        if nsView.stringValue != text {
+        let hasMarkedText = (nsView.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
+        if !hasMarkedText, nsView.stringValue != text {
             nsView.stringValue = text
         }
 
@@ -430,8 +521,14 @@ private struct SearchFieldBridge: NSViewRepresentable {
         }
 
         if isFocused {
+            // Avoid AppKit choosing the field editor while the window is still
+            // completing its initial layout. The focus controller enables the
+            // field once the window is ready, yielding one stable TextInputUI
+            // session instead of an automatic session followed by ours.
+            nsView.allowsFocus = true
             DispatchQueue.main.async {
                 guard let window = nsView.window else { return }
+                prepareSearchFieldEditor(in: window, for: nsView)
 
                 if window.firstResponder !== nsView.currentEditor() {
                     window.makeFirstResponder(nsView)
@@ -440,6 +537,14 @@ private struct SearchFieldBridge: NSViewRepresentable {
                 context.coordinator.applyPendingSelectionIfNeeded(to: nsView)
             }
         }
+    }
+
+    private func prepareSearchFieldEditor(
+        in window: NSWindow,
+        for textField: NSTextField
+    ) {
+        guard let editor = window.fieldEditor(true, for: textField) as? NSTextView else { return }
+        editor.configureForHistorySearch()
     }
 
     @MainActor
@@ -456,6 +561,14 @@ private struct SearchFieldBridge: NSViewRepresentable {
 
         func controlTextDidChange(_ notification: Notification) {
             guard let textField = notification.object as? NSTextField else { return }
+            // Keep IME composition local to AppKit. Publishing marked text would
+            // launch SQLite work for transient phonetic input and render stale
+            // highlights before the user commits the composition.
+            if let editor = textField.currentEditor() as? NSTextView,
+                editor.hasMarkedText()
+            {
+                return
+            }
             if text.wrappedValue != textField.stringValue {
                 text.wrappedValue = textField.stringValue
             }
@@ -469,7 +582,6 @@ private struct SearchFieldBridge: NSViewRepresentable {
             guard pendingSelectionToken != appliedSelectionToken else { return }
             guard let editor = textField.currentEditor() else { return }
 
-            textField.selectText(nil)
             editor.selectedRange = NSRange(location: 0, length: editor.string.count)
             appliedSelectionToken = pendingSelectionToken
         }
@@ -478,8 +590,14 @@ private struct SearchFieldBridge: NSViewRepresentable {
 
 private final class FocusableSearchTextField: NSTextField {
     var focusChangeHandler: ((Bool) -> Void)?
+    var allowsFocus = false
+
+    override var acceptsFirstResponder: Bool {
+        allowsFocus && super.acceptsFirstResponder
+    }
 
     override func becomeFirstResponder() -> Bool {
+        guard allowsFocus else { return false }
         let didBecomeFirstResponder = super.becomeFirstResponder()
         if didBecomeFirstResponder {
             focusChangeHandler?(true)
@@ -493,5 +611,23 @@ private final class FocusableSearchTextField: NSTextField {
             focusChangeHandler?(false)
         }
         return didResignFirstResponder
+    }
+}
+
+extension NSTextView {
+    fileprivate func configureForHistorySearch() {
+        isAutomaticDashSubstitutionEnabled = false
+        isAutomaticDataDetectionEnabled = false
+        isGrammarCheckingEnabled = false
+        isAutomaticLinkDetectionEnabled = false
+        isAutomaticQuoteSubstitutionEnabled = false
+        isAutomaticSpellingCorrectionEnabled = false
+        isAutomaticTextCompletionEnabled = false
+        isAutomaticTextReplacementEnabled = false
+        inlinePredictionType = .no
+
+        if #available(macOS 15.0, *) {
+            writingToolsBehavior = .none
+        }
     }
 }

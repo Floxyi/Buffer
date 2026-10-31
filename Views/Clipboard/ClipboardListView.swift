@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Vertical list of clipboard items with keyboard navigation.
 struct ClipboardListView: View {
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @StateObject private var scrollController = ScrollController()
     @StateObject private var scrollCoordinator = ClipboardListScrollCoordinator()
     @StateObject private var measuredScrollCoordinator = ClipboardMeasuredScrollCoordinator()
@@ -33,7 +34,11 @@ struct ClipboardListView: View {
     }
 
     private var displayState: ClipboardListDisplayState {
-        projectedDisplayState(for: state.contentSnapshot, cache: listCache)
+        let snapshot = state.contentSnapshot
+        return projectedDisplayState(
+            for: snapshot,
+            cache: snapshot.displayCache
+        )
     }
 
     var body: some View {
@@ -54,6 +59,13 @@ struct ClipboardListView: View {
             selectedIDs: state.selectedIDs,
             searchResultsByItemID: state.searchResultsByItemID,
             queryText: state.queryText,
+            committedQueryText: state.committedQueryText,
+            searchResultAnimationID: state.committedQueryText.isEmpty
+                ? nil : state.itemsSnapshotID,
+            searchResultAnimationPolicy: SearchResultAnimationPolicy.make(
+                resultCount: items.count,
+                reduceMotion: accessibilityReduceMotion
+            ),
             isAwaitingInitialOpenScroll: scrollCoordinator.isAwaitingInitialOpenScroll,
             onCommitSelection: actions.commitSelection,
             onSelectSingle: actions.selectSingle,
@@ -70,16 +82,16 @@ struct ClipboardListView: View {
             onAppear: handleAppear(using:)
         )
         .onDisappear(perform: handleDisappear)
-        .onChange(of: state.contentSnapshot) { snapshot in
+        .onChange(of: state.contentSnapshot) { _, snapshot in
             handleContentChange(snapshot)
         }
-        .onChange(of: scrollController.viewportHeight) { _ in
+        .onChange(of: scrollController.viewportHeight) {
             updateVisibleAssetPrewarm()
         }
-        .onChange(of: navigation.openScrollRequestToken) { _ in
+        .onChange(of: navigation.openScrollRequestToken) {
             applyOpenScrollRequestIfPossible()
         }
-        .onChange(of: navigation.jumpScrollRequest) { newRequest in
+        .onChange(of: navigation.jumpScrollRequest) { _, newRequest in
             scrollCoordinator.syncJumpScrollRequest(newRequest)
         }
         .task(id: jumpScrollTaskKey) {
@@ -112,13 +124,20 @@ struct ClipboardListView: View {
         items: [ClipboardItem],
         layoutIndex: ClipboardListLayoutIndex
     ) {
-        scrollController.onMetricsChanged = { [assetPrewarmer, hoverCoordinator] metrics in
+        scrollController.onMetricsChanged = { [assetPrewarmer, hoverCoordinator, actions] metrics in
             hoverCoordinator.suppressUntilPointerMoves()
             assetPrewarmer.prewarmVisibleAssets(
                 in: items,
                 layoutIndex: layoutIndex,
                 scrollOffset: metrics.scrollOffset,
                 viewportHeight: metrics.viewportHeight
+            )
+            actions.visibleItemIDsChanged(
+                layoutIndex.visibleItemIDs(
+                    scrollOffset: metrics.scrollOffset,
+                    viewportHeight: metrics.viewportHeight,
+                    overscan: 88
+                )
             )
         }
     }
@@ -261,9 +280,10 @@ struct ClipboardListView: View {
     private func rebuildListCache(
         for snapshot: ClipboardListContentSnapshot
     ) -> ClipboardListStructure.DisplayCache {
-        let cache = ClipboardListStructure.makeDisplayCache(
-            from: snapshot.items,
-            sourceSnapshotID: snapshot.id
+        let cache = snapshot.displayCache
+        assert(
+            cache.matches(sourceSnapshotID: snapshot.id),
+            "A list publication must include its matching display cache"
         )
         listCache = cache
         return cache

@@ -113,10 +113,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             async let legacyCacheCleanup: Void =
                 ClipboardLegacyApplicationIconCacheCleaner.shared.removeLegacyCacheIfNeeded()
 
+            let historyItems = container.clipboardStore.items
+            let applicationIconItems = await Task.detached(priority: .utility) {
+                HistoryApplicationFilterOptions.make(from: historyItems).map(\.iconItem)
+            }.value
             await ClipboardApplicationIconLoader.shared.prewarmIcons(
-                for: HistoryApplicationFilterOptions.make(
-                    from: container.clipboardStore.items
-                ).map(\.iconItem),
+                for: applicationIconItems,
                 limit: 120
             )
 

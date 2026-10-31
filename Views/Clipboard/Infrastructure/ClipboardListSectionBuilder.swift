@@ -106,4 +106,56 @@ enum ClipboardListSectionBuilder {
 
         return rows
     }
+
+    static func displayRowsCancellable(
+        from items: [ClipboardItem],
+        referenceDate: Date,
+        calendar: Calendar
+    ) throws -> [ClipboardListStructure.DisplayRow] {
+        var pinnedItems: [ClipboardItem] = []
+        var unpinnedSections: [ClipboardListStructure.ItemSection] = []
+        pinnedItems.reserveCapacity(items.count)
+
+        for (index, item) in items.enumerated() {
+            if index.isMultiple(of: 256) { try Task.checkCancellation() }
+            if item.isPinned {
+                pinnedItems.append(item)
+                continue
+            }
+            let title = AppFormatting.historySectionTitle(
+                for: item.timestamp,
+                calendar: calendar,
+                referenceDate: referenceDate
+            )
+            if let lastIndex = unpinnedSections.indices.last,
+                unpinnedSections[lastIndex].title == title
+            {
+                unpinnedSections[lastIndex].items.append(item)
+            } else {
+                unpinnedSections.append(.init(id: title, title: title, items: [item]))
+            }
+        }
+
+        var rows: [ClipboardListStructure.DisplayRow] = []
+        rows.reserveCapacity(items.count + unpinnedSections.count + (pinnedItems.isEmpty ? 0 : 2))
+        if !pinnedItems.isEmpty {
+            rows.append(.init(id: "header-pinned", kind: .header(title: String(localized: "PINNED"), systemImage: nil)))
+            for (index, item) in pinnedItems.enumerated() {
+                if index.isMultiple(of: 256) { try Task.checkCancellation() }
+                rows.append(.init(id: "item-\(item.id.uuidString)", kind: .item(item)))
+            }
+        }
+        for (sectionIndex, section) in unpinnedSections.enumerated() {
+            try Task.checkCancellation()
+            if sectionIndex == 0, !pinnedItems.isEmpty {
+                rows.append(.init(id: "divider-pinned", kind: .divider))
+            }
+            rows.append(.init(id: "header-\(section.id)", kind: .header(title: section.title, systemImage: nil)))
+            for (index, item) in section.items.enumerated() {
+                if index.isMultiple(of: 256) { try Task.checkCancellation() }
+                rows.append(.init(id: "item-\(item.id.uuidString)", kind: .item(item)))
+            }
+        }
+        return rows
+    }
 }

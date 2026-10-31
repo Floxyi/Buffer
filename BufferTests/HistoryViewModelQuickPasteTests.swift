@@ -26,6 +26,7 @@ final class HistoryViewModelQuickPasteTests: XCTestCase {
         }
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        await waitForHistorySearch(viewModel)
 
         XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[pinned.id], 1)
         XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[second.id], 2)
@@ -55,6 +56,7 @@ final class HistoryViewModelQuickPasteTests: XCTestCase {
         }
 
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        await waitForHistorySearch(viewModel)
 
         XCTAssertNil(viewModel.quickPasteBadgeNumberByItemID[pinned.id])
         XCTAssertEqual(viewModel.quickPasteBadgeNumberByItemID[second.id], 1)

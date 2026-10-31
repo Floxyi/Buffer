@@ -4,6 +4,21 @@ import XCTest
 
 @MainActor
 final class ClipboardAssetStoreTests: XCTestCase {
+    func testSearchTextAssetFilenameRejectsTraversalAndUnexpectedNames() {
+        let validID = UUID()
+        XCTAssertNotNil(ClipboardAssetFilename(rawValue: "\(validID.uuidString).txt"))
+        for invalid in [
+            "../\(validID.uuidString).txt",
+            "/tmp/\(validID.uuidString).txt",
+            "folder/\(validID.uuidString).txt",
+            "folder\\\(validID.uuidString).txt",
+            "not-a-uuid.txt",
+            "\(validID.uuidString).json",
+        ] {
+            XCTAssertNil(ClipboardAssetFilename(rawValue: invalid), invalid)
+        }
+    }
+
     func testFullTextAndTextChunkReadStoredTextFile() throws {
         let paths = TestStorageFactory.makePaths()
         let assetStore = ClipboardAssetStore(paths: paths)
@@ -18,6 +33,47 @@ final class ClipboardAssetStoreTests: XCTestCase {
         XCTAssertEqual(chunk.text, "abcde")
         XCTAssertEqual(chunk.totalBytes, 26)
         XCTAssertFalse(chunk.reachedEOF)
+    }
+
+    func testSearchSnapshotUsesStableFingerprintAndReadOnlyAsset() throws {
+        let paths = TestStorageFactory.makePaths()
+        let assetStore = ClipboardAssetStore(paths: paths)
+        assetStore.ensureDirectoriesExist()
+        let filename = try XCTUnwrap(assetStore.saveText("immutable searchable body"))
+        let item = ClipboardItem.largeText(preview: "immutable", filename: filename)
+
+        let before = try assetStore.fingerprint(for: item)
+        let snapshot = try assetStore.snapshot(for: item, checkCancellation: {})
+        let permissions = try XCTUnwrap(
+            FileManager.default.attributesOfItem(
+                atPath: paths.textsDirectory.appendingPathComponent(filename).path
+            )[.posixPermissions] as? NSNumber
+        )
+
+        XCTAssertEqual(snapshot.text, "immutable searchable body")
+        XCTAssertEqual(snapshot.fingerprint, before)
+        XCTAssertEqual(permissions.intValue & 0o777, 0o400)
+    }
+
+    func testReplacingSameNamedAssetChangesFingerprint() throws {
+        let paths = TestStorageFactory.makePaths()
+        let assetStore = ClipboardAssetStore(paths: paths)
+        assetStore.ensureDirectoriesExist()
+        let filename = try XCTUnwrap(assetStore.saveText("first-content"))
+        let item = ClipboardItem.largeText(preview: "first", filename: filename)
+        let url = paths.textsDirectory.appendingPathComponent(filename)
+        let original = try assetStore.fingerprint(for: item)
+
+        try FileManager.default.removeItem(at: url)
+        try Data("other-content".utf8).write(to: url, options: .atomic)
+        let replacement = try assetStore.fingerprint(for: item)
+
+        XCTAssertEqual(original.byteCount, replacement.byteCount)
+        XCTAssertNotEqual(original, replacement)
+        XCTAssertEqual(
+            try assetStore.snapshot(for: item, checkCancellation: {}).text,
+            "other-content"
+        )
     }
 
     func testTextChunkUsesInlineFallbackForTruncatedText() throws {

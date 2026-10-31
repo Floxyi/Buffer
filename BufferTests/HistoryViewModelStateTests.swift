@@ -182,6 +182,7 @@ final class HistoryViewModelStateTests: XCTestCase {
             settingsManager: settings,
             ocrService: ocrService
         )
+        await waitForHistorySearch(viewModel)
         viewModel.selectSingle(firstItem.id)
         let firstTask = Task {
             await viewModel.extractImageText(for: firstItem)

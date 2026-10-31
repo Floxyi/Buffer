@@ -210,7 +210,7 @@ final class ClipboardWatcherTests: XCTestCase {
         }
     }
 
-    func testAutomaticOCRUpdatesCapturedImageAfterPublishingIt() async {
+    func testAutomaticOCRUpdatesCapturedImageAfterPublishingIt() async throws {
         let ocrService = ControlledAutomaticOCRService()
         let context = makeWatcherContext(ocrService: ocrService)
         context.pasteboard.imageData = makePNGData()
@@ -232,6 +232,7 @@ final class ClipboardWatcherTests: XCTestCase {
             settingsManager: context.settings,
             ocrService: ocrService
         )
+        await waitForHistorySearch(viewModel)
         await viewModel.loadPreviewIfNeeded()
 
         XCTAssertTrue(viewModel.detailViewState.isExtractingText)
@@ -264,12 +265,11 @@ final class ClipboardWatcherTests: XCTestCase {
                 && !viewModel.detailViewState.isExtractingText
         }
         await context.store.waitForSearchIndex()
-        XCTAssertNotNil(
-            context.store.searchIndexSnapshot.results(
-                for: [itemID],
-                query: ClipboardQuery(text: "recgonized backgorund")
-            )[itemID]
+        let response = try await context.store.search(
+            ClipboardQuery(text: "recgonized backgorund"),
+            generation: 1
         )
+        XCTAssertTrue(response.hits.contains { $0.itemID == itemID })
     }
 
     func testDisablingAutomaticOCRSkipsRecognitionForNewImages() async {

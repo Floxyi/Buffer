@@ -14,18 +14,20 @@ struct ClipboardListDisplayStateProjector {
         cache: ClipboardListStructure.DisplayCache,
         viewportHeight: CGFloat
     ) -> ClipboardListDisplayState {
-        let resolvedCache: ClipboardListStructure.DisplayCache
-        if cache.matches(sourceSnapshotID: itemsSnapshotID) {
-            resolvedCache = cache
-        } else {
-            resolvedCache = ClipboardListStructure.makeDisplayCache(
-                from: items,
-                sourceSnapshotID: itemsSnapshotID
-            )
+        guard cache.matches(sourceSnapshotID: itemsSnapshotID) else {
+            assertionFailure("A list publication must include its matching display cache")
+            return makeDisplayState(cache: cache, viewportHeight: viewportHeight)
         }
 
-        let displayRows = resolvedCache.displayRows
-        let contentHeight = resolvedCache.layoutIndex.contentHeight
+        return makeDisplayState(cache: cache, viewportHeight: viewportHeight)
+    }
+
+    private func makeDisplayState(
+        cache: ClipboardListStructure.DisplayCache,
+        viewportHeight: CGFloat
+    ) -> ClipboardListDisplayState {
+        let displayRows = cache.displayRows
+        let contentHeight = cache.layoutIndex.contentHeight
         let hasVisibleScrollbar = viewportHeight > 1 && max(0, contentHeight - viewportHeight) > 1
         let contentTrailingPadding: CGFloat
         if hasVisibleScrollbar {
@@ -37,9 +39,9 @@ struct ClipboardListDisplayStateProjector {
         }
 
         return ClipboardListDisplayState(
-            cache: resolvedCache,
+            cache: cache,
             displayRows: displayRows,
-            layoutIndex: resolvedCache.layoutIndex,
+            layoutIndex: cache.layoutIndex,
             contentTrailingPadding: contentTrailingPadding
         )
     }

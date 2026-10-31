@@ -61,10 +61,7 @@ final class ClipboardItemTypeRegistryTests: XCTestCase {
             try XCTUnwrap(ClipboardEmailValue.parse(originalText))
         )
 
-        XCTAssertEqual(
-            ClipboardSearchContentExtractor.searchableText(for: item) { nil },
-            originalText
-        )
+        XCTAssertEqual(item.emailPayload?.originalText, originalText)
         let pasteText = await store.pasteText(for: item)
         XCTAssertEqual(pasteText, originalText)
         XCTAssertEqual(store.itemSize(for: item), originalText.utf8.count)

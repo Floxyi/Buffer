@@ -15,8 +15,11 @@ struct ClipboardListContent: View {
     let assetProvider: any ClipboardItemAssetProviding
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
-    let searchResultsByItemID: [UUID: ClipboardSearchResult]
+    let searchResultsByItemID: [UUID: ClipboardSearchHit]
     let queryText: String
+    let committedQueryText: String
+    let searchResultAnimationID: UUID?
+    let searchResultAnimationPolicy: SearchResultAnimationPolicy
     let isAwaitingInitialOpenScroll: Bool
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
@@ -45,6 +48,9 @@ struct ClipboardListContent: View {
                         selectedIDs: selectedIDs,
                         searchResultsByItemID: searchResultsByItemID,
                         queryText: queryText,
+                        committedQueryText: committedQueryText,
+                        searchResultAnimationID: searchResultAnimationID,
+                        searchResultAnimationPolicy: searchResultAnimationPolicy,
                         onCommitSelection: onCommitSelection,
                         onSelectSingle: onSelectSingle,
                         onToggleSelection: onToggleSelection,
@@ -58,6 +64,11 @@ struct ClipboardListContent: View {
                         indexForItem: indexForItem
                     )
                 }
+                .animation(
+                    searchResultAnimationID == nil
+                        ? nil : searchResultAnimationPolicy.insertion,
+                    value: searchResultAnimationID
+                )
                 .padding(.vertical, ClipboardListStructure.LayoutMetrics.contentPadding)
                 .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
                 .padding(.trailing, contentTrailingPadding)

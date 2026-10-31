@@ -58,6 +58,17 @@ final class ClipboardAssetStore: @unchecked Sendable, ClipboardAssetAccessing {
         textStore.fullText(for: item)
     }
 
+    func fingerprint(for item: ClipboardItem) throws -> ClipboardSearchAssetFingerprint {
+        try textStore.fingerprint(for: item)
+    }
+
+    func snapshot(
+        for item: ClipboardItem,
+        checkCancellation: @Sendable () throws -> Void
+    ) throws -> ClipboardSearchAssetSnapshot {
+        try textStore.snapshot(for: item, checkCancellation: checkCancellation)
+    }
+
     func textChunk(for item: ClipboardItem, charCount: Int) -> ClipboardTextChunk? {
         textStore.textChunk(for: item, charCount: charCount)
     }

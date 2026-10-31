@@ -84,7 +84,7 @@ struct SettingsGeneralView: View {
                 isRecording = false
             }
         )
-        .onChange(of: settings.persistedHistoryLimit) { newValue in
+        .onChange(of: settings.persistedHistoryLimit) { _, newValue in
             draftHistoryLimitText = String(newValue)
         }
     }

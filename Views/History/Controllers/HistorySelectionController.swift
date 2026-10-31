@@ -16,7 +16,9 @@ struct HistorySelectionController {
         state: HistorySelectionState,
         in filteredItems: [ClipboardItem],
         preferredID: UUID?,
-        preferredTopSelectionID: UUID?
+        preferredTopSelectionID: UUID?,
+        validItemIDs: Set<UUID>,
+        itemIndexByID: [UUID: Int]
     ) -> HistorySelectionState {
         var nextState = state
 
@@ -24,13 +26,13 @@ struct HistorySelectionController {
             return clearSelection()
         }
 
-        let validIDs = Set(filteredItems.map(\.id))
+        let validIDs = validItemIDs
         nextState.selectedIDs = nextState.selectedIDs.intersection(validIDs)
         nextState.selectedActionOrderIDs.removeAll { !validIDs.contains($0) }
 
         if let preferredID,
             validIDs.contains(preferredID),
-            let index = filteredItems.firstIndex(where: { $0.id == preferredID })
+            let index = itemIndexByID[preferredID]
         {
             return applySingleSelection(
                 preferredID,
@@ -50,12 +52,12 @@ struct HistorySelectionController {
 
             if let currentSelectedID = nextState.selectedID,
                 validIDs.contains(currentSelectedID),
-                let index = filteredItems.firstIndex(where: { $0.id == currentSelectedID })
+                let index = itemIndexByID[currentSelectedID]
             {
                 nextState.selectedIndex = index
             } else if let fallbackID = nextState.selectedActionOrderIDs.first
                 ?? selectedItems(in: filteredItems, selectedIDs: nextState.selectedIDs).first?.id,
-                let fallbackIndex = filteredItems.firstIndex(where: { $0.id == fallbackID })
+                let fallbackIndex = itemIndexByID[fallbackID]
             {
                 nextState.selectedID = fallbackID
                 nextState.selectedIndex = fallbackIndex
@@ -71,7 +73,7 @@ struct HistorySelectionController {
 
         let targetID = nextState.selectedID.flatMap { validIDs.contains($0) ? $0 : nil } ?? preferredTopSelectionID
         guard let targetID,
-            let index = filteredItems.firstIndex(where: { $0.id == targetID })
+            let index = itemIndexByID[targetID]
         else {
             return nextState
         }

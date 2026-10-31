@@ -486,7 +486,7 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
         super.showWindow(sender)
 
         if activateApp {
-            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+            NSRunningApplication.current.activate()
         }
 
         window.makeKeyAndOrderFront(nil)
@@ -662,7 +662,7 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
         guard let window else { return }
         historyPanel?.dismissesWhenResigningKey = true
         shouldIgnoreNextDidBecomeKeyOpenHandling = true
-        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        NSRunningApplication.current.activate()
         window.makeKeyAndOrderFront(nil)
     }
 

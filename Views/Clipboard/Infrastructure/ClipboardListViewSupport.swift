@@ -5,18 +5,53 @@ enum ClipboardListCoordinateSpace {
     static let content = "ClipboardListViewContentCoordinateSpace"
 }
 
+struct SearchResultAnimationPolicy: Sendable {
+    let insertion: Animation?
+    let removal: Animation?
+    let usesStagger: Bool
+    let usesRowOffset: Bool
+
+    static func make(resultCount: Int, reduceMotion: Bool) -> Self {
+        if reduceMotion {
+            return Self(
+                insertion: .easeOut(duration: 0.10),
+                removal: nil,
+                usesStagger: false,
+                usesRowOffset: false
+            )
+        }
+        if resultCount <= 200 {
+            return Self(
+                insertion: .easeOut(duration: 0.16),
+                removal: .easeOut(duration: 0.08),
+                usesStagger: true,
+                usesRowOffset: true
+            )
+        }
+        return Self(
+            insertion: .easeOut(duration: 0.12),
+            removal: nil,
+            usesStagger: false,
+            usesRowOffset: false
+        )
+    }
+}
+
 struct ClipboardListViewState {
     let items: [ClipboardItem]
     let itemsSnapshotID: UUID
     let selectedIDs: Set<UUID>
     let quickPasteBadgeNumberByItemID: [UUID: Int]
-    let searchResultsByItemID: [UUID: ClipboardSearchResult]
+    let searchResultsByItemID: [UUID: ClipboardSearchHit]
     let queryText: String
+    let committedQueryText: String
+    let preparedDisplayCache: ClipboardListStructure.DisplayCache
 
     var contentSnapshot: ClipboardListContentSnapshot {
         ClipboardListContentSnapshot(
             id: itemsSnapshotID,
-            items: items
+            items: items,
+            displayCache: preparedDisplayCache
         )
     }
 }
@@ -28,6 +63,7 @@ struct ClipboardListViewState {
 struct ClipboardListContentSnapshot: Equatable {
     let id: UUID
     let items: [ClipboardItem]
+    let displayCache: ClipboardListStructure.DisplayCache
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.id == rhs.id
@@ -53,6 +89,7 @@ struct ClipboardListActions {
     let jumpScrollCompleted: (HistoryJumpToHistoryRequest, Bool) -> Void
     let scrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let scrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
+    let visibleItemIDsChanged: ([UUID]) -> Void
 }
 
 struct ClipboardScrollTargetFramePreferenceKey: PreferenceKey {

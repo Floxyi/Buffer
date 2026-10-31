@@ -161,10 +161,12 @@ struct HistoryFilterBarPresentation: Equatable, Sendable {
 enum HistoryApplicationFilterOptions {
     static func make(
         from items: [ClipboardItem],
-        retaining selectedApplication: HistoryApplicationFilterOption? = nil
-    ) -> [HistoryApplicationFilterOption] {
+        retaining selectedApplication: HistoryApplicationFilterOption? = nil,
+        checkCancellation: ((Int) throws -> Void)? = nil
+    ) rethrows -> [HistoryApplicationFilterOption] {
         var newestItemByBundleIdentifier: [String: ClipboardItem] = [:]
-        for item in items {
+        for (index, item) in items.enumerated() {
+            try checkCancellation?(index)
             guard let bundleIdentifier = item.normalizedSourceAppBundleIdentifier else {
                 continue
             }

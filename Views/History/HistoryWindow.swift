@@ -34,7 +34,7 @@ struct HistoryContentView: View {
             .onAppear {
                 searchFocusController.handleAppear(isAppActive: NSApp.isActive)
             }
-            .onChange(of: viewModel.windowOpenToken) { _ in
+            .onChange(of: viewModel.windowOpenToken) {
                 searchFocusController.handleWindowOpen(shouldFocusSearch: viewModel.shouldFocusSearchOnOpen)
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -66,6 +66,8 @@ struct HistoryContentView: View {
                     set: { viewModel.searchText = $0 }
                 ),
                 filteredItemCount: viewModel.filteredItems.count,
+                isSearching: viewModel.isSearching,
+                searchStatus: viewModel.searchStatus,
                 isSearchFocused: $searchFocusController.isSearchFocused,
                 searchSelectionToken: viewModel.searchSelectionToken,
                 filterState: viewModel.filterState,

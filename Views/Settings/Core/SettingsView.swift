@@ -55,7 +55,7 @@ struct SettingsView: View {
         .task {
             await performInitialNavigationRefreshIfNeeded()
         }
-        .onChange(of: selectedCategory) { _ in
+        .onChange(of: selectedCategory) {
             publishActiveCategoryTitle()
         }
     }

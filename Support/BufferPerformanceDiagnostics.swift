@@ -4,6 +4,8 @@ import OSLog
 enum BufferPerformanceEvent: String {
     case clipboardCapture = "clipboard_capture"
     case historyFilter = "history_filter"
+    case historySearch = "history_search"
+    case searchIndexUpdate = "search_index_update"
     case thumbnailLoad = "thumbnail_load"
     case previewLoad = "preview_load"
     case jumpScroll = "jump_scroll"
@@ -17,6 +19,8 @@ enum BufferPerformanceEvent: String {
         switch self {
         case .clipboardCapture: "Clipboard Capture"
         case .historyFilter: "History Filter"
+        case .historySearch: "History Search"
+        case .searchIndexUpdate: "Search Index Update"
         case .thumbnailLoad: "Thumbnail Load"
         case .previewLoad: "Preview Load"
         case .jumpScroll: "Jump Scroll"

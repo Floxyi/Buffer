@@ -42,35 +42,10 @@ struct ClipboardQuery: Equatable, Sendable {
     var includesOCRText = true
 
     var normalizedText: String {
-        ClipboardSearchIndex.normalize(text)
+        ClipboardSearchTextNormalizer.normalize(text)
     }
 
     var isEmpty: Bool {
         normalizedText.isEmpty && filters.isEmpty
     }
-}
-
-enum ClipboardMatchField: Hashable, Sendable {
-    case content
-    case sourceApplication
-    case ocr
-}
-
-enum ClipboardMatchClassification: Equatable, Sendable {
-    case exact
-    case fuzzy
-}
-
-struct ClipboardTextMatch: Equatable, Sendable {
-    let field: ClipboardMatchField
-    let classification: ClipboardMatchClassification
-    let ranges: [Range<String.Index>]
-}
-
-struct ClipboardSearchResult: Equatable, Sendable, Identifiable {
-    let itemID: UUID
-    let score: Double
-    let matches: [ClipboardTextMatch]
-
-    var id: UUID { itemID }
 }

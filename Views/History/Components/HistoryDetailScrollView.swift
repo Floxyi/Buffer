@@ -87,7 +87,7 @@ struct HistoryDetailScrollView<Content: View>: View {
                     .allowsHitTesting(false)
                 }
         }
-        .onChange(of: resetID) { _ in
+        .onChange(of: resetID) {
             scrollController.scrollToTopImmediately()
         }
         .overlay(alignment: .topTrailing) {

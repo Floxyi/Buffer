@@ -3,8 +3,8 @@ import Foundation
 
 /// Immutable geometry derived from the display rows. Interactive scrolling must use
 /// this index instead of walking every row above the viewport.
-struct ClipboardListLayoutIndex {
-    struct ItemEntry {
+struct ClipboardListLayoutIndex: Sendable {
+    struct ItemEntry: Sendable {
         let id: UUID
         let itemIndex: Int
         let frame: CGRect
@@ -20,13 +20,30 @@ struct ClipboardListLayoutIndex {
         rows: [ClipboardListStructure.DisplayRow],
         itemIndexByID: [UUID: Int]
     ) {
+        self.init(rows: rows, itemIndexByID: itemIndexByID) { _ in }
+    }
+
+    init(
+        cancellableRows rows: [ClipboardListStructure.DisplayRow],
+        itemIndexByID: [UUID: Int]
+    ) throws {
+        try self.init(rows: rows, itemIndexByID: itemIndexByID) { rowIndex in
+            if rowIndex.isMultiple(of: 256) { try Task.checkCancellation() }
+        }
+    }
+
+    private init(
+        rows: [ClipboardListStructure.DisplayRow],
+        itemIndexByID: [UUID: Int],
+        checkCancellation: (Int) throws -> Void
+    ) rethrows {
         var entries: [ItemEntry] = []
         entries.reserveCapacity(itemIndexByID.count)
         var frames: [UUID: CGRect] = [:]
         frames.reserveCapacity(itemIndexByID.count)
-
         var currentY = ClipboardListStructure.LayoutMetrics.contentPadding
         for (rowIndex, row) in rows.enumerated() {
+            try checkCancellation(rowIndex)
             let height = ClipboardListRowGeometry.estimatedRowHeight(for: row)
             if case .item(let item) = row.kind,
                 let itemIndex = itemIndexByID[item.id]
@@ -35,13 +52,11 @@ struct ClipboardListLayoutIndex {
                 entries.append(ItemEntry(id: item.id, itemIndex: itemIndex, frame: frame))
                 frames[item.id] = frame
             }
-
             currentY += height
             if rowIndex < rows.count - 1 {
                 currentY += ClipboardListStructure.LayoutMetrics.rowSpacing
             }
         }
-
         self.entries = entries
         self.frameByItemID = frames
         self.contentHeight =

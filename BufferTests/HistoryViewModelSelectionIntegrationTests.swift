@@ -52,6 +52,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         }
         await populateStore(store, with: items)
         let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        await waitForHistorySearch(viewModel)
 
         for _ in 0..<10 {
             viewModel.navigateDown()
@@ -83,6 +84,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
             ocrService: FakeOCRService(result: ""),
             keyboardScrollRouter: router
         )
+        await waitForHistorySearch(viewModel)
 
         for _ in 0..<10 {
             viewModel.navigateDown()
@@ -122,6 +124,7 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
         XCTAssertNotNil(viewModel.keyboardScrollRequest)
 
         viewModel.searchText = "newest"
+        await waitForHistorySearch(viewModel)
 
         XCTAssertNil(viewModel.keyboardScrollRequest)
         XCTAssertEqual(viewModel.selectedID, viewModel.filteredItems.first?.id)
@@ -261,7 +264,8 @@ final class HistoryViewModelSelectionIntegrationTests: XCTestCase {
 
     func testSelectAllUsesFilteredItemsAndPlainArrowCollapsesSelection() async {
         let viewModel = await makeSelectionHistoryViewModel()
-        viewModel.searchText = "e"
+        viewModel.searchText = "est"
+        await waitForHistorySearch(viewModel)
 
         viewModel.selectAllItems()
 

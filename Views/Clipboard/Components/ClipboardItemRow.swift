@@ -1,6 +1,32 @@
 import AppKit
 import SwiftUI
 
+struct SearchMatchPresentation: Equatable, Sendable {
+    let badgeText: String?
+    let accessibilityLabel: String
+
+    init(evidence: ClipboardSearchMatchEvidence) {
+        if evidence.kind == .fuzzyCorrection {
+            badgeText = String(localized: "Similar")
+        } else if evidence.field == .sourceApplication {
+            badgeText = String(localized: "App")
+        } else {
+            badgeText = nil
+        }
+
+        let field: String
+        switch evidence.field {
+        case .content: field = String(localized: "content")
+        case .ocr: field = String(localized: "OCR")
+        case .sourceApplication: field = String(localized: "source application")
+        }
+        accessibilityLabel =
+            evidence.kind == .fuzzyCorrection
+            ? String(localized: "Similar match in \(field)")
+            : String(localized: "Match in \(field)")
+    }
+}
+
 /// Single row displaying a clipboard item - optimized for smooth scrolling.
 struct ClipboardItemRow: View {
     private let leadingVisualSize = CGFloat(28)
@@ -15,6 +41,8 @@ struct ClipboardItemRow: View {
     let quickPasteNumber: Int?
     let queryPlan: ClipboardQueryPlan?
     let contentMatchClassification: ClipboardMatchClassification?
+    let matchEvidence: ClipboardSearchMatchEvidence?
+    let searchSnippet: ClipboardSearchSnippet?
     let isHovered: Bool
     private let assetProvider: any ClipboardItemAssetProviding
     @State private var thumbnail: NSImage?
@@ -32,6 +60,8 @@ struct ClipboardItemRow: View {
         quickPasteNumber: Int?,
         queryPlan: ClipboardQueryPlan? = nil,
         contentMatchClassification: ClipboardMatchClassification? = nil,
+        matchEvidence: ClipboardSearchMatchEvidence? = nil,
+        searchSnippet: ClipboardSearchSnippet? = nil,
         isHovered: Bool,
         assetProvider: any ClipboardItemAssetProviding
     ) {
@@ -45,6 +75,8 @@ struct ClipboardItemRow: View {
         self.quickPasteNumber = quickPasteNumber
         self.queryPlan = queryPlan
         self.contentMatchClassification = contentMatchClassification
+        self.matchEvidence = matchEvidence
+        self.searchSnippet = searchSnippet
         self.isHovered = isHovered
         self.assetProvider = assetProvider
         self._thumbnail = State(
@@ -135,11 +167,23 @@ struct ClipboardItemRow: View {
             ClipboardMatchedText(
                 text: displayedPrimaryLabelText,
                 queryPlan: queryPlan,
-                matchClassification: contentMatchClassification
+                matchClassification: contentMatchClassification,
+                matchEvidence: matchEvidence,
+                searchSnippet: searchSnippet
             )
             .font(.system(size: 13))
             .foregroundColor(foregroundColor)
             .lineLimit(1)
+
+            if let matchBadgeText {
+                Text(matchBadgeText)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(secondaryForegroundColor)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(secondaryForegroundColor.opacity(0.12), in: Capsule())
+                    .accessibilityLabel(matchBadgeAccessibilityLabel)
+            }
 
             if item.isBookmarked {
                 Image(systemName: "bookmark.fill")
@@ -154,6 +198,7 @@ struct ClipboardItemRow: View {
         .padding(.vertical, 8)
         .frame(height: ClipboardListStructure.LayoutMetrics.itemRowHeight)
         .background(selectionBackground)
+        .accessibilityHint(matchBadgeText == nil ? matchBadgeAccessibilityLabel : "")
         .transaction { transaction in
             transaction.animation = nil
         }
@@ -179,7 +224,7 @@ struct ClipboardItemRow: View {
 
             await loadAssetsIfNeeded()
         }
-        .onChange(of: item.id) { _ in
+        .onChange(of: item.id) {
             thumbnail = assetProvider.cachedThumbnail(
                 for: item,
                 leadingVisualSize: leadingVisualSize
@@ -187,6 +232,14 @@ struct ClipboardItemRow: View {
             leadingIcon = assetProvider.cachedLeadingIcon(for: item)
             imageDimensionsText = assetProvider.cachedImageDimensionsText(for: item)
         }
+    }
+
+    private var matchBadgeText: String? {
+        matchEvidence.map(SearchMatchPresentation.init)?.badgeText
+    }
+
+    private var matchBadgeAccessibilityLabel: String {
+        matchEvidence.map(SearchMatchPresentation.init)?.accessibilityLabel ?? ""
     }
 
     @ViewBuilder

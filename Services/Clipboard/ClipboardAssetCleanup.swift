@@ -11,6 +11,7 @@ final class ClipboardAssetCleanup: @unchecked Sendable {
         createDirectoryIfNeeded(at: paths.storageDirectory, label: "storage")
         createDirectoryIfNeeded(at: paths.imagesDirectory, label: "images")
         createDirectoryIfNeeded(at: paths.textsDirectory, label: "texts")
+        createDirectoryIfNeeded(at: paths.searchDirectory, label: "search")
     }
 
     func cleanupOrphanedAssets(referencedBy items: [ClipboardItem], paths: ClipboardStoragePaths) {

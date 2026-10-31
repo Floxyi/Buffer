@@ -58,7 +58,11 @@ final class HistorySelectionControllerTests: XCTestCase {
             state: state,
             in: filteredItems,
             preferredID: nil,
-            preferredTopSelectionID: filteredItems.first?.id
+            preferredTopSelectionID: filteredItems.first?.id,
+            validItemIDs: Set(filteredItems.map(\.id)),
+            itemIndexByID: Dictionary(
+                uniqueKeysWithValues: filteredItems.enumerated().map { ($1.id, $0) }
+            )
         )
 
         XCTAssertEqual(synced.selectedIDs, Set(filteredItems.map(\.id)))

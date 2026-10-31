@@ -31,8 +31,7 @@ struct HistoryActionHandler {
             guard await onCopy(items) else { return }
             viewModel.clearSearchAfterCommittedAction()
             if dismissAfterCopy {
-                onDismiss()
-                onRestoreFocus()
+                dismissAndRestoreFocus()
             }
         }
     }
@@ -47,7 +46,12 @@ struct HistoryActionHandler {
 
     func dismissHistoryWindow() {
         viewModel.clearSearchAfterClosingIfNeeded()
+        dismissAndRestoreFocus()
+    }
+
+    private func dismissAndRestoreFocus() {
         onDismiss()
+        onRestoreFocus()
     }
 
     func downloadAllImages() {

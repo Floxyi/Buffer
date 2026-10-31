@@ -9,13 +9,17 @@ final class HistoryViewModel: ObservableObject {
     typealias KeyboardScrollRequest = HistoryKeyboardScrollRequest
     typealias JumpToHistoryState = HistoryJumpToHistoryState
 
+    private struct PublishedSearchContext {
+        let session: ClipboardSearchSession
+    }
+
     var searchText: String {
         get { searchTextValue }
         set {
             guard newValue != searchTextValue else { return }
             searchTextValue = newValue
             guard !isApplyingQueryConfiguration else { return }
-            rebuildFilteredItems(preferredID: filteredItems.first?.id)
+            scheduleQuery(preferredID: filteredItems.first?.id)
         }
     }
 
@@ -25,11 +29,13 @@ final class HistoryViewModel: ObservableObject {
     @Published private(set) var detailViewState = HistoryDetailViewState()
     private(set) var filterState = HistoryFilterState()
     @Published private(set) var applicationFilterOptions: [HistoryApplicationFilterOption] = []
+    @Published private(set) var isSearching = false
+    @Published private(set) var searchStatus = ClipboardSearchStatus.initial
     @Published var mutationFailure: HistoryMutationFailure?
 
     private let store: ClipboardStore
     private let settingsManager: SettingsManager
-    private let queryModel = HistoryQueryModel()
+    private let projectionCoordinator = HistorySearchProjectionCoordinator()
     private let selectionController = HistorySelectionController()
     private let quickPasteController = HistoryQuickPasteController()
     private let jumpNavigationController = HistoryJumpNavigationController()
@@ -49,10 +55,15 @@ final class HistoryViewModel: ObservableObject {
     private var queryFilters = ClipboardFilters()
     private var includesOCRTextInSearch = true
     private var isApplyingQueryConfiguration = false
-    private var searchTextValue = ""
+    @Published private var searchTextValue = ""
     private var filteredItemByID: [UUID: ClipboardItem] = [:]
     private var filteredItemIndexByID: [UUID: Int] = [:]
     private var keyboardDetailTask: Task<Void, Never>?
+    private var searchTask: Task<Void, Never>?
+    private var snippetTask: Task<Void, Never>?
+    private var searchGeneration: UInt = 0
+    private var publishedSearchContext: PublishedSearchContext?
+    private var pendingMutationPreferredSelectionID: UUID?
 
     init(
         store: ClipboardStore,
@@ -75,26 +86,13 @@ final class HistoryViewModel: ObservableObject {
             ocrService: ocrService
         )
         self.keyboardScrollRouter = keyboardScrollRouter
-        applicationFilterOptions = HistoryApplicationFilterOptions.make(from: store.items)
-
-        let initialQuerySnapshot = queryModel.evaluate(
-            items: store.items,
-            query: ClipboardQuery(),
-            searchIndex: store.searchIndexSnapshot
-        )
-        publishQuerySnapshot(initialQuerySnapshot)
-        syncSelection()
-
         store.$items
             .sink { [weak self] items in
                 guard let self else { return }
-                self.refreshApplicationFilterOptions(from: items)
-                if self.activeQuery.normalizedText.isEmpty || self.store.isSearchIndexReady {
-                    self.applyQuery(to: items)
-                } else {
-                    self.reconcilePendingIndexedItems(items)
-                }
-                self.syncSelection()
+                self.scheduleQuery(
+                    preferredID: self.pendingMutationPreferredSelectionID ?? self.selectedID,
+                    itemsSnapshot: items
+                )
             }
             .store(in: &cancellables)
 
@@ -107,13 +105,17 @@ final class HistoryViewModel: ObservableObject {
         }
         .store(in: &cancellables)
 
-        store.$searchIndexState
-            .sink { [weak self] searchIndexState in
+        store.$searchStatus
+            .sink { [weak self] searchStatus in
                 guard let self else { return }
-                guard searchIndexState.isReady else { return }
-                let preferredID = self.selectedID
-                self.applyQuery(to: self.store.items, searchIndex: searchIndexState.index)
-                self.syncSelection(preferredID: preferredID)
+                self.searchStatus = searchStatus
+                guard !self.activeQuery.normalizedText.isEmpty,
+                    searchStatus.indexGeneration
+                        > (self.publishedSearchContext?.session.committedState.indexGeneration ?? 0)
+                else { return }
+                self.scheduleQuery(
+                    preferredID: self.selectedID
+                )
             }
             .store(in: &cancellables)
 
@@ -148,15 +150,23 @@ final class HistoryViewModel: ObservableObject {
     }
 
     var filteredItemsRevision: UInt {
-        querySnapshot.revision
+        UInt(querySnapshot.renderRevision)
     }
 
     var filteredItemsSnapshotID: UUID {
         querySnapshot.id
     }
 
-    var searchResultsByItemID: [UUID: ClipboardSearchResult] {
-        querySnapshot.resultsByItemID
+    var searchResultsByItemID: [UUID: ClipboardSearchHit] {
+        querySnapshot.hitByItemID
+    }
+
+    var committedSearchText: String {
+        querySnapshot.query.text
+    }
+
+    var preparedDisplayCache: ClipboardListStructure.DisplayCache {
+        querySnapshot.displayCache
     }
 
     var selectedItem: ClipboardItem? {
@@ -489,9 +499,15 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func delete(_ request: HistoryDeleteRequest) {
+        pendingMutationPreferredSelectionID = request.preferredSelectionID
         performMutation { [self] in
-            let preferredID = try await itemMutationController.delete(request, store: store)
-            syncSelection(preferredID: preferredID)
+            do {
+                let preferredID = try await itemMutationController.delete(request, store: store)
+                syncSelection(preferredID: preferredID)
+            } catch {
+                pendingMutationPreferredSelectionID = nil
+                throw error
+            }
         }
     }
 
@@ -674,7 +690,9 @@ final class HistoryViewModel: ObservableObject {
             state: selectionState,
             in: filteredItems,
             preferredID: preferredID,
-            preferredTopSelectionID: preferredTopSelectionID()
+            preferredTopSelectionID: preferredTopSelectionID(),
+            validItemIDs: querySnapshot.validItemIDs,
+            itemIndexByID: querySnapshot.itemIndexByID
         )
         applySelectionState()
     }
@@ -705,18 +723,13 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func rebuildFilteredItems(preferredID: UUID? = nil) {
-        applyQuery(to: store.items)
-        syncSelection(preferredID: preferredID)
+        scheduleQuery(preferredID: preferredID)
     }
 
     private func mutateFilterState(_ mutation: (inout HistoryFilterState) -> Void) {
         var nextState = filterState
         mutation(&nextState)
         guard nextState != filterState else { return }
-        let didChangeApplication =
-            nextState.selectedApplication?.bundleIdentifier
-            != filterState.selectedApplication?.bundleIdentifier
-
         updateQueryConfiguration(preferredID: filteredItems.first?.id) {
             filterState = nextState
             queryFilters = nextState.clipboardFilters(
@@ -725,9 +738,6 @@ final class HistoryViewModel: ObservableObject {
             )
         }
 
-        if didChangeApplication {
-            refreshApplicationFilterOptions(from: store.items)
-        }
     }
 
     private func clearQueryIfNeeded(shouldKeepQuery: Bool) {
@@ -742,7 +752,10 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func refreshActiveDateFilter() {
-        guard filterState.datePreset != .allDates else { return }
+        guard filterState.datePreset != .allDates else {
+            scheduleQuery(preferredID: selectedID)
+            return
+        }
         let nextFilters = filterState.clipboardFilters(
             now: nowProvider(),
             calendar: filterCalendar
@@ -753,29 +766,7 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
-    private func refreshApplicationFilterOptions(from items: [ClipboardItem]) {
-        let options = HistoryApplicationFilterOptions.make(
-            from: items,
-            retaining: filterState.selectedApplication
-        )
-        if let selectedApplication = filterState.selectedApplication,
-            let refreshedSelection = options.first(where: {
-                $0.bundleIdentifier == selectedApplication.bundleIdentifier
-            }), refreshedSelection != selectedApplication
-        {
-            var nextState = filterState
-            nextState.selectedApplication = refreshedSelection
-            filterState = nextState
-        }
-
-        if options != applicationFilterOptions {
-            applicationFilterOptions = options
-        }
-    }
-
-    /// Applies related query mutations as one transaction. User-entered search
-    /// text never passes through this path, so every editor change immediately
-    /// publishes a matching list snapshot.
+    /// Applies related query mutations as one transaction.
     private func updateQueryConfiguration(
         preferredID: UUID?,
         _ update: () -> Void
@@ -787,43 +778,187 @@ final class HistoryViewModel: ObservableObject {
         rebuildFilteredItems(preferredID: preferredID)
     }
 
-    private func applyQuery(
-        to items: [ClipboardItem],
-        searchIndex: ClipboardSearchIndex? = nil
+    private func scheduleQuery(
+        preferredID: UUID?,
+        itemsSnapshot: [ClipboardItem]? = nil
     ) {
-        let snapshot = queryModel.evaluate(
-            items: items,
-            query: activeQuery,
-            searchIndex: searchIndex ?? store.searchIndexSnapshot
-        )
-        publishQuerySnapshot(snapshot)
+        searchGeneration &+= 1
+        let generation = searchGeneration
+        searchTask?.cancel()
+        snippetTask?.cancel()
+        snippetTask = nil
+        store.interruptSearch()
+
+        let query = activeQuery
+        guard !query.normalizedText.isEmpty else {
+            publishedSearchContext = nil
+            // Empty/filter-only projections are asynchronous so the main actor
+            // never builds a 10k-item cache.
+            isSearching = true
+            // @Published emits from willSet, so an items observer must use the
+            // delivered value rather than reading the store's previous value.
+            let currentItems = itemsSnapshot ?? store.items
+            let historyRevision = store.currentHistoryRevision
+            let selectedApplication = filterState.selectedApplication
+            searchTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                let prepared: PreparedHistoryQuerySnapshot
+                do {
+                    prepared = try await projectionCoordinator.projectLatest(
+                        response: nil,
+                        items: currentItems,
+                        query: query,
+                        queryGeneration: UInt64(generation),
+                        historyRevision: historyRevision,
+                        retaining: selectedApplication
+                    )
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, generation == searchGeneration, query == activeQuery else {
+                    return
+                }
+                applyPreparedProjection(prepared)
+                syncSelection(preferredID: preferredID)
+                if pendingMutationPreferredSelectionID == preferredID {
+                    pendingMutationPreferredSelectionID = nil
+                }
+                isSearching = false
+                searchTask = nil
+            }
+            return
+        }
+
+        isSearching = true
+        searchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard !Task.isCancelled, generation == searchGeneration else { return }
+            let response: ClipboardSearchResponse
+            do {
+                response = try await store.search(query, generation: generation)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard generation == searchGeneration, query == activeQuery else { return }
+                BufferLogger.persistence.error(
+                    "Search execution failed: \(String(describing: error), privacy: .public)"
+                )
+                isSearching = false
+                searchTask = nil
+                return
+            }
+            guard !Task.isCancelled,
+                response.session.queryGeneration == UInt64(searchGeneration),
+                response.session.committedState.historyRevision == store.currentHistoryRevision,
+                query == activeQuery
+            else { return }
+
+            do {
+                let prepared = try await projectionCoordinator.projectLatest(
+                    response: response,
+                    items: store.items,
+                    query: query,
+                    queryGeneration: UInt64(generation),
+                    historyRevision: response.session.committedState.historyRevision,
+                    retaining: filterState.selectedApplication
+                )
+                guard !Task.isCancelled,
+                    response.session.queryGeneration == UInt64(searchGeneration),
+                    response.session.committedState.historyRevision == store.currentHistoryRevision,
+                    query == activeQuery
+                else { return }
+                publishedSearchContext = PublishedSearchContext(session: response.session)
+                applyPreparedProjection(prepared)
+                syncSelection(preferredID: preferredID)
+                if pendingMutationPreferredSelectionID == preferredID {
+                    pendingMutationPreferredSelectionID = nil
+                }
+                isSearching = false
+                searchTask = nil
+                visibleSearchItemIDsChanged(
+                    Array(prepared.querySnapshot.items.prefix(12).map(\.id))
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func applyPreparedProjection(_ prepared: PreparedHistoryQuerySnapshot) {
+        guard prepared.queryGeneration == UInt64(searchGeneration),
+            prepared.historyRevision == store.currentHistoryRevision
+        else { return }
+        if let selectedApplication = filterState.selectedApplication,
+            let refreshed = prepared.applicationFilterOptions.first(where: {
+                $0.bundleIdentifier == selectedApplication.bundleIdentifier
+            })
+        {
+            filterState.selectedApplication = refreshed
+        }
+        applicationFilterOptions = prepared.applicationFilterOptions
+        publishQuerySnapshot(prepared.querySnapshot)
     }
 
     private func publishQuerySnapshot(_ snapshot: HistoryQuerySnapshot) {
-        var nextSnapshot = snapshot
-        nextSnapshot.revision = querySnapshot.revision &+ 1
-        filteredItemByID = Dictionary(uniqueKeysWithValues: snapshot.items.map { ($0.id, $0) })
-        filteredItemIndexByID = Dictionary(
-            uniqueKeysWithValues: snapshot.items.enumerated().map { ($1.id, $0) }
+        filteredItemByID = snapshot.itemByID
+        filteredItemIndexByID = snapshot.itemIndexByID
+        querySnapshot = HistoryQuerySnapshot(
+            id: snapshot.id,
+            renderRevision: querySnapshot.renderRevision &+ 1,
+            query: snapshot.query,
+            items: snapshot.items,
+            hitByItemID: snapshot.hitByItemID,
+            itemByID: snapshot.itemByID,
+            itemIndexByID: snapshot.itemIndexByID,
+            validItemIDs: snapshot.validItemIDs,
+            displayCache: snapshot.displayCache
         )
-        querySnapshot = nextSnapshot
     }
 
-    /// Keeps the currently proven search result set stable while a replacement
-    /// index is being built. Removed items disappear immediately and updated
-    /// values are refreshed, while newly matching items arrive with the index.
-    private func reconcilePendingIndexedItems(_ items: [ClipboardItem]) {
-        let itemByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
-        let reconciledItems = filteredItems.compactMap { itemByID[$0.id] }
-        let reconciledIDs = Set(reconciledItems.map(\.id))
-
-        publishQuerySnapshot(
-            HistoryQuerySnapshot(
-                query: activeQuery,
-                items: reconciledItems,
-                resultsByItemID: searchResultsByItemID.filter { reconciledIDs.contains($0.key) }
-            )
-        )
+    func visibleSearchItemIDsChanged(_ itemIDs: [UUID]) {
+        guard !activeQuery.normalizedText.isEmpty else { return }
+        let missingItemIDs = itemIDs.prefix(50).compactMap { itemID -> UUID? in
+            guard querySnapshot.hitByItemID[itemID]?.snippet == nil,
+                querySnapshot.hitByItemID[itemID] != nil
+            else { return nil }
+            return itemID
+        }
+        guard !missingItemIDs.isEmpty, let context = publishedSearchContext else { return }
+        snippetTask?.cancel()
+        snippetTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let batch = try await store.snippets(
+                    ClipboardSearchSnippetRequest(
+                        session: context.session,
+                        itemIDs: missingItemIDs
+                    )
+                )
+                guard !Task.isCancelled,
+                    batch.session == publishedSearchContext?.session,
+                    batch.session.queryGeneration == UInt64(searchGeneration),
+                    batch.session.committedState.historyRevision == store.currentHistoryRevision
+                else { return }
+                let snapshotID = querySnapshot.id
+                let updatedSnapshot = await projectionCoordinator.applyingSnippets(
+                    batch.snippetsByItemID,
+                    to: querySnapshot
+                )
+                guard !Task.isCancelled,
+                    snapshotID == querySnapshot.id,
+                    batch.session == publishedSearchContext?.session,
+                    batch.session.queryGeneration == UInt64(searchGeneration),
+                    batch.session.committedState.historyRevision == store.currentHistoryRevision
+                else { return }
+                querySnapshot = updatedSnapshot
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+        }
     }
 
     private func navigate(by delta: Int) {

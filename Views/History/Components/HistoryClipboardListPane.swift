@@ -24,7 +24,9 @@ struct HistoryClipboardListPane: View {
                             ? viewModel.quickPasteBadgeNumberByItemID
                             : [:],
                         searchResultsByItemID: viewModel.searchResultsByItemID,
-                        queryText: viewModel.searchText
+                        queryText: viewModel.searchText,
+                        committedQueryText: viewModel.committedSearchText,
+                        preparedDisplayCache: viewModel.preparedDisplayCache
                     ),
                     navigation: ClipboardListNavigationState(
                         openScrollRequest: viewModel.openListScrollRequest,
@@ -43,7 +45,8 @@ struct HistoryClipboardListPane: View {
                         jumpScrollStarted: viewModel.markJumpToHistoryScrollStarted,
                         jumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
                         scrollOffsetProviderChanged: onScrollOffsetProviderChanged,
-                        scrollOffsetRestorerChanged: onScrollOffsetRestorerChanged
+                        scrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
+                        visibleItemIDsChanged: viewModel.visibleSearchItemIDsChanged
                     ),
                     websitePreviewsEnabled: settings.enableWebsitePreviews,
                     assetProvider: assetProvider,

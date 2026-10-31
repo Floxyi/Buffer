@@ -144,7 +144,7 @@ final class PasteController: PasteControlling {
             applicationName: application.localizedName ?? "the destination application",
             activate: {
                 guard !application.isTerminated else { return }
-                application.activate(options: .activateIgnoringOtherApps)
+                application.activate()
             },
             isReady: {
                 guard !application.isTerminated, application.isActive else { return false }

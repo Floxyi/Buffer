@@ -13,17 +13,9 @@ func makeHistoryTestSettings(testName: String = UUID().uuidString) -> SettingsMa
 @MainActor
 func makeHistoryTestStore(
     settings: SettingsManager,
-    testName: String = UUID().uuidString,
-    searchIndexer: (any ClipboardSearchIndexing)? = nil
+    testName: String = UUID().uuidString
 ) -> ClipboardStore {
     let storagePaths = TestStorageFactory.makePaths(testName: testName)
-    if let searchIndexer {
-        return ClipboardStore(
-            settingsManager: settings,
-            storagePaths: storagePaths,
-            searchIndexer: searchIndexer
-        )
-    }
     return ClipboardStore(settingsManager: settings, storagePaths: storagePaths)
 }
 
@@ -58,6 +50,13 @@ func populateStore(_ store: ClipboardStore, with items: [ClipboardItem]) async {
 }
 
 @MainActor
+func waitForHistorySearch(_ viewModel: HistoryViewModel) async {
+    await eventually {
+        !viewModel.isSearching
+    }
+}
+
+@MainActor
 func makeSelectionHistoryViewModel() async -> HistoryViewModel {
     let settings = makeHistoryTestSettings()
     let store = makeHistoryTestStore(settings: settings)
@@ -68,5 +67,7 @@ func makeSelectionHistoryViewModel() async -> HistoryViewModel {
 
     await populateStore(store, with: [oldest, middle, newest])
 
-    return makeHistoryTestViewModel(store: store, settings: settings)
+    let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+    await waitForHistorySearch(viewModel)
+    return viewModel
 }

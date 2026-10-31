@@ -10,14 +10,14 @@ enum ClipboardListStructure {
         static let dividerHeight = CGFloat(9)
     }
 
-    struct ItemSection: Identifiable {
+    struct ItemSection: Identifiable, Sendable {
         let id: String
         let title: String
         var items: [ClipboardItem]
     }
 
-    struct DisplayRow: Identifiable {
-        enum Kind {
+    struct DisplayRow: Identifiable, Sendable {
+        enum Kind: Sendable {
             case header(title: String, systemImage: String?)
             case divider
             case item(ClipboardItem)
@@ -27,7 +27,7 @@ enum ClipboardListStructure {
         let kind: Kind
     }
 
-    struct DisplayCache {
+    struct DisplayCache: Sendable {
         let sourceSnapshotID: UUID?
         let sectionGroupingSignature: SectionGroupingSignature
         let itemIDs: [UUID]
@@ -94,8 +94,8 @@ enum ClipboardListStructure {
             {
                 return cachedIndex
             }
-
-            return items.firstIndex(where: { $0.id == item.id }) ?? 0
+            assertionFailure("Display cache is inconsistent with the published item snapshot")
+            return 0
         }
 
         func itemExists(_ itemID: UUID, in items: [ClipboardItem]) -> Bool {
@@ -106,25 +106,34 @@ enum ClipboardListStructure {
                 return true
             }
 
-            return items.contains { $0.id == itemID }
+            assertionFailure("Display cache is inconsistent with the published item snapshot")
+            return false
         }
 
         func primaryLabelText(for item: ClipboardItem) -> String {
-            primaryLabelTextByID[item.id] ?? ClipboardListStructure.primaryLabelText(for: item)
+            guard let text = primaryLabelTextByID[item.id] else {
+                assertionFailure("Display cache is missing a primary label")
+                return ""
+            }
+            return text
         }
     }
 
-    struct SectionGroupingSignature: Equatable {
+    struct SectionGroupingSignature: Equatable, Sendable {
         let era: Int
         let yearForWeekOfYear: Int
         let weekOfYear: Int
         let dayOfYear: Int
+        let calendarIdentifier: String
+        let timeZoneIdentifier: String
 
         init(referenceDate: Date, calendar: Calendar) {
             self.era = calendar.component(.era, from: referenceDate)
             self.yearForWeekOfYear = calendar.component(.yearForWeekOfYear, from: referenceDate)
             self.weekOfYear = calendar.component(.weekOfYear, from: referenceDate)
             self.dayOfYear = calendar.ordinality(of: .day, in: .year, for: referenceDate) ?? 0
+            self.calendarIdentifier = String(describing: calendar.identifier)
+            self.timeZoneIdentifier = calendar.timeZone.identifier
         }
 
         static func current() -> SectionGroupingSignature {
@@ -138,19 +147,128 @@ enum ClipboardListStructure {
         referenceDate: Date = Date(),
         calendar: Calendar = .current
     ) -> DisplayCache {
-        var primaryLabelTextByID: [UUID: String] = [:]
-        primaryLabelTextByID.reserveCapacity(items.count)
-
-        for item in items {
-            primaryLabelTextByID[item.id] = primaryLabelText(for: item)
-        }
-
-        let displayRows = displayRows(from: items, referenceDate: referenceDate, calendar: calendar)
-        let itemIndexByID = Dictionary(
-            uniqueKeysWithValues: items.enumerated().map { index, item in
-                (item.id, index)
+        makeDisplayCache(
+            from: items,
+            sourceSnapshotID: sourceSnapshotID,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            checkCancellation: { _ in },
+            makeRows: {
+                displayRows(from: items, referenceDate: referenceDate, calendar: calendar)
+            },
+            makeLayoutIndex: { rows, itemIndexByID in
+                ClipboardListLayoutIndex(rows: rows, itemIndexByID: itemIndexByID)
             }
         )
+    }
+
+    static func makeDisplayCacheCancellable(
+        from items: [ClipboardItem],
+        sourceSnapshotID: UUID?,
+        referenceDate: Date,
+        calendar: Calendar
+    ) throws -> DisplayCache {
+        try makeDisplayCache(
+            from: items,
+            sourceSnapshotID: sourceSnapshotID,
+            referenceDate: referenceDate,
+            calendar: calendar,
+            checkCancellation: { index in
+                if index.isMultiple(of: 256) { try Task.checkCancellation() }
+            },
+            makeRows: {
+                try ClipboardListSectionBuilder.displayRowsCancellable(
+                    from: items,
+                    referenceDate: referenceDate,
+                    calendar: calendar
+                )
+            },
+            makeLayoutIndex: { rows, itemIndexByID in
+                try ClipboardListLayoutIndex(
+                    cancellableRows: rows,
+                    itemIndexByID: itemIndexByID
+                )
+            }
+        )
+    }
+
+    private static func makeDisplayCache(
+        from items: [ClipboardItem],
+        sourceSnapshotID: UUID?,
+        referenceDate: Date,
+        calendar: Calendar,
+        checkCancellation: (Int) throws -> Void,
+        makeRows: () throws -> [DisplayRow],
+        makeLayoutIndex: ([DisplayRow], [UUID: Int]) throws -> ClipboardListLayoutIndex
+    ) rethrows -> DisplayCache {
+        var primaryLabelTextByID: [UUID: String] = [:]
+        var itemIndexByID: [UUID: Int] = [:]
+        var itemIDs: [UUID] = []
+        primaryLabelTextByID.reserveCapacity(items.count)
+        itemIndexByID.reserveCapacity(items.count)
+        itemIDs.reserveCapacity(items.count)
+        for (index, item) in items.enumerated() {
+            try checkCancellation(index)
+            primaryLabelTextByID[item.id] = primaryLabelText(for: item)
+            itemIndexByID[item.id] = index
+            itemIDs.append(item.id)
+        }
+        let displayRows = try makeRows()
+        return DisplayCache(
+            sourceSnapshotID: sourceSnapshotID,
+            sectionGroupingSignature: SectionGroupingSignature(
+                referenceDate: referenceDate,
+                calendar: calendar
+            ),
+            itemIDs: itemIDs,
+            displayRows: displayRows,
+            itemIndexByID: itemIndexByID,
+            primaryLabelTextByID: primaryLabelTextByID,
+            layoutIndex: try makeLayoutIndex(displayRows, itemIndexByID)
+        )
+    }
+
+    static func makeSearchDisplayCacheCancellable(
+        from items: [ClipboardItem],
+        similarItemIDs: Set<UUID>,
+        sourceSnapshotID: UUID?,
+        referenceDate: Date,
+        calendar: Calendar
+    ) throws -> DisplayCache {
+        var primaryLabelTextByID: [UUID: String] = [:]
+        var itemIndexByID: [UUID: Int] = [:]
+        var itemIDs: [UUID] = []
+        var displayRows: [DisplayRow] = []
+        primaryLabelTextByID.reserveCapacity(items.count)
+        itemIndexByID.reserveCapacity(items.count)
+        itemIDs.reserveCapacity(items.count)
+        displayRows.reserveCapacity(items.count + (similarItemIDs.isEmpty ? 0 : 1))
+
+        var insertedSimilarHeader = false
+        for (index, item) in items.enumerated() {
+            if index.isMultiple(of: 256) { try Task.checkCancellation() }
+            if similarItemIDs.contains(item.id), !insertedSimilarHeader {
+                displayRows.append(
+                    DisplayRow(
+                        id: "search-region-similar",
+                        kind: .header(
+                            title: String(localized: "Similar Matches"),
+                            systemImage: "text.magnifyingglass"
+                        )
+                    )
+                )
+                insertedSimilarHeader = true
+            }
+            primaryLabelTextByID[item.id] = primaryLabelText(for: item)
+            itemIndexByID[item.id] = index
+            itemIDs.append(item.id)
+            displayRows.append(
+                DisplayRow(
+                    id: clipboardListScrollID(for: item.id),
+                    kind: .item(item)
+                )
+            )
+        }
 
         return DisplayCache(
             sourceSnapshotID: sourceSnapshotID,
@@ -158,11 +276,14 @@ enum ClipboardListStructure {
                 referenceDate: referenceDate,
                 calendar: calendar
             ),
-            itemIDs: items.map(\.id),
+            itemIDs: itemIDs,
             displayRows: displayRows,
             itemIndexByID: itemIndexByID,
             primaryLabelTextByID: primaryLabelTextByID,
-            layoutIndex: ClipboardListLayoutIndex(rows: displayRows, itemIndexByID: itemIndexByID)
+            layoutIndex: try ClipboardListLayoutIndex(
+                cancellableRows: displayRows,
+                itemIndexByID: itemIndexByID
+            )
         )
     }
 

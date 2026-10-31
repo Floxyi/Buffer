@@ -3,26 +3,50 @@ import XCTest
 @testable import Buffer
 
 final class ClipboardListDisplayStateProjectorTests: XCTestCase {
-    func testProjectionUsesLatestItemsWhenCacheBelongsToPreviousQuery() {
+    func testContentSnapshotCarriesDisplayCacheFromSamePublication() {
+        let item = ClipboardItem.text("atomic publication")
+        let snapshotID = UUID()
+        let cache = ClipboardListStructure.makeDisplayCache(
+            from: [item],
+            sourceSnapshotID: snapshotID
+        )
+        let state = ClipboardListViewState(
+            items: [item],
+            itemsSnapshotID: snapshotID,
+            selectedIDs: [],
+            quickPasteBadgeNumberByItemID: [:],
+            searchResultsByItemID: [:],
+            queryText: "",
+            committedQueryText: "",
+            preparedDisplayCache: cache
+        )
+
+        let publication = state.contentSnapshot
+
+        XCTAssertEqual(publication.id, snapshotID)
+        XCTAssertEqual(publication.items.map(\.id), [item.id])
+        XCTAssertTrue(publication.displayCache.matches(sourceSnapshotID: publication.id))
+    }
+
+    func testProjectionUsesCacheFromLatestPublication() {
         let unfilteredItems = [
             ClipboardItem.text("matching item"),
             ClipboardItem.text("unrelated item"),
         ]
         let filteredItems = [unfilteredItems[0]]
-        let previousSnapshotID = UUID()
         let filteredSnapshotID = UUID()
 
         let state = ClipboardListDisplayStateProjector().project(
             items: filteredItems,
             itemsSnapshotID: filteredSnapshotID,
             cache: ClipboardListStructure.makeDisplayCache(
-                from: unfilteredItems,
-                sourceSnapshotID: previousSnapshotID
+                from: filteredItems,
+                sourceSnapshotID: filteredSnapshotID
             ),
             viewportHeight: 200
         )
 
-        XCTAssertEqual(state.layoutIndex.entries.map(\.id), [filteredItems[0].id])
+        XCTAssertEqual(state.layoutIndex.entries.map(\.id), filteredItems.map(\.id))
     }
 
     func testUsesCachedRows() {

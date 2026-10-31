@@ -13,10 +13,11 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         let assetStore: ClipboardAssetStore
         let persistence: any ClipboardHistoryPersisting
         let retentionService: ClipboardHistoryRetentionService
+        let searchService: any ClipboardSearchServing
     }
 
     @Published private(set) var items: [ClipboardItem] = []
-    @Published private(set) var searchIndexState = ClipboardSearchIndexState.initial
+    @Published private(set) var searchStatus = ClipboardSearchStatus.initial
     @Published private(set) var ocrProcessingItemIDs: Set<UUID> = []
 
     private let assetAccess: any ClipboardAssetAccessing
@@ -25,15 +26,15 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
     private let settingsManager: SettingsManager
     private let settingsCoordinator = ClipboardStoreSettingsCoordinator()
     private let retentionScheduler = ClipboardStoreRetentionScheduler()
-    private let searchIndexer: any ClipboardSearchIndexing
-    private var searchIndexTask: Task<Void, Never>?
-    private var searchIndexGeneration: UInt = 0
+    private let searchService: any ClipboardSearchServing
+    private var searchMaintenanceTask: Task<Void, Never>?
+    private var searchStatusTask: Task<Void, Never>?
     private var mutationTail: Task<Void, Never>?
+    private var historyRevision: UInt64 = 0
 
     convenience init(
         settingsManager: SettingsManager,
-        storagePaths: ClipboardStoragePaths? = nil,
-        searchIndexer: any ClipboardSearchIndexing = ClipboardSearchIndexer()
+        storagePaths: ClipboardStoragePaths? = nil
     ) {
         let paths = Self.resolveStoragePaths(storagePaths)
         let components = Self.makeStorageComponents(paths: paths)
@@ -47,8 +48,7 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         self.init(
             settingsManager: settingsManager,
             components: components,
-            initialItems: initialItems,
-            searchIndexer: searchIndexer
+            initialItems: initialItems
         )
     }
 
@@ -56,18 +56,18 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         settingsManager: SettingsManager,
         assetStore: ClipboardAssetStore,
         persistence: any ClipboardHistoryPersisting,
-        initialItems: [ClipboardItem] = [],
-        searchIndexer: any ClipboardSearchIndexing = ClipboardSearchIndexer()
+        searchService: any ClipboardSearchServing,
+        initialItems: [ClipboardItem] = []
     ) {
         self.init(
             settingsManager: settingsManager,
             components: StorageComponents(
                 assetStore: assetStore,
                 persistence: persistence,
-                retentionService: ClipboardHistoryRetentionService()
+                retentionService: ClipboardHistoryRetentionService(),
+                searchService: searchService
             ),
-            initialItems: initialItems,
-            searchIndexer: searchIndexer
+            initialItems: initialItems
         )
     }
 
@@ -95,19 +95,17 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         return ClipboardStore(
             settingsManager: settingsManager,
             components: components,
-            initialItems: initialItems,
-            searchIndexer: ClipboardSearchIndexer()
+            initialItems: initialItems
         )
     }
 
     private init(
         settingsManager: SettingsManager,
         components: StorageComponents,
-        initialItems: [ClipboardItem],
-        searchIndexer: any ClipboardSearchIndexing
+        initialItems: [ClipboardItem]
     ) {
         self.settingsManager = settingsManager
-        self.searchIndexer = searchIndexer
+        searchService = components.searchService
         assetAccess = components.assetStore
         repository = ClipboardRepository(
             initialItems: initialItems,
@@ -115,10 +113,12 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
             assetStore: components.assetStore
         )
         retentionService = components.retentionService
-        applySnapshot(initialItems)
+        items = Self.orderedItems(from: initialItems)
 
         bindSettings()
+        observeSearchStatus()
         startBackgroundRetentionCleanup()
+        startInitialSearchReconciliation()
     }
 
     private static func resolveStoragePaths(_ storagePaths: ClipboardStoragePaths?) -> ClipboardStoragePaths {
@@ -149,7 +149,8 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         StorageComponents(
             assetStore: ClipboardAssetStore(paths: paths),
             persistence: ClipboardHistoryPersistence(paths: paths),
-            retentionService: ClipboardHistoryRetentionService()
+            retentionService: ClipboardHistoryRetentionService(),
+            searchService: ClipboardSearchService(databaseURL: paths.searchDatabaseURL)
         )
     }
 
@@ -173,7 +174,8 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
 
     deinit {
         retentionScheduler.cancel()
-        searchIndexTask?.cancel()
+        searchMaintenanceTask?.cancel()
+        searchStatusTask?.cancel()
     }
 
     func add(_ item: ClipboardItem) async throws {
@@ -382,28 +384,38 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         assetAccess.itemSize(for: item)
     }
 
-    func searchableText(for item: ClipboardItem) -> String {
-        searchIndexState.index.searchableText(for: item.id)
+    func searchableText(for item: ClipboardItem) async -> String {
+        await searchService.searchableText(for: item.id) ?? ""
     }
 
-    var searchIndexSnapshot: ClipboardSearchIndex {
-        searchIndexState.index
+    func search(_ query: ClipboardQuery, generation: UInt) async throws -> ClipboardSearchResponse {
+        try await searchService.search(
+            ClipboardSearchRequest(
+                queryGeneration: UInt64(generation),
+                historyRevision: historyRevision,
+                query: query
+            )
+        )
+    }
+
+    func snippets(_ request: ClipboardSearchSnippetRequest) async throws -> ClipboardSearchSnippetBatch {
+        try await searchService.snippets(request)
+    }
+
+    var currentHistoryRevision: UInt64 {
+        historyRevision
     }
 
     var isSearchIndexReady: Bool {
-        searchIndexState.isReady
+        searchStatus.isReady
+    }
+
+    nonisolated func interruptSearch() {
+        searchService.cancelActiveSearch()
     }
 
     func waitForSearchIndex() async {
-        while let task = searchIndexTask {
-            let generation = searchIndexGeneration
-            await task.value
-
-            guard generation == searchIndexGeneration, searchIndexState.isReady else {
-                continue
-            }
-            return
-        }
+        await searchMaintenanceTask?.value
     }
 
     private func bindSettings() {
@@ -422,29 +434,54 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         )
     }
 
-    private func applySnapshot(_ nextItems: [ClipboardItem]) {
-        let orderedItems = Self.orderedItems(from: nextItems)
-        rebuildSearchIndex(for: orderedItems)
-        items = orderedItems
+    private func applyMutation(_ mutation: ClipboardRepositoryMutation) {
+        // Observers of `items` immediately capture the revision for asynchronous
+        // projection. Publish the committed revision first so they can never pair
+        // a new snapshot with the previous generation.
+        historyRevision = mutation.historyRevision
+        items = Self.orderedItems(from: mutation.snapshot)
+        scheduleSearchChanges(mutation.searchChangeSet, snapshot: mutation.snapshot)
     }
 
-    private func rebuildSearchIndex(for items: [ClipboardItem]) {
-        searchIndexGeneration &+= 1
-        let generation = searchIndexGeneration
-        searchIndexState = searchIndexState.markingPending(generation: generation)
-        searchIndexTask?.cancel()
-
-        let searchIndexer = searchIndexer
+    private func startInitialSearchReconciliation() {
+        let initialItems = items
         let assetAccess = assetAccess
-        searchIndexTask = Task { [weak self] in
-            let index = await searchIndexer.makeIndex(for: items, assetAccess: assetAccess)
-            guard let self, !Task.isCancelled, searchIndexGeneration == generation else { return }
-            searchIndexState = ClipboardSearchIndexState(
-                generation: generation,
-                index: index,
-                isReady: true
+        let searchService = searchService
+        searchMaintenanceTask = Task { @MainActor [weak self] in
+            _ = await searchService.reconcile(
+                snapshot: initialItems,
+                historyRevision: 0,
+                assetAccess: assetAccess
             )
-            searchIndexTask = nil
+            guard self != nil, !Task.isCancelled else { return }
+        }
+    }
+
+    private func observeSearchStatus() {
+        let searchService = searchService
+        searchStatusTask = Task { @MainActor [weak self] in
+            let updates = await searchService.statusUpdates()
+            for await status in updates {
+                guard let self, !Task.isCancelled else { return }
+                if searchStatus != status { searchStatus = status }
+            }
+        }
+    }
+
+    private func scheduleSearchChanges(
+        _ changeSet: ClipboardSearchChangeSet,
+        snapshot: [ClipboardItem]
+    ) {
+        guard !changeSet.isEmpty else { return }
+        let searchService = searchService
+        let assetAccess = assetAccess
+        searchMaintenanceTask = Task { @MainActor in
+            guard !Task.isCancelled else { return }
+            _ = await searchService.apply(
+                changeSet,
+                currentSnapshot: snapshot,
+                assetAccess: assetAccess
+            )
         }
     }
 
@@ -457,21 +494,21 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
     private func applyRetentionPolicyIfNeeded(
         to currentItems: [ClipboardItem],
         repository: ClipboardRepository
-    ) async throws -> [ClipboardItem] {
+    ) async throws -> ClipboardRepositoryMutation {
         guard
             let cutoff = retentionService.cutoff(
                 for: settingsManager.historyRetentionPeriod,
                 now: Date()
             )
         else {
-            return currentItems
+            return .unchanged(currentItems, historyRevision: historyRevision)
         }
 
         return try await repository.pruneExpired(before: cutoff)
     }
 
     private func runRepositoryMutation(
-        _ operation: @escaping @Sendable (ClipboardRepository) async throws -> [ClipboardItem]
+        _ operation: @escaping @Sendable (ClipboardRepository) async throws -> ClipboardRepositoryMutation
     ) async throws {
         let previousTask = mutationTail
         let task = Task<Result<Void, ClipboardStoreMutationError>, Never> { [weak self] in
@@ -479,8 +516,8 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
             guard let self else { return .success(()) }
 
             do {
-                let nextItems = try await operation(repository)
-                applySnapshot(nextItems)
+                let mutation = try await operation(repository)
+                applyMutation(mutation)
                 return .success(())
             } catch {
                 let mutationError = ClipboardStoreMutationError(message: error.localizedDescription)
@@ -503,7 +540,12 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
     private func runRetentionPolicyMutation() {
         Task { @MainActor [weak self] in
             await self?.performMaintenanceMutation { [weak self] repository in
-                guard let self else { return await repository.snapshot() }
+                guard let self else {
+                    return .unchanged(
+                        await repository.snapshot(),
+                        historyRevision: await repository.currentHistoryRevision()
+                    )
+                }
                 let snapshot = await repository.snapshot()
                 return try await self.applyRetentionPolicyIfNeeded(to: snapshot, repository: repository)
             }
@@ -511,7 +553,7 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
     }
 
     private func performMaintenanceMutation(
-        _ operation: @escaping @Sendable (ClipboardRepository) async throws -> [ClipboardItem]
+        _ operation: @escaping @Sendable (ClipboardRepository) async throws -> ClipboardRepositoryMutation
     ) async {
         do {
             try await runRepositoryMutation(operation)

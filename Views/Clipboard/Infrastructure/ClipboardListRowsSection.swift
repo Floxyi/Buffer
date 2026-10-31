@@ -58,8 +58,11 @@ struct ClipboardListRowsSection: View {
     let assetProvider: any ClipboardItemAssetProviding
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let selectedIDs: Set<UUID>
-    let searchResultsByItemID: [UUID: ClipboardSearchResult]
+    let searchResultsByItemID: [UUID: ClipboardSearchHit]
     let queryText: String
+    let committedQueryText: String
+    let searchResultAnimationID: UUID?
+    let searchResultAnimationPolicy: SearchResultAnimationPolicy
     let onCommitSelection: () -> Void
     let onSelectSingle: (UUID, Int) -> Void
     let onToggleSelection: (UUID) -> Void
@@ -75,6 +78,7 @@ struct ClipboardListRowsSection: View {
     let indexForItem: (ClipboardItem) -> Int
 
     var body: some View {
+        let highlightPlan = queryText.isEmpty ? nil : ClipboardQueryPlan(queryText)
         ForEach(rows) { row in
             switch row.kind {
             case .header(let title, let systemImage):
@@ -88,17 +92,27 @@ struct ClipboardListRowsSection: View {
                 ClipboardSectionDivider()
 
             case .item(let item):
-                itemRow(for: item)
+                itemRow(for: item, highlightPlan: highlightPlan)
             }
         }
     }
 
-    private func itemRow(for item: ClipboardItem) -> some View {
+    private func itemRow(
+        for item: ClipboardItem,
+        highlightPlan: ClipboardQueryPlan?
+    ) -> some View {
         let index = indexForItem(item)
         let previousItemID = adjacentItemID(before: index)
         let nextItemID = adjacentItemID(after: index)
-        let contentMatch = searchResultsByItemID[item.id]?.matches.first {
-            $0.field == .content
+        let searchResult = searchResultsByItemID[item.id]
+        let usesCommittedEvidence = queryText == committedQueryText
+        let evidence = usesCommittedEvidence ? searchResult?.evidence : nil
+        let searchSnippet = usesCommittedEvidence ? searchResult?.snippet : nil
+        let displayedText: String
+        if evidence?.field == .sourceApplication {
+            displayedText = item.sourceAppDisplayName ?? primaryLabelText(item)
+        } else {
+            displayedText = searchSnippet?.text ?? primaryLabelText(item)
         }
 
         return ClipboardInteractiveItemRow(
@@ -106,14 +120,16 @@ struct ClipboardListRowsSection: View {
             index: index,
             websitePreviewsEnabled: websitePreviewsEnabled,
             assetProvider: assetProvider,
-            primaryLabelText: primaryLabelText(item),
+            primaryLabelText: displayedText,
             isMultiSelected: selectedIDs.contains(item.id),
             joinsSelectionAbove: previousItemID.map { selectedIDs.contains($0) } ?? false,
             joinsSelectionBelow: nextItemID.map { selectedIDs.contains($0) } ?? false,
             selectionJoinOverlap: ClipboardListStructure.LayoutMetrics.rowSpacing / 2,
             quickPasteNumber: quickPasteBadgeNumberByItemID[item.id],
-            queryPlan: contentMatch == nil ? nil : ClipboardQueryPlan(queryText),
-            contentMatchClassification: contentMatch?.classification,
+            queryPlan: highlightPlan,
+            contentMatchClassification: evidence?.kind.classification ?? .exact,
+            matchEvidence: evidence,
+            searchSnippet: searchSnippet,
             isContextMenuHighlighted: contextMenuState.highlightedItemID == item.id,
             contextMenuIsActive: contextMenuState.highlightedItemID != nil,
             onCommitSelection: onCommitSelection,
@@ -142,6 +158,25 @@ struct ClipboardListRowsSection: View {
                 }
             }
         }
+        .transition(rowTransition(index: index))
+    }
+
+    private func rowTransition(index: Int) -> AnyTransition {
+        var insertion: AnyTransition = .opacity
+        if searchResultAnimationPolicy.usesRowOffset {
+            insertion = .offset(y: -4).combined(with: insertion)
+        }
+        if let animation = searchResultAnimationPolicy.insertion {
+            let delay =
+                searchResultAnimationPolicy.usesStagger
+                ? min(Double(index), 12) * 0.010 : 0
+            insertion = insertion.animation(animation.delay(delay))
+        }
+        var removal: AnyTransition = .opacity
+        if let animation = searchResultAnimationPolicy.removal {
+            removal = removal.animation(animation)
+        }
+        return .asymmetric(insertion: insertion, removal: removal)
     }
 
     private func adjacentItemID(before index: Int) -> UUID? {
@@ -176,6 +211,8 @@ private struct ClipboardInteractiveItemRow: View {
     let quickPasteNumber: Int?
     let queryPlan: ClipboardQueryPlan?
     let contentMatchClassification: ClipboardMatchClassification?
+    let matchEvidence: ClipboardSearchMatchEvidence?
+    let searchSnippet: ClipboardSearchSnippet?
     let isContextMenuHighlighted: Bool
     let contextMenuIsActive: Bool
     let onCommitSelection: () -> Void
@@ -202,6 +239,8 @@ private struct ClipboardInteractiveItemRow: View {
             quickPasteNumber: quickPasteNumber,
             queryPlan: queryPlan,
             contentMatchClassification: contentMatchClassification,
+            matchEvidence: matchEvidence,
+            searchSnippet: searchSnippet,
             isHovered: isHovered || isContextMenuHighlighted,
             assetProvider: assetProvider
         )
