@@ -123,16 +123,24 @@ struct SettingsGeneralKeyboardShortcutSection: View {
 }
 
 struct SettingsGeneralRestoreDefaultsSection: View {
-    let onRestore: () -> Void
+    let onRestoreLayout: () -> Void
+    let onRestoreSettings: () -> Void
 
     var body: some View {
         Section {
             EmptyView()
         } footer: {
-            HStack {
+            HStack(spacing: 8) {
                 Spacer()
 
-                Button("Restore Default Settings", role: .destructive, action: onRestore)
+                Button("Restore Default Layout", action: onRestoreLayout)
+                    .buttonStyle(.bordered)
+
+                Button(
+                    "Restore Default Settings",
+                    role: .destructive,
+                    action: onRestoreSettings
+                )
             }
             .padding(.top, 10)
         }

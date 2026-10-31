@@ -95,13 +95,17 @@ final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     static func makeDefaultController(
         settingsManager: SettingsManager,
         clipboardStore: ClipboardStore,
+        onRestoreDefaultLayout: @escaping @MainActor () -> Void,
         delegate: NSWindowDelegate
     ) -> NSWindowController {
         var settingsWindow: NSWindow?
         let hostingController = NSHostingController(
-            rootView: SettingsView(settings: settingsManager, store: clipboardStore) { title in
-                settingsWindow?.title = title
-            }
+            rootView: SettingsView(
+                settings: settingsManager,
+                store: clipboardStore,
+                onRestoreDefaultLayout: onRestoreDefaultLayout,
+                onCategoryTitleChange: { title in settingsWindow?.title = title }
+            )
         )
 
         let window = NSWindow(contentViewController: hostingController)

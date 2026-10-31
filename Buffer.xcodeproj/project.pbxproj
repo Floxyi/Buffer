@@ -58,6 +58,7 @@
 		AAA00062 /* ClipboardSectionDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00064 /* ClipboardSectionDivider.swift */; };
 		AAA00063 /* ClipboardScrollToTopButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00065 /* ClipboardScrollToTopButton.swift */; };
 		AAA00064 /* HistorySearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00066 /* HistorySearchBar.swift */; };
+		F1000001 /* HistoryPaneSplitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001 /* HistoryPaneSplitView.swift */; };
 		AAA00065 /* HistoryActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00067 /* HistoryActionBar.swift */; };
 		AAA00066 /* HistoryDetailHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00068 /* HistoryDetailHeader.swift */; };
 		AAA00067 /* HistoryMultiSelectionSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00069 /* HistoryMultiSelectionSummary.swift */; };
@@ -402,6 +403,7 @@
 		BBB00064 /* ClipboardSectionDivider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSectionDivider.swift; sourceTree = "<group>"; };
 		BBB00065 /* ClipboardScrollToTopButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardScrollToTopButton.swift; sourceTree = "<group>"; };
 		BBB00066 /* HistorySearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySearchBar.swift; sourceTree = "<group>"; };
+		F2000001 /* HistoryPaneSplitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPaneSplitView.swift; sourceTree = "<group>"; };
 		BBB00067 /* HistoryActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryActionBar.swift; sourceTree = "<group>"; };
 		BBB00068 /* HistoryDetailHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailHeader.swift; sourceTree = "<group>"; };
 		BBB00069 /* HistoryMultiSelectionSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryMultiSelectionSummary.swift; sourceTree = "<group>"; };
@@ -990,6 +992,7 @@
 				BBB00068 /* HistoryDetailHeader.swift */,
 				BBB00075 /* HistoryDetailScrollView.swift */,
 				BBB00166 /* HistoryClipboardListPane.swift */,
+				F2000001 /* HistoryPaneSplitView.swift */,
 				BBB00072 /* HistoryItemDetailContent.swift */,
 				BBB00167 /* HistoryMultiSelectionCard.swift */,
 				BBB00069 /* HistoryMultiSelectionSummary.swift */,
@@ -1403,6 +1406,7 @@
 				AAA00135 /* HistoryKeyboardCommand.swift in Sources */,
 				AAA00136 /* HistoryWindowKeyMonitor.swift in Sources */,
 				AAA00064 /* HistorySearchBar.swift in Sources */,
+				F1000001 /* HistoryPaneSplitView.swift in Sources */,
 				AAA00065 /* HistoryActionBar.swift in Sources */,
 				AAA00152 /* HistoryClipboardListPane.swift in Sources */,
 				AAA00066 /* HistoryDetailHeader.swift in Sources */,

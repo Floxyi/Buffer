@@ -306,11 +306,14 @@ final class HistoryPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     init(contentRect: NSRect, allowsResizing: Bool = false) {
-        // Window-manager exclusion depends on these structural traits. Hiding the
-        // controls of a titled panel still exposes an accessibility close button.
         var panelStyle: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
         if allowsResizing {
-            panelStyle.insert(.resizable)
+            // A borderless window has no AppKit-owned frame in which macOS can
+            // reliably install edge and corner resize tracking. A transparent,
+            // full-size title frame keeps the panel visually borderless while
+            // retaining the system resize cursors and drag behavior.
+            panelStyle.remove(.borderless)
+            panelStyle.formUnion([.titled, .fullSizeContentView, .resizable])
         }
 
         super.init(
@@ -321,6 +324,16 @@ final class HistoryPanel: NSPanel {
         )
 
         isReleasedWhenClosed = false
+
+        if allowsResizing {
+            titleVisibility = .hidden
+            titlebarAppearsTransparent = true
+            titlebarSeparatorStyle = .none
+            hidesOnDeactivate = false
+            standardWindowButton(.closeButton)?.isHidden = true
+            standardWindowButton(.miniaturizeButton)?.isHidden = true
+            standardWindowButton(.zoomButton)?.isHidden = true
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -354,15 +367,16 @@ final class HistoryPanel: NSPanel {
 
     private func applyRoundedSurface() {
         guard surfaceCornerRadius > 0 else { return }
+        guard let contentView else { return }
 
-        for view in [contentView, contentView?.superview].compactMap({ $0 }) {
-            view.wantsLayer = true
-            view.layer?.backgroundColor = NSColor.clear.cgColor
-            view.layer?.cornerRadius = surfaceCornerRadius
-            view.layer?.cornerCurve = .continuous
-            view.layer?.masksToBounds = true
-            view.layer?.allowsEdgeAntialiasing = true
-        }
+        // Do not layer-mask AppKit's private frame view. It owns the native
+        // resize hit regions for titled/full-size-content windows.
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.clear.cgColor
+        contentView.layer?.cornerRadius = surfaceCornerRadius
+        contentView.layer?.cornerCurve = .continuous
+        contentView.layer?.masksToBounds = true
+        contentView.layer?.allowsEdgeAntialiasing = true
     }
 }
 
@@ -512,6 +526,29 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
         window?.orderOut(nil)
     }
 
+    func restoreDefaultLayout() {
+        let configuration = panelConfigurator.configuration
+        let splitView = window?.contentView?.firstDescendant(of: HistoryPaneNativeSplitView.self)
+        HistoryLayoutPersistence.restoreDefaults(for: configuration)
+
+        guard let window else { return }
+
+        window.setContentSize(configuration.initialContentSize)
+        window.center()
+
+        if let splitView {
+            splitView.setPosition(
+                configuration.paneSplitConfiguration.preferredListWidth,
+                ofDividerAt: 0
+            )
+            splitView.window?.invalidateCursorRects(for: splitView)
+        }
+
+        if let frameAutosaveName = configuration.frameAutosaveName {
+            window.saveFrame(usingName: frameAutosaveName)
+        }
+    }
+
     private func setupPanel(_ panel: HistoryPanel) {
         keyObserver = panelConfigurator.configure(panel) { [weak self] in
             self?.handlePanelDidBecomeKey()
@@ -546,7 +583,8 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
             },
             onRestoreFocus: { [weak self] in
                 self?.pasteCoordinator.restoreTargetFocus()
-            }
+            },
+            paneSplitConfiguration: panelConfigurator.configuration.paneSplitConfiguration
         )
 
         let contentConfiguration = panelConfigurator.makeContentConfiguration(
@@ -673,5 +711,21 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
 
     private var historyPanel: HistoryPanel? {
         window as? HistoryPanel
+    }
+}
+
+extension NSView {
+    fileprivate func firstDescendant<ViewType: NSView>(of type: ViewType.Type) -> ViewType? {
+        if let matchingView = self as? ViewType {
+            return matchingView
+        }
+
+        for subview in subviews {
+            if let matchingView = subview.firstDescendant(of: type) {
+                return matchingView
+            }
+        }
+
+        return nil
     }
 }

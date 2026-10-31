@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct SettingsView: View {
     let onCategoryTitleChange: (String) -> Void
+    let onRestoreDefaultLayout: () -> Void
 
     @ObservedObject private var settings: SettingsManager
     @ObservedObject private var store: ClipboardStore
@@ -25,10 +26,12 @@ struct SettingsView: View {
     init(
         settings: SettingsManager,
         store: ClipboardStore,
+        onRestoreDefaultLayout: @escaping () -> Void,
         onCategoryTitleChange: @escaping (String) -> Void = { _ in }
     ) {
         self._settings = ObservedObject(wrappedValue: settings)
         self._store = ObservedObject(wrappedValue: store)
+        self.onRestoreDefaultLayout = onRestoreDefaultLayout
         self.onCategoryTitleChange = onCategoryTitleChange
     }
 
@@ -65,7 +68,11 @@ struct SettingsView: View {
         Group {
             switch category {
             case .general:
-                SettingsGeneralView(settings: settings, store: store)
+                SettingsGeneralView(
+                    settings: settings,
+                    store: store,
+                    onRestoreDefaultLayout: onRestoreDefaultLayout
+                )
             case .behaviour:
                 SettingsBehaviourView(settings: settings)
             case .privacy:

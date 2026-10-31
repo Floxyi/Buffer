@@ -8,6 +8,7 @@ enum SettingsGeneralField: Hashable {
 struct SettingsGeneralView: View {
     @ObservedObject var settings: SettingsManager
     @ObservedObject var store: ClipboardStore
+    let onRestoreDefaultLayout: () -> Void
 
     @State private var isRecording = false
     @State private var showingTrimAlert = false
@@ -17,9 +18,14 @@ struct SettingsGeneralView: View {
     @State private var showingResetAlert = false
     @FocusState private var focusedField: SettingsGeneralField?
 
-    init(settings: SettingsManager, store: ClipboardStore) {
+    init(
+        settings: SettingsManager,
+        store: ClipboardStore,
+        onRestoreDefaultLayout: @escaping () -> Void
+    ) {
         self._settings = ObservedObject(wrappedValue: settings)
         self._store = ObservedObject(wrappedValue: store)
+        self.onRestoreDefaultLayout = onRestoreDefaultLayout
         self._draftHistoryLimitText = State(initialValue: String(settings.persistedHistoryLimit))
     }
 
@@ -38,9 +44,10 @@ struct SettingsGeneralView: View {
                 settings: settings,
                 isRecording: $isRecording
             )
-            SettingsGeneralRestoreDefaultsSection {
-                showingResetAlert = true
-            }
+            SettingsGeneralRestoreDefaultsSection(
+                onRestoreLayout: onRestoreDefaultLayout,
+                onRestoreSettings: { showingResetAlert = true }
+            )
         }
         .formStyle(.grouped)
         .alert("Reduce History Limit?", isPresented: $showingTrimAlert) {

@@ -52,6 +52,18 @@ final class HistoryWindowCoordinatorTests: XCTestCase {
             .init(focusSearch: false, activateApp: false, suppressQuickPasteUntilModifiersReleased: false)
         )
     }
+
+    func testRestoreDefaultLayoutForwardsToResolvedController() {
+        let controller = RecordingHistoryWindowController()
+        let coordinator = HistoryWindowCoordinator {
+            controller
+        }
+
+        coordinator.present(.standard(for: .statusBar))
+        coordinator.restoreDefaultLayout()
+
+        XCTAssertEqual(controller.restoreDefaultLayoutCallCount, 1)
+    }
 }
 
 @MainActor
@@ -65,6 +77,7 @@ private final class RecordingHistoryWindowController: HistoryWindowControlling {
     var isWindowVisible = false
     private(set) var showCalls: [ShowCall] = []
     private(set) var closeCallCount = 0
+    private(set) var restoreDefaultLayoutCallCount = 0
 
     func showHistoryWindow(
         focusSearch: Bool,
@@ -84,5 +97,9 @@ private final class RecordingHistoryWindowController: HistoryWindowControlling {
     func close() {
         closeCallCount += 1
         isWindowVisible = false
+    }
+
+    func restoreDefaultLayout() {
+        restoreDefaultLayoutCallCount += 1
     }
 }

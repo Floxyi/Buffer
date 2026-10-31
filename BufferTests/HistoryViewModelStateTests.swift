@@ -156,6 +156,7 @@ final class HistoryViewModelStateTests: XCTestCase {
         )
 
         await viewModel.loadPreviewIfNeeded()
+        XCTAssertNotNil(viewModel.previewImage)
         await viewModel.extractSelectedImageText()
 
         await eventually {

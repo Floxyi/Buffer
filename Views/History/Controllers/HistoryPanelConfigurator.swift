@@ -12,20 +12,79 @@ protocol BufferEffectView: AnyObject {
 typealias BufferEffectHostView = NSView & BufferEffectView
 
 enum HistoryWindowStyle {
-    static let panelSize = NSSize(width: 800, height: 500)
+    static let initialContentSize = NSSize(width: 800, height: 500)
+    static let minimumContentSize = NSSize(width: 680, height: 420)
     static let panelCornerRadius = CGFloat(24)
     static let panelBorderOpacity = 0.18
+    static let frameAutosaveName = NSWindow.FrameAutosaveName("Buffer.HistoryWindow.Frame")
 }
 
 struct HistoryWindowConfiguration: Equatable, Sendable {
-    var contentSize = HistoryWindowStyle.panelSize
-    var minimumSize = HistoryWindowStyle.panelSize
-    var maximumSize = HistoryWindowStyle.panelSize
-    var allowsResizing = false
+    var initialContentSize = HistoryWindowStyle.initialContentSize
+    var minimumContentSize = HistoryWindowStyle.minimumContentSize
+    var maximumContentSize: NSSize?
+    var allowsResizing = true
     var allowsMoving = false
+    var frameAutosaveName: NSWindow.FrameAutosaveName? = HistoryWindowStyle.frameAutosaveName
+    var paneSplitConfiguration = HistoryPaneSplitConfiguration.standard
     var appearance = BufferAppearanceConfiguration.systemGlass
 
     static let standard = HistoryWindowConfiguration()
+    static let ephemeral = HistoryWindowConfiguration(
+        frameAutosaveName: nil,
+        paneSplitConfiguration: .ephemeral
+    )
+}
+
+enum HistoryWindowGeometry {
+    static func clampedContentSize(
+        _ proposedSize: NSSize,
+        fallbackSize: NSSize,
+        minimumSize: NSSize,
+        maximumSize: NSSize
+    ) -> NSSize {
+        let safeMaximumSize = NSSize(
+            width: max(minimumSize.width, maximumSize.width),
+            height: max(minimumSize.height, maximumSize.height)
+        )
+        let candidate = isValid(proposedSize) ? proposedSize : fallbackSize
+
+        return NSSize(
+            width: min(max(candidate.width, minimumSize.width), safeMaximumSize.width),
+            height: min(max(candidate.height, minimumSize.height), safeMaximumSize.height)
+        )
+    }
+
+    private static func isValid(_ size: NSSize) -> Bool {
+        size.width.isFinite
+            && size.height.isFinite
+            && size.width > 0
+            && size.height > 0
+    }
+}
+
+@MainActor
+enum HistoryLayoutPersistence {
+    static func restoreDefaults(
+        for configuration: HistoryWindowConfiguration = .standard,
+        defaults: UserDefaults = .standard
+    ) {
+        if let frameAutosaveName = configuration.frameAutosaveName {
+            NSWindow.removeFrame(usingName: frameAutosaveName)
+        }
+
+        if let persistenceIdentifier = configuration.paneSplitConfiguration.persistenceIdentifier {
+            defaults.removeObject(
+                forKey: paneListWidthDefaultsKey(for: persistenceIdentifier)
+            )
+        }
+    }
+
+    static func paneListWidthDefaultsKey(
+        for persistenceIdentifier: String
+    ) -> String {
+        "Buffer.HistoryPaneSplit.ListWidth.\(persistenceIdentifier)"
+    }
 }
 
 @MainActor
@@ -47,8 +106,8 @@ struct HistoryPanelConfigurator {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: configuration.contentSize.width,
-                height: configuration.contentSize.height
+                width: configuration.initialContentSize.width,
+                height: configuration.initialContentSize.height
             ),
             allowsResizing: configuration.allowsResizing
         )
@@ -73,9 +132,10 @@ struct HistoryPanelConfigurator {
             .ignoresCycle,
         ]
 
-        panel.setContentSize(configuration.contentSize)
-        panel.minSize = configuration.minimumSize
-        panel.maxSize = configuration.maximumSize
+        panel.contentMinSize = configuration.minimumContentSize
+        if let maximumContentSize = configuration.maximumContentSize {
+            panel.contentMaxSize = maximumContentSize
+        }
         panel.appearance = configuration.appearance.mode.appKitAppearance
 
         panel.isOpaque = false
@@ -87,6 +147,7 @@ struct HistoryPanelConfigurator {
 
         panel.updateRoundedSurface(cornerRadius: HistoryWindowStyle.panelCornerRadius)
 
+        restoreAndConstrainFrame(of: panel)
         panel.center()
 
         return NotificationCenter.default.addObserver(
@@ -97,6 +158,43 @@ struct HistoryPanelConfigurator {
             Task { @MainActor in
                 onDidBecomeKey()
             }
+        }
+    }
+
+    private func restoreAndConstrainFrame(of panel: HistoryPanel) {
+        let restoredFrame: Bool
+        if let frameAutosaveName = configuration.frameAutosaveName {
+            restoredFrame = panel.setFrameUsingName(frameAutosaveName)
+        } else {
+            restoredFrame = false
+        }
+
+        let proposedSize =
+            restoredFrame
+            ? panel.contentRect(forFrameRect: panel.frame).size
+            : configuration.initialContentSize
+        let screenMaximum =
+            panel.screen?.visibleFrame.size
+            ?? NSScreen.main?.visibleFrame.size
+            ?? configuration.maximumContentSize
+            ?? proposedSize
+        let effectiveMaximum = NSSize(
+            width: min(configuration.maximumContentSize?.width ?? screenMaximum.width, screenMaximum.width),
+            height: min(
+                configuration.maximumContentSize?.height ?? screenMaximum.height,
+                screenMaximum.height
+            )
+        )
+        let contentSize = HistoryWindowGeometry.clampedContentSize(
+            proposedSize,
+            fallbackSize: configuration.initialContentSize,
+            minimumSize: configuration.minimumContentSize,
+            maximumSize: effectiveMaximum
+        )
+        panel.setContentSize(contentSize)
+
+        if let frameAutosaveName = configuration.frameAutosaveName {
+            panel.setFrameAutosaveName(frameAutosaveName)
         }
     }
 

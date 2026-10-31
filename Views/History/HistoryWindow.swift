@@ -16,13 +16,17 @@ struct HistoryContentView: View {
     let onScrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
     let onDismiss: () -> Void
     let onRestoreFocus: () -> Void
+    let paneSplitConfiguration: HistoryPaneSplitConfiguration
 
     @StateObject private var searchFocusController = HistorySearchFocusController()
     @StateObject private var deleteConfirmationController = HistoryDeleteConfirmationController()
 
     var body: some View {
         content
-            .frame(minWidth: 800, minHeight: 500)
+            .frame(
+                minWidth: HistoryWindowStyle.minimumContentSize.width,
+                minHeight: HistoryWindowStyle.minimumContentSize.height
+            )
             .background(BufferWindowBackdrop())
             .clipShape(RoundedRectangle(cornerRadius: HistoryWindowStyle.panelCornerRadius, style: .continuous))
             .overlay {
@@ -80,19 +84,22 @@ struct HistoryContentView: View {
 
             BufferPanelSeparator()
 
-            HStack(spacing: 0) {
-                listPane
-                    .frame(minWidth: 300, maxWidth: .infinity)
-
-                BufferPanelSeparator(isVertical: true)
-
-                if viewModel.selectionCount > 0 {
-                    detailPane
-                        .frame(minWidth: 500, maxWidth: .infinity)
-                        .transition(.identity)
-                        .transaction { transaction in
-                            transaction.animation = nil
-                        }
+            GeometryReader { geometry in
+                HistoryPaneSplitView(
+                    configuration: paneSplitConfiguration,
+                    initialWidth: geometry.size.width
+                ) {
+                    listPane
+                } trailing: {
+                    if viewModel.selectionCount > 0 {
+                        detailPane
+                            .transition(.identity)
+                            .transaction { transaction in
+                                transaction.animation = nil
+                            }
+                    } else {
+                        HistoryPanelSurfaceBackground()
+                    }
                 }
             }
 

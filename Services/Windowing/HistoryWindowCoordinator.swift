@@ -33,6 +33,7 @@ protocol HistoryWindowControlling: AnyObject {
         activateApp: Bool,
         suppressQuickPasteUntilModifiersReleased: Bool
     )
+    func restoreDefaultLayout()
     func close()
 }
 
@@ -80,6 +81,14 @@ final class HistoryWindowCoordinator {
             activateApp: intent.activateApp,
             suppressQuickPasteUntilModifiersReleased: intent.suppressQuickPasteUntilModifiersReleased
         )
+    }
+
+    func restoreDefaultLayout() {
+        if let historyWindowController {
+            historyWindowController.restoreDefaultLayout()
+        } else {
+            HistoryLayoutPersistence.restoreDefaults()
+        }
     }
 
     private func resolveController() -> any HistoryWindowControlling {

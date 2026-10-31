@@ -660,6 +660,11 @@ final class HistoryViewModel: ObservableObject {
         // Search-index publication can legitimately resynchronize selection and
         // replace an in-flight detail task during startup.
         await store.waitForSearchIndex()
+        while let task = searchTask {
+            let generation = searchGeneration
+            await task.value
+            guard generation != searchGeneration else { break }
+        }
         await keyboardDetailTask?.value
         await detailModel.waitUntilLoaded()
     }

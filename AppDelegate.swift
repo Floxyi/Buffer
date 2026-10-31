@@ -21,6 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return SettingsWindowCoordinator.makeDefaultController(
             settingsManager: container.settingsManager,
             clipboardStore: container.clipboardStore,
+            onRestoreDefaultLayout: { [weak self] in
+                self?.historyWindowCoordinator.restoreDefaultLayout()
+            },
             delegate: delegate
         )
     }
