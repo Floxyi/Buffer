@@ -170,12 +170,33 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
 
         XCTAssertEqual(configuration.containerView.subviews.count, 1)
         XCTAssertTrue(configuration.containerView.subviews[0] === configuration.animatedContentView)
-        XCTAssertEqual(configuration.animatedContentView.subviews.count, 1)
+        XCTAssertTrue(
+            configuration.hostedContentView.isDescendant(
+                of: configuration.animatedContentView
+            )
+        )
+        if #available(macOS 26.0, *) {
+            XCTAssertTrue(configuration.animatedContentView is BufferLiquidGlassEffectView)
+        }
         XCTAssertEqual(
             configuration.containerView.layer?.cornerRadius,
             HistoryWindowStyle.panelCornerRadius
         )
         XCTAssertTrue(configuration.containerView.layer?.masksToBounds == true)
+    }
+
+    func testClassicMaterialUsesPreviousFrostedEffectView() {
+        var configuration = HistoryWindowConfiguration.ephemeral
+        configuration.appearance.historyWindowMaterial = .classic
+        let contentConfiguration = HistoryPanelConfigurator(configuration: configuration)
+            .makeContentConfiguration(
+                rootView: Color.clear,
+                frame: NSRect(x: 0, y: 0, width: 120, height: 80)
+            )
+
+        XCTAssertTrue(
+            contentConfiguration.animatedContentView is BufferFrostedGlassEffectView
+        )
     }
 
     func testWindowGeometryClampsInvalidAndOutOfRangeSizes() {

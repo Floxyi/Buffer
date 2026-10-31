@@ -33,6 +33,7 @@ struct SettingsGeneralView: View {
         Form {
             SettingsGeneralLaunchAtLoginSection(settings: settings)
             SettingsGeneralMenuBarSection(settings: settings)
+            SettingsGeneralAppearanceSection(settings: settings)
             SettingsGeneralHistorySizeSection(
                 draftHistoryLimitText: $draftHistoryLimitText,
                 focusedField: $focusedField,

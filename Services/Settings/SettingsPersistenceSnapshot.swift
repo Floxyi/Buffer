@@ -17,6 +17,7 @@ struct SettingsPersistenceSnapshot {
     let enableAutomaticOCR: Bool
     let historyRetentionPeriod: String
     let menuBarIcon: String
+    let historyWindowMaterial: String
     let enableWebsitePreviews: Bool
     let excludedApps: [ExcludedApp]
 
@@ -38,6 +39,7 @@ struct SettingsPersistenceSnapshot {
         enableAutomaticOCR = settings.enableAutomaticOCR
         historyRetentionPeriod = settings.historyRetentionPeriod.rawValue
         menuBarIcon = settings.menuBarIcon.rawValue
+        historyWindowMaterial = settings.historyWindowMaterial.rawValue
         enableWebsitePreviews = settings.enableWebsitePreviews
         excludedApps = settings.excludedApps
     }
@@ -60,6 +62,7 @@ struct SettingsPersistenceSnapshot {
         store.set(enableAutomaticOCR, for: .enableAutomaticOCR)
         store.set(historyRetentionPeriod, for: .historyRetentionPeriod)
         store.set(menuBarIcon, for: .menuBarIcon)
+        store.set(historyWindowMaterial, for: .historyWindowMaterial)
         store.set(enableWebsitePreviews, for: .enableWebsitePreviews)
 
         do {

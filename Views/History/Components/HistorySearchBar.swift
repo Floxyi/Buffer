@@ -368,51 +368,28 @@ struct HistoryFilterClearButton: View {
 }
 
 extension View {
-    func historyFilterControlSurface(
-        isActive: Bool,
-        isExpanded: Bool = false
-    ) -> some View {
+    func historyFilterControlSurface(isActive: Bool) -> some View {
         modifier(
-            HistoryFilterControlSurfaceModifier(
-                isActive: isActive,
-                isExpanded: isExpanded
-            )
+            HistoryFilterControlSurfaceModifier(isActive: isActive)
         )
     }
 }
 
 private struct HistoryFilterControlSurfaceModifier: ViewModifier {
     let isActive: Bool
-    let isExpanded: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var emphasizesControl: Bool {
-        isActive || isExpanded
-    }
-
     private var foregroundColor: Color {
-        emphasizesControl ? .accentColor : .primary.opacity(0.82)
+        isActive ? .accentColor : .primary.opacity(0.82)
     }
 
     private var overlayOpacity: Double {
-        if isExpanded {
-            return isActive ? 0.10 : 0.06
-        }
-        if isActive {
-            return 0.07
-        }
-        return 0
+        isActive ? 0.07 : 0
     }
 
     private var strokeOpacity: Double {
-        if isExpanded {
-            return 0.15
-        }
-        if isActive {
-            return 0.12
-        }
-        return 0
+        isActive ? 0.12 : 0
     }
 
     func body(content: Content) -> some View {
@@ -428,15 +405,11 @@ private struct HistoryFilterControlSurfaceModifier: ViewModifier {
             .bufferGlassSurface(
                 cornerRadius: 14,
                 tint: isActive ? Color.accentColor.opacity(0.05) : nil,
-                interactive: true
+                interactive: false
             )
             .animation(
                 reduceMotion ? nil : .easeInOut(duration: 0.16),
                 value: isActive
-            )
-            .animation(
-                reduceMotion ? nil : .easeInOut(duration: 0.16),
-                value: isExpanded
             )
     }
 }

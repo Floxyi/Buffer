@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureClipboardCapture()
         configureStatusBar()
         configureHotkeyHandling()
+        configureHistoryWindowAppearance()
         openHistoryWindowOnStartup()
     }
 
@@ -107,6 +108,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
     }
 
+    private func configureHistoryWindowAppearance() {
+        guard let settingsManager = container?.settingsManager else { return }
+
+        settingsManager.$historyWindowMaterial
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.historyWindowCoordinator.invalidateForConfigurationChange()
+            }
+            .store(in: &cancellables)
+    }
+
     private func openHistoryWindowOnStartup() {
         guard let container else { return }
         Task { @MainActor [weak self] in
@@ -140,13 +153,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let container else {
             preconditionFailure("History window requested before application services finished loading")
         }
+        var windowConfiguration = container.historyWindowConfiguration
+        windowConfiguration.appearance.historyWindowMaterial =
+            container.settingsManager.historyWindowMaterial
+
         let controller = HistoryWindowController(
             store: container.clipboardStore,
             settingsManager: container.settingsManager,
             activeApplicationProvider: container.activeApplicationMonitor,
             pasteController: container.pasteController,
             ocrService: container.ocrService,
-            windowConfiguration: container.historyWindowConfiguration,
+            windowConfiguration: windowConfiguration,
             suppressCapturedChange: { [weak watcher = container.clipboardWatcher] receipt in
                 watcher?.suppressCapture(forChangeCount: receipt.changeCount)
             }

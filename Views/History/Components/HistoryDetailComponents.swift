@@ -7,7 +7,11 @@ struct HistoryPanelSurfaceBackground: View {
     var body: some View {
         switch appearance.surfaceStyle {
         case .glass:
-            Rectangle().fill(.regularMaterial).opacity(0.16)
+            if appearance.historyWindowMaterial == .liquidGlass {
+                Color.clear
+            } else {
+                Rectangle().fill(.regularMaterial).opacity(0.16)
+            }
         case .transparent:
             Color.clear
         case .opaque:

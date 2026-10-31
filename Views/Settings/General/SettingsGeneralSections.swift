@@ -35,6 +35,111 @@ struct SettingsGeneralMenuBarSection: View {
     }
 }
 
+struct SettingsGeneralAppearanceSection: View {
+    @ObservedObject var settings: SettingsManager
+
+    private var bindings: SettingsFormBindings { settings.formBindings }
+
+    var body: some View {
+        Section("Appearance") {
+            HStack(alignment: .top, spacing: 10) {
+                ForEach(HistoryWindowMaterial.allCases, id: \.self) { material in
+                    SettingsHistoryWindowMaterialOption(
+                        material: material,
+                        selection: bindings.historyWindowMaterial
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("History Window Material")
+
+            Text("Choose between native Liquid Glass and the darker classic frosted appearance.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct SettingsHistoryWindowMaterialOption: View {
+    let material: HistoryWindowMaterial
+    @Binding var selection: HistoryWindowMaterial
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isSelected: Bool {
+        selection == material
+    }
+
+    var body: some View {
+        Button {
+            selection = material
+        } label: {
+            VStack(spacing: 5) {
+                materialPreview
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .stroke(
+                                isSelected
+                                    ? Color.accentColor
+                                    : Color.secondary.opacity(0.28),
+                                lineWidth: isSelected ? 3 : 1
+                            )
+                    }
+
+                Text(material.label)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(material.label)
+        .accessibilityValue(isSelected ? String(localized: "Selected") : "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.14),
+            value: isSelected
+        )
+    }
+
+    private var materialPreview: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+
+            previewSurface
+                .frame(height: 24)
+                .padding(.horizontal, 14)
+        }
+        .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
+    }
+
+    @ViewBuilder
+    private var previewSurface: some View {
+        switch material {
+        case .liquidGlass:
+            Color.clear
+                .bufferGlassSurface(cornerRadius: 12)
+                .overlay {
+                    Capsule()
+                        .stroke(Color.white.opacity(0.16), lineWidth: 0.75)
+                }
+                .clipShape(Capsule())
+        case .classic:
+            Capsule()
+                .fill(.regularMaterial)
+                .background(Color.black.opacity(0.18), in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(Color.black.opacity(0.42), lineWidth: 1)
+                }
+                .shadow(color: Color.black.opacity(0.22), radius: 2, y: 1)
+        }
+    }
+}
+
 struct SettingsGeneralHistorySizeSection: View {
     @Binding var draftHistoryLimitText: String
     var focusedField: FocusState<SettingsGeneralField?>.Binding

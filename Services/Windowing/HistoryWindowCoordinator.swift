@@ -91,6 +91,11 @@ final class HistoryWindowCoordinator {
         }
     }
 
+    func invalidateForConfigurationChange() {
+        historyWindowController?.close()
+        historyWindowController = nil
+    }
+
     private func resolveController() -> any HistoryWindowControlling {
         if let historyWindowController {
             return historyWindowController

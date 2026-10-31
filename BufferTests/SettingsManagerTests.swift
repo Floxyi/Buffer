@@ -135,6 +135,30 @@ final class SettingsManagerTests: XCTestCase {
         XCTAssertTrue(defaults.bool(forKey: SettingsKey.enableAutomaticOCR.rawValue))
     }
 
+    func testHistoryWindowMaterialPersistsAndResetsToLiquidGlass() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.setHistoryWindowMaterial(.classic)
+
+        XCTAssertEqual(settings.historyWindowMaterial, .classic)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.historyWindowMaterial.rawValue),
+            HistoryWindowMaterial.classic.rawValue
+        )
+
+        settings.resetUserPreferencesToDefaults()
+
+        XCTAssertEqual(settings.historyWindowMaterial, .liquidGlass)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.historyWindowMaterial.rawValue),
+            HistoryWindowMaterial.liquidGlass.rawValue
+        )
+    }
+
     func testClipboardWhitespaceModePersistsAsSingleExclusiveValue() {
         let defaults = makeTestDefaults()
         let settings = SettingsManager(

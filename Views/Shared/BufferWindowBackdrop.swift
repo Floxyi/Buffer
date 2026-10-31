@@ -6,7 +6,11 @@ struct BufferWindowBackdrop: View {
     var body: some View {
         switch appearance.surfaceStyle {
         case .glass:
-            gradientBackdrop(baseOpacity: 0.24, highlightOpacity: 0.08)
+            if appearance.historyWindowMaterial == .liquidGlass {
+                Color.clear
+            } else {
+                gradientBackdrop(baseOpacity: 0.24, highlightOpacity: 0.08)
+            }
         case .transparent:
             gradientBackdrop(baseOpacity: 0.08, highlightOpacity: 0.04)
         case .opaque:

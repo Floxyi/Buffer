@@ -98,4 +98,20 @@ final class SettingsFormBindingsTests: XCTestCase {
         XCTAssertFalse(settings.enableAutomaticOCR)
         XCTAssertFalse(defaults.bool(forKey: SettingsKey.enableAutomaticOCR.rawValue))
     }
+
+    func testHistoryWindowMaterialBindingPersistsItsValue() {
+        let defaults = makeTestDefaults()
+        let settings = SettingsManager(
+            defaults: defaults,
+            launchAtLoginController: FakeLaunchAtLoginController()
+        )
+
+        settings.formBindings.historyWindowMaterial.wrappedValue = .classic
+
+        XCTAssertEqual(settings.historyWindowMaterial, .classic)
+        XCTAssertEqual(
+            defaults.string(forKey: SettingsKey.historyWindowMaterial.rawValue),
+            HistoryWindowMaterial.classic.rawValue
+        )
+    }
 }

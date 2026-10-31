@@ -26,6 +26,7 @@ final class SettingsManager: ObservableObject {
     @Published private(set) var enableAutomaticOCR: Bool
     @Published var historyRetentionPeriod: HistoryRetentionPeriod
     @Published var menuBarIcon: MenuBarIcon
+    @Published var historyWindowMaterial: HistoryWindowMaterial
     @Published var enableWebsitePreviews: Bool
     @Published private(set) var excludedApps: [ExcludedApp]
     @Published private(set) var persistedHistoryLimit: Int
@@ -73,6 +74,7 @@ final class SettingsManager: ObservableObject {
         enableAutomaticOCR = loadedState.enableAutomaticOCR
         historyRetentionPeriod = loadedState.historyRetentionPeriod
         menuBarIcon = loadedState.menuBarIcon
+        historyWindowMaterial = loadedState.historyWindowMaterial
         enableWebsitePreviews = loadedState.enableWebsitePreviews
         excludedApps = loadedState.excludedApps
         persistedHistoryLimit = loadedState.persistedHistoryLimit
@@ -156,6 +158,11 @@ final class SettingsManager: ObservableObject {
         persist()
     }
 
+    func setHistoryWindowMaterial(_ material: HistoryWindowMaterial) {
+        historyWindowMaterial = material
+        persist()
+    }
+
     func resetUserPreferencesToDefaults() {
         applyLoadedState(
             SettingsLoadedState.defaults,
@@ -222,6 +229,7 @@ final class SettingsManager: ObservableObject {
         enableAutomaticOCR = state.enableAutomaticOCR
         historyRetentionPeriod = state.historyRetentionPeriod
         menuBarIcon = state.menuBarIcon
+        historyWindowMaterial = state.historyWindowMaterial
         enableWebsitePreviews = state.enableWebsitePreviews
         excludedApps = state.excludedApps
     }

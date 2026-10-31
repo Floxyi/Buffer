@@ -58,10 +58,7 @@ struct HistoryDateFilterControl: View {
                 }
             }
         }
-        .historyFilterControlSurface(
-            isActive: selection != nil,
-            isExpanded: isPresented
-        )
+        .historyFilterControlSurface(isActive: selection != nil)
         .opacity(isEnabled ? 1 : 0.45)
         .help(String(localized: "Filter by copied date"))
     }

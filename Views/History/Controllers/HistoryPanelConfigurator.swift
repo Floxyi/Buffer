@@ -7,6 +7,8 @@ protocol BufferEffectView: AnyObject {
         _ appearance: BufferAppearanceConfiguration,
         cornerRadius: CGFloat
     )
+
+    func installBufferContentView(_ contentView: NSView)
 }
 
 typealias BufferEffectHostView = NSView & BufferEffectView
@@ -91,6 +93,7 @@ enum HistoryLayoutPersistence {
 struct HistoryPanelContentConfiguration {
     let containerView: NSView
     let animatedContentView: NSView
+    let hostedContentView: NSView
 }
 
 @MainActor
@@ -230,17 +233,46 @@ struct HistoryPanelConfigurator {
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
-        effectView.addSubview(hostingView)
+        effectView.installBufferContentView(hostingView)
         containerView.addSubview(effectView)
 
         return HistoryPanelContentConfiguration(
             containerView: containerView,
-            animatedContentView: effectView
+            animatedContentView: effectView,
+            hostedContentView: hostingView
         )
     }
 }
 
-private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffectView {
+@available(macOS 26.0, *)
+final class BufferLiquidGlassEffectView: NSGlassEffectView, BufferEffectView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        style = .regular
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        style = .regular
+        wantsLayer = true
+    }
+
+    func updateBufferAppearance(
+        _ appearance: BufferAppearanceConfiguration,
+        cornerRadius: CGFloat
+    ) {
+        style = appearance.surfaceStyle == .transparent ? .clear : .regular
+        tintColor = appearance.surfaceStyle == .opaque ? .windowBackgroundColor : nil
+        self.cornerRadius = cornerRadius
+    }
+
+    func installBufferContentView(_ contentView: NSView) {
+        self.contentView = contentView
+    }
+}
+
+final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffectView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         configure()
@@ -275,6 +307,10 @@ private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffe
         }
 
         updateRoundedCorners(cornerRadius)
+    }
+
+    func installBufferContentView(_ contentView: NSView) {
+        addSubview(contentView)
     }
 
     private func updateRoundedCorners(_ cornerRadius: CGFloat) {
@@ -312,7 +348,15 @@ private final class BufferFrostedGlassEffectView: NSVisualEffectView, BufferEffe
 private func makeBufferEffectView(
     appearance: BufferAppearanceConfiguration
 ) -> BufferEffectHostView {
-    let effectView = BufferFrostedGlassEffectView(frame: .zero)
+    let effectView: BufferEffectHostView
+    if #available(macOS 26.0, *),
+        appearance.surfaceStyle == .glass,
+        appearance.historyWindowMaterial == .liquidGlass
+    {
+        effectView = BufferLiquidGlassEffectView(frame: .zero)
+    } else {
+        effectView = BufferFrostedGlassEffectView(frame: .zero)
+    }
     effectView.updateBufferAppearance(
         appearance,
         cornerRadius: HistoryWindowStyle.panelCornerRadius

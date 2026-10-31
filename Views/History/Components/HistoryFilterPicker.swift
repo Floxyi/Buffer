@@ -70,10 +70,7 @@ struct HistoryFilterPickerControl<ID: Hashable & Sendable>: View {
                 }
             }
         }
-        .historyFilterControlSurface(
-            isActive: selectedID != nil,
-            isExpanded: isPresented
-        )
+        .historyFilterControlSurface(isActive: selectedID != nil)
         .opacity(isEnabled && !options.isEmpty ? 1 : 0.45)
         .help(help)
     }

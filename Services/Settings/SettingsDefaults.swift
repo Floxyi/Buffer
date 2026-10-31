@@ -10,6 +10,7 @@ enum SettingsDefaults {
     static let defaultHistoryLimit = 100
     static let defaultHistoryWindowOpenBehavior: HistoryWindowOpenBehavior = .selectFirstNonPinnedItem
     static let defaultMenuBarIcon: MenuBarIcon = .clipboard
+    static let defaultHistoryWindowMaterial: HistoryWindowMaterial = .liquidGlass
     static let defaultClipboardWhitespaceMode: ClipboardWhitespaceMode = .preserve
     static let defaultEnableAutomaticOCR = true
 

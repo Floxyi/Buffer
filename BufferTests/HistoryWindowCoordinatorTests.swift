@@ -64,6 +64,23 @@ final class HistoryWindowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(controller.restoreDefaultLayoutCallCount, 1)
     }
+
+    func testConfigurationChangeClosesAndDiscardsResolvedController() {
+        let firstController = RecordingHistoryWindowController()
+        let secondController = RecordingHistoryWindowController()
+        var controllers = [firstController, secondController]
+        let coordinator = HistoryWindowCoordinator {
+            controllers.removeFirst()
+        }
+
+        coordinator.present(.standard(for: .statusBar))
+        coordinator.invalidateForConfigurationChange()
+        coordinator.present(.standard(for: .statusBar))
+
+        XCTAssertEqual(firstController.closeCallCount, 1)
+        XCTAssertEqual(firstController.showCalls.count, 1)
+        XCTAssertEqual(secondController.showCalls.count, 1)
+    }
 }
 
 @MainActor

@@ -28,6 +28,18 @@ enum MenuBarIcon: String, CaseIterable, Codable, Sendable {
     }
 }
 
+enum HistoryWindowMaterial: String, CaseIterable, Codable, Sendable {
+    case liquidGlass
+    case classic
+
+    var label: String {
+        switch self {
+        case .liquidGlass: return String(localized: "Liquid Glass")
+        case .classic: return String(localized: "Classic")
+        }
+    }
+}
+
 struct ExcludedApp: Codable, Equatable, Identifiable, Sendable {
     let id: String
     let name: String

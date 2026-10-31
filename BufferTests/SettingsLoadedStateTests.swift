@@ -12,6 +12,10 @@ final class SettingsLoadedStateTests: XCTestCase {
             HistoryWindowOpenBehavior.keepLastSelection.rawValue, forKey: SettingsKey.historyWindowOpenBehavior.rawValue
         )
         defaults.set(MenuBarIcon.tray.rawValue, forKey: SettingsKey.menuBarIcon.rawValue)
+        defaults.set(
+            HistoryWindowMaterial.classic.rawValue,
+            forKey: SettingsKey.historyWindowMaterial.rawValue
+        )
 
         let state = SettingsLoadedState.load(
             from: UserDefaultsSettingsStore(defaults: defaults),
@@ -24,6 +28,7 @@ final class SettingsLoadedStateTests: XCTestCase {
         XCTAssertTrue(state.keepSearchTextAfterClosing)
         XCTAssertEqual(state.historyWindowOpenBehavior, .keepLastSelection)
         XCTAssertEqual(state.menuBarIcon, .tray)
+        XCTAssertEqual(state.historyWindowMaterial, .classic)
     }
 
     func testDefaultsMatchSettingsDefaults() {
@@ -31,6 +36,10 @@ final class SettingsLoadedStateTests: XCTestCase {
         XCTAssertEqual(
             SettingsLoadedState.defaults.quickPasteEntryCount, SettingsDefaults.defaultQuickPasteSettings.entryCount)
         XCTAssertEqual(SettingsLoadedState.defaults.menuBarIcon, SettingsDefaults.defaultMenuBarIcon)
+        XCTAssertEqual(
+            SettingsLoadedState.defaults.historyWindowMaterial,
+            SettingsDefaults.defaultHistoryWindowMaterial
+        )
         XCTAssertEqual(
             SettingsLoadedState.defaults.clipboardWhitespaceMode,
             SettingsDefaults.defaultClipboardWhitespaceMode

@@ -19,5 +19,6 @@ enum SettingsKey: String, CaseIterable, Sendable {
     case enableAutomaticOCR
     case historyRetentionPeriod
     case menuBarIcon
+    case historyWindowMaterial
     case enableWebsitePreviews
 }

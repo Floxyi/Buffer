@@ -18,6 +18,7 @@ struct SettingsLoadedState {
     var enableAutomaticOCR: Bool
     var historyRetentionPeriod: HistoryRetentionPeriod
     var menuBarIcon: MenuBarIcon
+    var historyWindowMaterial: HistoryWindowMaterial
     var enableWebsitePreviews: Bool
     var excludedApps: [ExcludedApp]
     var persistedHistoryLimit: Int
@@ -49,6 +50,7 @@ struct SettingsLoadedState {
             enableAutomaticOCR: SettingsMigration.loadEnableAutomaticOCR(from: store),
             historyRetentionPeriod: privacy.historyRetentionPeriod,
             menuBarIcon: SettingsMigration.loadMenuBarIcon(from: store),
+            historyWindowMaterial: SettingsMigration.loadHistoryWindowMaterial(from: store),
             enableWebsitePreviews: privacy.enableWebsitePreviews,
             excludedApps: SettingsMigration.loadExcludedApps(from: store),
             persistedHistoryLimit: historyLimit
@@ -73,6 +75,7 @@ struct SettingsLoadedState {
         enableAutomaticOCR: SettingsDefaults.defaultEnableAutomaticOCR,
         historyRetentionPeriod: SettingsDefaults.defaultPrivacySettings.historyRetentionPeriod,
         menuBarIcon: SettingsDefaults.defaultMenuBarIcon,
+        historyWindowMaterial: SettingsDefaults.defaultHistoryWindowMaterial,
         enableWebsitePreviews: SettingsDefaults.defaultPrivacySettings.enableWebsitePreviews,
         excludedApps: [],
         persistedHistoryLimit: SettingsDefaults.defaultHistoryLimit

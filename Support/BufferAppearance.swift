@@ -38,6 +38,7 @@ enum BufferSurfaceStyle: String, CaseIterable, Codable, Sendable {
 struct BufferAppearanceConfiguration: Equatable, Sendable {
     var mode: BufferAppearanceMode = .system
     var surfaceStyle: BufferSurfaceStyle = .glass
+    var historyWindowMaterial: HistoryWindowMaterial = .liquidGlass
 
     static let systemGlass = BufferAppearanceConfiguration()
 }

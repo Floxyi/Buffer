@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsFormBindings {
     let launchAtLogin: Binding<Bool>
     let menuBarIcon: Binding<MenuBarIcon>
+    let historyWindowMaterial: Binding<HistoryWindowMaterial>
     let historyWindowOpenBehavior: Binding<HistoryWindowOpenBehavior>
     let searchBehavior: SettingsSearchBehaviorBindings
     let quickPaste: SettingsQuickPasteBindings
@@ -49,6 +50,10 @@ extension SettingsManager {
             menuBarIcon: directBinding(
                 value: { $0.menuBarIcon },
                 apply: { settings, icon in settings.setMenuBarIcon(icon) }
+            ),
+            historyWindowMaterial: directBinding(
+                value: { $0.historyWindowMaterial },
+                apply: { settings, material in settings.setHistoryWindowMaterial(material) }
             ),
             historyWindowOpenBehavior: directBinding(
                 value: { $0.historyWindowOpenBehavior },

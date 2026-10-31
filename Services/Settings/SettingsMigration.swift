@@ -121,6 +121,15 @@ enum SettingsMigration {
             ?? SettingsDefaults.defaultMenuBarIcon
     }
 
+    static func loadHistoryWindowMaterial(
+        from store: any SettingsPersisting
+    ) -> HistoryWindowMaterial {
+        HistoryWindowMaterial(
+            rawValue: store.string(for: .historyWindowMaterial)
+                ?? SettingsDefaults.defaultHistoryWindowMaterial.rawValue
+        ) ?? SettingsDefaults.defaultHistoryWindowMaterial
+    }
+
     static func loadExcludedApps(from store: any SettingsPersisting) -> [ExcludedApp] {
         guard let data = store.data(for: .excludedApps) else {
             return []
