@@ -61,7 +61,8 @@ struct HistoryPaneSplitView<Leading: View, Trailing: View>: NSViewRepresentable 
         context.coordinator.install(
             in: splitView,
             leading: hostedRoot(leading),
-            trailing: hostedRoot(trailing)
+            trailing: hostedRoot(trailing),
+            appearance: appearance
         )
         return splitView
     }
@@ -71,6 +72,7 @@ struct HistoryPaneSplitView<Leading: View, Trailing: View>: NSViewRepresentable 
             configuration: configuration,
             leading: hostedRoot(leading),
             trailing: hostedRoot(trailing),
+            appearance: appearance,
             in: splitView
         )
     }
@@ -197,6 +199,7 @@ final class HistoryPaneSplitCoordinator: NSObject, NSSplitViewDelegate {
     private let defaults: UserDefaults
     private var isReadyToPersistDividerPosition = false
     private var pendingRestoredListWidth: CGFloat?
+    private var installedLeadingAppearance: BufferAppearanceConfiguration?
 
     init(
         configuration: HistoryPaneSplitConfiguration,
@@ -209,7 +212,8 @@ final class HistoryPaneSplitCoordinator: NSObject, NSSplitViewDelegate {
     func install(
         in splitView: HistoryPaneNativeSplitView,
         leading: AnyView,
-        trailing: AnyView
+        trailing: AnyView,
+        appearance: BufferAppearanceConfiguration = .systemGlass
     ) {
         precondition(splitView.arrangedSubviews.isEmpty)
 
@@ -225,6 +229,7 @@ final class HistoryPaneSplitCoordinator: NSObject, NSSplitViewDelegate {
         )
         self.leadingHostingView = leadingHostingView
         self.trailingHostingView = trailingHostingView
+        installedLeadingAppearance = appearance
 
         splitView.isVertical = true
         splitView.dividerStyle = .thin
@@ -243,12 +248,19 @@ final class HistoryPaneSplitCoordinator: NSObject, NSSplitViewDelegate {
         configuration: HistoryPaneSplitConfiguration,
         leading: AnyView,
         trailing: AnyView,
+        appearance: BufferAppearanceConfiguration = .systemGlass,
         in splitView: HistoryPaneNativeSplitView
     ) {
         let previousPersistenceIdentifier = self.configuration.persistenceIdentifier
         self.configuration = configuration
         splitView.dividerHitWidth = configuration.dividerHitWidth
-        leadingHostingView?.rootView = leading
+        // HistoryClipboardListPane owns its dynamic inputs through observed
+        // reference models. Replacing this root for an unrelated parent update
+        // recreates SwiftUI's ScrollView and discards its native viewport.
+        if installedLeadingAppearance != appearance {
+            leadingHostingView?.rootView = leading
+            installedLeadingAppearance = appearance
+        }
         trailingHostingView?.rootView = trailing
         if previousPersistenceIdentifier != configuration.persistenceIdentifier {
             isReadyToPersistDividerPosition = false
@@ -292,6 +304,18 @@ final class HistoryPaneSplitCoordinator: NSObject, NSSplitViewDelegate {
 
         let listView = splitView.arrangedSubviews[0]
         let detailView = splitView.arrangedSubviews[1]
+        guard splitView.bounds.width >= splitView.dividerThickness else {
+            let emptyFrame = NSRect(
+                x: splitView.bounds.minX,
+                y: splitView.bounds.minY,
+                width: 0,
+                height: splitView.bounds.height
+            )
+            listView.frame = emptyFrame
+            detailView.frame = emptyFrame
+            return
+        }
+
         let availableWidth = max(0, splitView.bounds.width - splitView.dividerThickness)
         let maximumListWidth = max(0, availableWidth - configuration.minimumDetailWidth)
         let minimumListWidth = min(configuration.minimumListWidth, maximumListWidth)

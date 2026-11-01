@@ -13,6 +13,7 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
         let state = ClipboardListViewState(
             items: [item],
             itemsSnapshotID: snapshotID,
+            committedQuery: ClipboardQuery(),
             selectedIDs: [],
             quickPasteBadgeNumberByItemID: [:],
             searchResultsByItemID: [:],
@@ -38,8 +39,7 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
         let filteredSnapshotID = UUID()
 
         let state = ClipboardListDisplayStateProjector().project(
-            items: filteredItems,
-            itemsSnapshotID: filteredSnapshotID,
+            snapshotID: filteredSnapshotID,
             cache: ClipboardListStructure.makeDisplayCache(
                 from: filteredItems,
                 sourceSnapshotID: filteredSnapshotID
@@ -60,8 +60,7 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
         let projector = ClipboardListDisplayStateProjector()
 
         let state = projector.project(
-            items: [item],
-            itemsSnapshotID: snapshotID,
+            snapshotID: snapshotID,
             cache: cache,
             viewportHeight: 400
         )
@@ -76,8 +75,7 @@ final class ClipboardListDisplayStateProjectorTests: XCTestCase {
         let snapshotID = UUID()
 
         let state = projector.project(
-            items: items,
-            itemsSnapshotID: snapshotID,
+            snapshotID: snapshotID,
             cache: ClipboardListStructure.makeDisplayCache(
                 from: items,
                 sourceSnapshotID: snapshotID

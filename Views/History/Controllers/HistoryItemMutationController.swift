@@ -36,11 +36,10 @@ struct HistoryItemMutationController {
     func delete(
         _ request: HistoryDeleteRequest,
         store: ClipboardStore
-    ) async throws -> UUID? {
-        guard !request.items.isEmpty else { return nil }
+    ) async throws {
+        guard !request.items.isEmpty else { return }
 
         try await store.delete(request.items)
-        return request.preferredSelectionID
     }
 
     func togglePinForSelectedItems(

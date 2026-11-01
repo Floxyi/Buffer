@@ -29,8 +29,7 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
     func testConfigureAppliesPanelAppearanceAndSizing() {
         let configurator = makeEphemeralConfigurator()
         let panel = configurator.makePanel()
-        let observer = configurator.configure(panel) {}
-        defer { NotificationCenter.default.removeObserver(observer) }
+        configurator.configure(panel)
 
         XCTAssertEqual(panel.level, .popUpMenu)
         XCTAssertTrue(panel.isFloatingPanel)
@@ -61,8 +60,7 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         )
         let configurator = HistoryPanelConfigurator(configuration: configuration)
         let panel = configurator.makePanel()
-        let observer = configurator.configure(panel) {}
-        defer { NotificationCenter.default.removeObserver(observer) }
+        configurator.configure(panel)
 
         XCTAssertFalse(panel.styleMask.contains(.resizable))
         XCTAssertFalse(panel.styleMask.contains(.titled))
@@ -89,8 +87,7 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
             )
         )
         let panel = configurator.makePanel()
-        let observer = configurator.configure(panel) {}
-        defer { NotificationCenter.default.removeObserver(observer) }
+        configurator.configure(panel)
 
         XCTAssertTrue(panel.styleMask.contains(.resizable))
         XCTAssertEqual(panel.contentMinSize, minimumSize)
@@ -125,8 +122,7 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
     func testNativeAlertAttachesToVisuallyBorderlessHistoryPanel() {
         let configurator = makeEphemeralConfigurator()
         let panel = configurator.makePanel()
-        let observer = configurator.configure(panel) {}
-        defer { NotificationCenter.default.removeObserver(observer) }
+        configurator.configure(panel)
         panel.orderFront(nil)
         defer { panel.close() }
 
@@ -147,8 +143,7 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
     func testReplacingPanelContentPreservesRoundedSurfaceForDialogs() {
         let configurator = makeEphemeralConfigurator()
         let panel = configurator.makePanel()
-        let observer = configurator.configure(panel) {}
-        defer { NotificationCenter.default.removeObserver(observer) }
+        configurator.configure(panel)
 
         let replacement = NSView(
             frame: NSRect(origin: .zero, size: HistoryWindowStyle.initialContentSize)
@@ -241,17 +236,13 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         configuration.frameAutosaveName = autosaveName
         let firstConfigurator = HistoryPanelConfigurator(configuration: configuration)
         let firstPanel = firstConfigurator.makePanel()
-        let firstObserver = firstConfigurator.configure(firstPanel) {}
+        firstConfigurator.configure(firstPanel)
         firstPanel.setContentSize(NSSize(width: 760, height: 460))
         firstPanel.saveFrame(usingName: autosaveName)
 
         let secondConfigurator = HistoryPanelConfigurator(configuration: configuration)
         let secondPanel = secondConfigurator.makePanel()
-        let secondObserver = secondConfigurator.configure(secondPanel) {}
-        defer {
-            NotificationCenter.default.removeObserver(firstObserver)
-            NotificationCenter.default.removeObserver(secondObserver)
-        }
+        secondConfigurator.configure(secondPanel)
 
         XCTAssertEqual(
             secondPanel.contentRect(forFrameRect: secondPanel.frame).size,
@@ -345,6 +336,36 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         XCTAssertEqual(splitView.arrangedSubviews[0].frame.maxX, dividerPosition)
     }
 
+    func testPaneParentUpdatesKeepLeadingScrollViewAndViewportAlive() throws {
+        let configuration = HistoryPaneSplitConfiguration.ephemeral
+        let splitView = HistoryPaneNativeSplitView(
+            frame: NSRect(x: 0, y: 0, width: 800, height: 420)
+        )
+        let coordinator = HistoryPaneSplitCoordinator(configuration: configuration)
+        let probe = HistoryPaneScrollProbe()
+        coordinator.install(
+            in: splitView,
+            leading: AnyView(HistoryPaneScrollProbeView(probe: probe)),
+            trailing: AnyView(Text("Before"))
+        )
+        splitView.layoutSubtreeIfNeeded()
+
+        let scrollView = try XCTUnwrap(probe.scrollView)
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: 320))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+
+        coordinator.update(
+            configuration: configuration,
+            leading: AnyView(Text("An unrelated parent update")),
+            trailing: AnyView(Text("After")),
+            in: splitView
+        )
+        splitView.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(scrollView.isDescendant(of: try XCTUnwrap(coordinator.leadingHostingView)))
+        XCTAssertEqual(scrollView.contentView.bounds.minY, 320)
+    }
+
     func testPaneLayoutHonorsMinimumWidthsAndKeepsListWidthWhileGrowing() {
         let configuration = HistoryPaneSplitConfiguration.ephemeral
         let splitView = HistoryPaneNativeSplitView(
@@ -398,6 +419,16 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
             splitView.arrangedSubviews[0].frame.width,
             configuration.preferredListWidth
         )
+    }
+
+    func testPaneLayoutRemainsConsistentAtTransientZeroSize() {
+        let splitView = makeSplitView(configuration: .ephemeral)
+
+        splitView.frame = .zero
+        splitView.adjustSubviews()
+
+        XCTAssertEqual(splitView.arrangedSubviews[0].frame, .zero)
+        XCTAssertEqual(splitView.arrangedSubviews[1].frame, .zero)
     }
 
     func testTransientCompressionDoesNotOverwritePersistedListWidth() {
@@ -542,6 +573,29 @@ final class HistoryPanelConfiguratorTests: XCTestCase {
         )
         return splitView
     }
+}
+
+@MainActor
+private final class HistoryPaneScrollProbe {
+    weak var scrollView: NSScrollView?
+}
+
+private struct HistoryPaneScrollProbeView: NSViewRepresentable {
+    let probe: HistoryPaneScrollProbe
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView(
+            frame: NSRect(x: 0, y: 0, width: 300, height: 420)
+        )
+        scrollView.documentView = NSView(
+            frame: NSRect(x: 0, y: 0, width: 300, height: 1_200)
+        )
+        scrollView.hasVerticalScroller = true
+        probe.scrollView = scrollView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {}
 }
 
 @MainActor

@@ -13,6 +13,11 @@ final class HistoryViewModel: ObservableObject {
         let session: ClipboardSearchSession
     }
 
+    private struct ListPublication {
+        var querySnapshot = HistoryQuerySnapshot()
+        var selectionViewState = HistorySelectionViewState()
+    }
+
     var searchText: String {
         get { searchTextValue }
         set {
@@ -23,8 +28,7 @@ final class HistoryViewModel: ObservableObject {
         }
     }
 
-    @Published private var querySnapshot = HistoryQuerySnapshot()
-    @Published private var selectionViewState = HistorySelectionViewState()
+    @Published private var listPublication = ListPublication()
     @Published private var presentationState = HistoryViewPresentationState()
     @Published private(set) var detailViewState = HistoryDetailViewState()
     private(set) var filterState = HistoryFilterState()
@@ -65,6 +69,15 @@ final class HistoryViewModel: ObservableObject {
     private var searchGeneration: UInt = 0
     private var publishedSearchContext: PublishedSearchContext?
     private var pendingMutationPreferredSelectionID: UUID?
+    private var listViewportPreservationHandler: ClipboardListViewportPreservationHandler?
+
+    private var querySnapshot: HistoryQuerySnapshot {
+        listPublication.querySnapshot
+    }
+
+    private var selectionViewState: HistorySelectionViewState {
+        listPublication.selectionViewState
+    }
 
     init(
         store: ClipboardStore,
@@ -162,6 +175,10 @@ final class HistoryViewModel: ObservableObject {
 
     var committedSearchText: String {
         querySnapshot.query.text
+    }
+
+    var committedQuery: ClipboardQuery {
+        querySnapshot.query
     }
 
     var preparedDisplayCache: ClipboardListStructure.DisplayCache {
@@ -409,7 +426,7 @@ final class HistoryViewModel: ObservableObject {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            selectionViewState = selectionViewStateProjector.project(selectionState)
+            publishSelectionViewState()
         }
         BufferPerformanceDiagnostics.end(selectionToken)
 
@@ -508,16 +525,31 @@ final class HistoryViewModel: ObservableObject {
     }
 
     func delete(_ request: HistoryDeleteRequest) {
+        listViewportPreservationHandler?.prepareForRemoval(
+            Set(request.items.map(\.id)),
+            ClipboardListContentSnapshot(
+                id: querySnapshot.id,
+                items: querySnapshot.items,
+                query: querySnapshot.query,
+                displayCache: querySnapshot.displayCache
+            )
+        )
         pendingMutationPreferredSelectionID = request.preferredSelectionID
         performMutation { [self] in
             do {
-                let preferredID = try await itemMutationController.delete(request, store: store)
-                syncSelection(preferredID: preferredID)
+                try await itemMutationController.delete(request, store: store)
             } catch {
+                listViewportPreservationHandler?.cancel()
                 pendingMutationPreferredSelectionID = nil
                 throw error
             }
         }
+    }
+
+    func setListViewportPreservationHandler(
+        _ handler: ClipboardListViewportPreservationHandler?
+    ) {
+        listViewportPreservationHandler = handler
     }
 
     func togglePin(for items: [ClipboardItem]) {
@@ -746,8 +778,12 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func preferredTopSelectionID() -> UUID? {
+        preferredTopSelectionID(in: filteredItems)
+    }
+
+    private func preferredTopSelectionID(in items: [ClipboardItem]) -> UUID? {
         sessionController.preferredTopSelectionID(
-            in: filteredItems,
+            in: items,
             historyWindowOpenBehavior: settingsManager.historyWindowOpenBehavior
         )
     }
@@ -843,8 +879,7 @@ final class HistoryViewModel: ObservableObject {
                 guard !Task.isCancelled, generation == searchGeneration, query == activeQuery else {
                     return
                 }
-                guard applyPreparedProjection(prepared) else { return }
-                syncSelection(preferredID: preferredID)
+                guard applyPreparedProjection(prepared, preferredID: preferredID) else { return }
                 if pendingMutationPreferredSelectionID == preferredID {
                     pendingMutationPreferredSelectionID = nil
                 }
@@ -894,8 +929,7 @@ final class HistoryViewModel: ObservableObject {
                     query == activeQuery
                 else { return }
                 publishedSearchContext = PublishedSearchContext(session: response.session)
-                guard applyPreparedProjection(prepared) else { return }
-                syncSelection(preferredID: preferredID)
+                guard applyPreparedProjection(prepared, preferredID: preferredID) else { return }
                 if pendingMutationPreferredSelectionID == preferredID {
                     pendingMutationPreferredSelectionID = nil
                 }
@@ -913,7 +947,10 @@ final class HistoryViewModel: ObservableObject {
     }
 
     @discardableResult
-    private func applyPreparedProjection(_ prepared: PreparedHistoryQuerySnapshot) -> Bool {
+    private func applyPreparedProjection(
+        _ prepared: PreparedHistoryQuerySnapshot,
+        preferredID: UUID?
+    ) -> Bool {
         guard prepared.queryGeneration == UInt64(searchGeneration),
             prepared.historyRevision == store.currentHistoryRevision
         else { return false }
@@ -933,14 +970,17 @@ final class HistoryViewModel: ObservableObject {
                 return false
             }
         }
-        publishQuerySnapshot(prepared.querySnapshot)
+        publishQuerySnapshot(prepared.querySnapshot, preferredID: preferredID)
         return true
     }
 
-    private func publishQuerySnapshot(_ snapshot: HistoryQuerySnapshot) {
+    private func publishQuerySnapshot(
+        _ snapshot: HistoryQuerySnapshot,
+        preferredID: UUID?
+    ) {
         filteredItemByID = snapshot.itemByID
         filteredItemIndexByID = snapshot.itemIndexByID
-        querySnapshot = HistoryQuerySnapshot(
+        let publishedSnapshot = HistoryQuerySnapshot(
             id: snapshot.id,
             renderRevision: querySnapshot.renderRevision &+ 1,
             query: snapshot.query,
@@ -951,6 +991,25 @@ final class HistoryViewModel: ObservableObject {
             validItemIDs: snapshot.validItemIDs,
             displayCache: snapshot.displayCache
         )
+        navigationState = jumpNavigationController.clearKeyboardScrollRequest(state: navigationState)
+        selectionState = selectionController.syncSelection(
+            state: selectionState,
+            in: publishedSnapshot.items,
+            preferredID: preferredID,
+            preferredTopSelectionID: preferredTopSelectionID(in: publishedSnapshot.items),
+            validItemIDs: publishedSnapshot.validItemIDs,
+            itemIndexByID: publishedSnapshot.itemIndexByID
+        )
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            listPublication = ListPublication(
+                querySnapshot: publishedSnapshot,
+                selectionViewState: selectionViewStateProjector.project(selectionState)
+            )
+        }
+        refreshSelectionDetail()
     }
 
     func visibleSearchItemIDsChanged(_ itemIDs: [UUID]) {
@@ -988,7 +1047,9 @@ final class HistoryViewModel: ObservableObject {
                     batch.session.queryGeneration == UInt64(searchGeneration),
                     batch.session.committedState.historyRevision == store.currentHistoryRevision
                 else { return }
-                querySnapshot = updatedSnapshot
+                var publication = listPublication
+                publication.querySnapshot = updatedSnapshot
+                listPublication = publication
             } catch is CancellationError {
                 return
             } catch {
@@ -1040,7 +1101,7 @@ final class HistoryViewModel: ObservableObject {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            selectionViewState = selectionViewStateProjector.project(selectionState)
+            publishSelectionViewState()
         }
         BufferPerformanceDiagnostics.end(selectionToken)
 
@@ -1064,7 +1125,17 @@ final class HistoryViewModel: ObservableObject {
     }
 
     private func applySelectionState() {
-        selectionViewState = selectionViewStateProjector.project(selectionState)
+        publishSelectionViewState()
+        refreshSelectionDetail()
+    }
+
+    private func publishSelectionViewState() {
+        var publication = listPublication
+        publication.selectionViewState = selectionViewStateProjector.project(selectionState)
+        listPublication = publication
+    }
+
+    private func refreshSelectionDetail() {
         beginDetailLoad(
             selectedItem: selectedItem,
             selectedItemsInVisualOrder: selectedItemsInVisualOrder,

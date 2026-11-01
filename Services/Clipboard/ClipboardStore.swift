@@ -71,8 +71,11 @@ final class ClipboardStore: ObservableObject, ClipboardPasteContentReading {
         )
     }
 
-    static func makeForApplication(settingsManager: SettingsManager) async -> ClipboardStore {
-        let paths = resolveStoragePaths(nil)
+    static func makeForApplication(
+        settingsManager: SettingsManager,
+        storagePaths: ClipboardStoragePaths? = nil
+    ) async -> ClipboardStore {
+        let paths = resolveStoragePaths(storagePaths)
         let components = makeStorageComponents(paths: paths)
         let loader = ClipboardStoreBootstrapper(
             assetStore: components.assetStore,

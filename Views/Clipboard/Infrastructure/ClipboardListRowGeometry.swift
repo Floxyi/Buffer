@@ -4,6 +4,12 @@ import Foundation
 /// Immutable geometry derived from the display rows. Interactive scrolling must use
 /// this index instead of walking every row above the viewport.
 struct ClipboardListLayoutIndex: Sendable {
+    struct RowEntry: Sendable {
+        let id: String
+        let rowIndex: Int
+        let frame: CGRect
+    }
+
     struct ItemEntry: Sendable {
         let id: UUID
         let itemIndex: Int
@@ -11,6 +17,7 @@ struct ClipboardListLayoutIndex: Sendable {
     }
 
     let contentHeight: CGFloat
+    let rowEntries: [RowEntry]
     let entries: [ItemEntry]
     private let frameByItemID: [UUID: CGRect]
 
@@ -39,18 +46,23 @@ struct ClipboardListLayoutIndex: Sendable {
     ) rethrows {
         var entries: [ItemEntry] = []
         entries.reserveCapacity(itemIndexByID.count)
+        var rowEntries: [RowEntry] = []
+        rowEntries.reserveCapacity(rows.count)
         var frames: [UUID: CGRect] = [:]
         frames.reserveCapacity(itemIndexByID.count)
         var currentY = ClipboardListStructure.LayoutMetrics.contentPadding
         for (rowIndex, row) in rows.enumerated() {
             try checkCancellation(rowIndex)
             let height = ClipboardListRowGeometry.estimatedRowHeight(for: row)
+            let rowFrame = CGRect(x: 0, y: currentY, width: 0, height: height)
+            rowEntries.append(
+                RowEntry(id: row.id, rowIndex: rowIndex, frame: rowFrame)
+            )
             if case .item(let item) = row.kind,
                 let itemIndex = itemIndexByID[item.id]
             {
-                let frame = CGRect(x: 0, y: currentY, width: 0, height: height)
-                entries.append(ItemEntry(id: item.id, itemIndex: itemIndex, frame: frame))
-                frames[item.id] = frame
+                entries.append(ItemEntry(id: item.id, itemIndex: itemIndex, frame: rowFrame))
+                frames[item.id] = rowFrame
             }
             currentY += height
             if rowIndex < rows.count - 1 {
@@ -58,6 +70,7 @@ struct ClipboardListLayoutIndex: Sendable {
             }
         }
         self.entries = entries
+        self.rowEntries = rowEntries
         self.frameByItemID = frames
         self.contentHeight =
             rows.isEmpty
@@ -112,6 +125,50 @@ struct ClipboardListLayoutIndex: Sendable {
             viewportHeight: viewportHeight,
             overscan: overscan
         ).map(\.id)
+    }
+
+    func renderingWindow(
+        scrollOffset: CGFloat,
+        viewportHeight: CGFloat,
+        overscan: CGFloat = 640
+    ) -> ClipboardListRenderingWindow {
+        guard !rowEntries.isEmpty else { return .empty }
+
+        let effectiveViewportHeight = max(viewportHeight, 420)
+        let minimumY = max(0, scrollOffset - overscan)
+        let maximumY = min(
+            contentHeight,
+            scrollOffset + effectiveViewportHeight + overscan
+        )
+
+        var lower = 0
+        var upper = rowEntries.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if rowEntries[middle].frame.maxY < minimumY {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        let start = min(lower, rowEntries.count - 1)
+
+        lower = start
+        upper = rowEntries.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if rowEntries[middle].frame.minY <= maximumY {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        let end = max(start + 1, lower)
+        return ClipboardListRenderingWindow.make(
+            range: start..<min(end, rowEntries.count),
+            rowEntries: rowEntries,
+            contentHeight: contentHeight
+        )
     }
 }
 

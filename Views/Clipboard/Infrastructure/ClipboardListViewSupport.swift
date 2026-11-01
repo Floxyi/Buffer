@@ -1,15 +1,18 @@
 import Foundation
 import SwiftUI
 
-enum ClipboardListCoordinateSpace {
-    static let content = "ClipboardListViewContentCoordinateSpace"
-}
-
 struct SearchResultAnimationPolicy: Sendable {
     let insertion: Animation?
     let removal: Animation?
     let usesStagger: Bool
     let usesRowOffset: Bool
+
+    static let disabled = SearchResultAnimationPolicy(
+        insertion: nil,
+        removal: nil,
+        usesStagger: false,
+        usesRowOffset: false
+    )
 
     static func make(resultCount: Int, reduceMotion: Bool) -> Self {
         if reduceMotion {
@@ -40,6 +43,7 @@ struct SearchResultAnimationPolicy: Sendable {
 struct ClipboardListViewState {
     let items: [ClipboardItem]
     let itemsSnapshotID: UUID
+    let committedQuery: ClipboardQuery
     let selectedIDs: Set<UUID>
     let quickPasteBadgeNumberByItemID: [UUID: Int]
     let searchResultsByItemID: [UUID: ClipboardSearchHit]
@@ -52,6 +56,7 @@ struct ClipboardListViewState {
         ClipboardListContentSnapshot(
             id: itemsSnapshotID,
             items: items,
+            query: committedQuery,
             displayCache: preparedDisplayCache
         )
     }
@@ -64,6 +69,7 @@ struct ClipboardListViewState {
 struct ClipboardListContentSnapshot: Equatable {
     let id: UUID
     let items: [ClipboardItem]
+    let query: ClipboardQuery
     let displayCache: ClipboardListStructure.DisplayCache
 
     static func == (lhs: Self, rhs: Self) -> Bool {
@@ -78,6 +84,11 @@ struct ClipboardListNavigationState {
     var jumpScrollRequest: HistoryJumpToHistoryRequest?
 }
 
+struct ClipboardListViewportPreservationHandler {
+    let prepareForRemoval: (Set<UUID>, ClipboardListContentSnapshot) -> Void
+    let cancel: () -> Void
+}
+
 struct ClipboardListActions {
     let commitSelection: () -> Void
     let selectSingle: (UUID, Int) -> Void
@@ -90,16 +101,9 @@ struct ClipboardListActions {
     let jumpScrollCompleted: (HistoryJumpToHistoryRequest, Bool) -> Void
     let scrollOffsetProviderChanged: (((() -> CGFloat)?) -> Void)
     let scrollOffsetRestorerChanged: ((((CGFloat) -> Void)?) -> Void)
+    let viewportPreservationHandlerChanged: ((ClipboardListViewportPreservationHandler?) -> Void)
     let visibleItemIDsChanged: ([UUID]) -> Void
     let reorderPinnedItems: (ClipboardPinnedReorderRequest) async -> Bool
-}
-
-struct ClipboardScrollTargetFramePreferenceKey: PreferenceKey {
-    static let defaultValue: CGRect? = nil
-
-    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) {
-        value = nextValue() ?? value
-    }
 }
 
 func clipboardListScrollID(for itemID: UUID) -> String {

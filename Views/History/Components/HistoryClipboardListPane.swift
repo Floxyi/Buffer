@@ -19,6 +19,7 @@ struct HistoryClipboardListPane: View {
                     state: ClipboardListViewState(
                         items: viewModel.filteredItems,
                         itemsSnapshotID: viewModel.filteredItemsSnapshotID,
+                        committedQuery: viewModel.committedQuery,
                         selectedIDs: viewModel.selectedIDs,
                         quickPasteBadgeNumberByItemID: viewModel.showsQuickPasteNumbers
                             ? viewModel.quickPasteBadgeNumberByItemID
@@ -47,6 +48,7 @@ struct HistoryClipboardListPane: View {
                         jumpScrollCompleted: viewModel.completeJumpToHistoryScroll,
                         scrollOffsetProviderChanged: onScrollOffsetProviderChanged,
                         scrollOffsetRestorerChanged: onScrollOffsetRestorerChanged,
+                        viewportPreservationHandlerChanged: viewModel.setListViewportPreservationHandler,
                         visibleItemIDsChanged: viewModel.visibleSearchItemIDsChanged,
                         reorderPinnedItems: viewModel.reorderPinnedItems
                     ),

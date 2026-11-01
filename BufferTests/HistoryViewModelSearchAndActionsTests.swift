@@ -45,8 +45,7 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
             await waitForHistorySearch(viewModel)
 
             let state = projector.project(
-                items: viewModel.filteredItems,
-                itemsSnapshotID: viewModel.filteredItemsSnapshotID,
+                snapshotID: viewModel.filteredItemsSnapshotID,
                 cache: viewModel.preparedDisplayCache,
                 viewportHeight: 200
             )
@@ -470,6 +469,45 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         }
         XCTAssertEqual(Set(request.items.map(\.id)), [middle.id, oldest.id])
         XCTAssertEqual(store.items.map(\.id), [newest.id])
+    }
+
+    func testDeletePublishesViewportIntentBeforeMutatingHistory() async throws {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let oldest = ClipboardItem.text("oldest")
+        let middle = ClipboardItem.text("middle")
+        let newest = ClipboardItem.text("newest")
+        await populateStore(store, with: [oldest, middle, newest])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        await waitForHistorySearch(viewModel)
+
+        var preparedItemIDs: Set<UUID>?
+        var preparedSnapshot: ClipboardListContentSnapshot?
+        viewModel.setListViewportPreservationHandler(
+            ClipboardListViewportPreservationHandler(
+                prepareForRemoval: { itemIDs, snapshot in
+                    preparedItemIDs = itemIDs
+                    preparedSnapshot = snapshot
+                },
+                cancel: {}
+            )
+        )
+        viewModel.selectSingle(middle.id)
+        let request = try XCTUnwrap(viewModel.makeDeleteSelectionRequest())
+
+        viewModel.delete(request)
+
+        XCTAssertEqual(preparedItemIDs, [middle.id])
+        XCTAssertEqual(preparedSnapshot?.id, viewModel.filteredItemsSnapshotID)
+        XCTAssertEqual(preparedSnapshot?.items.map(\.id), [newest.id, middle.id, oldest.id])
+        XCTAssertTrue(
+            preparedSnapshot?.displayCache.matches(
+                sourceSnapshotID: viewModel.filteredItemsSnapshotID
+            ) == true
+        )
+        await eventually {
+            !store.items.contains(where: { $0.id == middle.id })
+        }
     }
 
     func testMutationKeepsOriginalMultiSelectionAfterSelectionChanges() async {

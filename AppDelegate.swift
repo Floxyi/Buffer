@@ -44,6 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func finishLaunching() {
+        if AppLaunchEnvironment.uiValidationConfiguration != nil {
+            configureHistoryWindowAppearance()
+            openHistoryWindowOnStartup()
+            return
+        }
+
         configureFirstLaunchBehavior()
         configureClipboardCapture()
         configureStatusBar()
@@ -56,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startupTask?.cancel()
         container?.clipboardWatcher.stopWatching()
         container?.hotkeyManager.unregister()
+        AppLaunchEnvironment.uiValidationConfiguration?.removeStorage()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -122,6 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openHistoryWindowOnStartup() {
         guard let container else { return }
+        if AppLaunchEnvironment.uiValidationConfiguration != nil {
+            historyWindowCoordinator.present(.standard(for: .startup))
+            return
+        }
         Task { @MainActor [weak self] in
             guard let self else { return }
             await Task.yield()
@@ -169,11 +180,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         return controller
-    }
-}
-
-private enum AppLaunchEnvironment {
-    static var isRunningUnitTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }

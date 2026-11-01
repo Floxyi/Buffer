@@ -11,6 +11,8 @@ final class ScrollControllerMetricsObserver {
 
     func configure(
         scrollView: NSScrollView,
+        onUserInteractionStarted: @escaping @Sendable @MainActor () -> Void,
+        onBoundsChanged: @escaping @Sendable @MainActor (NSScrollView) -> Void,
         onSyncRequested: @escaping @Sendable @MainActor (NSScrollView) -> Void
     ) {
         if observedScrollView === scrollView,
@@ -23,7 +25,12 @@ final class ScrollControllerMetricsObserver {
         removeObservers()
         observedScrollView = scrollView
         observedDocumentView = scrollView.documentView
-        startObserving(scrollView: scrollView, onSyncRequested: onSyncRequested)
+        startObserving(
+            scrollView: scrollView,
+            onUserInteractionStarted: onUserInteractionStarted,
+            onBoundsChanged: onBoundsChanged,
+            onSyncRequested: onSyncRequested
+        )
         scheduleSync(for: scrollView, onSyncRequested: onSyncRequested)
     }
 
@@ -65,6 +72,8 @@ final class ScrollControllerMetricsObserver {
 
     private func startObserving(
         scrollView: NSScrollView,
+        onUserInteractionStarted: @escaping @Sendable @MainActor () -> Void,
+        onBoundsChanged: @escaping @Sendable @MainActor (NSScrollView) -> Void,
         onSyncRequested: @escaping @Sendable @MainActor (NSScrollView) -> Void
     ) {
         scrollView.contentView.postsBoundsChangedNotifications = true
@@ -74,12 +83,25 @@ final class ScrollControllerMetricsObserver {
 
         observers.append(
             center.addObserver(
+                forName: NSScrollView.willStartLiveScrollNotification,
+                object: scrollView,
+                queue: .main
+            ) { _ in
+                MainActor.assumeIsolated {
+                    onUserInteractionStarted()
+                }
+            }
+        )
+
+        observers.append(
+            center.addObserver(
                 forName: NSView.boundsDidChangeNotification,
                 object: scrollView.contentView,
                 queue: .main
             ) { [weak self, weak scrollView] _ in
                 guard let self, let scrollView else { return }
                 MainActor.assumeIsolated {
+                    onBoundsChanged(scrollView)
                     self.scheduleSync(for: scrollView, onSyncRequested: onSyncRequested)
                 }
             }

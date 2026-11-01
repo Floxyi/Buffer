@@ -34,11 +34,11 @@ struct ClipboardStoragePaths: Sendable {
         }
 
         let storageDirectory = appSupport.appendingPathComponent("Buffer", isDirectory: true)
-        self.storageDirectory = storageDirectory
-        self.historyFileURL = storageDirectory.appendingPathComponent("history.json")
-        self.imagesDirectory = storageDirectory.appendingPathComponent("images", isDirectory: true)
-        self.textsDirectory = storageDirectory.appendingPathComponent("texts", isDirectory: true)
-        self.searchDirectory = storageDirectory.appendingPathComponent("Search", isDirectory: true)
-        self.searchDatabaseURL = searchDirectory.appendingPathComponent("index-bootstrap.sqlite")
+        self.init(
+            storageDirectory: storageDirectory,
+            historyFileURL: storageDirectory.appendingPathComponent("history.json"),
+            imagesDirectory: storageDirectory.appendingPathComponent("images", isDirectory: true),
+            textsDirectory: storageDirectory.appendingPathComponent("texts", isDirectory: true)
+        )
     }
 }

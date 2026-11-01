@@ -1,5 +1,4 @@
 import Foundation
-import SwiftUI
 
 struct ClipboardListJumpScrollTaskKey: Equatable {
     let request: HistoryJumpToHistoryRequest?
@@ -8,8 +7,6 @@ struct ClipboardListJumpScrollTaskKey: Equatable {
 }
 
 struct ClipboardListScrollContext {
-    let items: [ClipboardItem]
-    let displayRows: [ClipboardListStructure.DisplayRow]
     let layoutIndex: ClipboardListLayoutIndex
     let itemExists: (UUID) -> Bool
     let scrollMetrics: () -> SmoothWheelScroller.Metrics
@@ -23,9 +20,7 @@ enum ClipboardListOpenScrollCommand: Equatable {
     case scrollToItem(UUID)
 
     init?(request: HistoryOpenListScrollRequest?) {
-        guard let request else {
-            return nil
-        }
+        guard let request else { return nil }
 
         switch request.mode {
         case .scrollToTop:
@@ -36,16 +31,24 @@ enum ClipboardListOpenScrollCommand: Equatable {
     }
 }
 
+/// The only owner of programmatic list navigation.
+///
+/// Every target is resolved from the immutable layout index and applied once.
+/// Older implementations combined delayed retries, `ScrollViewProxy`, and row
+/// measurements; those independent writers could overwrite a newer native
+/// user scroll. Fixed-height list geometry makes those retries unnecessary.
 @MainActor
 final class ClipboardListScrollCoordinator: ObservableObject {
-    @Published private(set) var isAwaitingInitialOpenScroll = false
+    private enum ItemAlignment {
+        case centered
+        case visible
+    }
 
     private var scrollRequestID: UInt = 0
     private var lastAppliedOpenScrollRequestToken = -1
     private var activeJumpScrollRequest: HistoryJumpToHistoryRequest?
     private let keyboardNavigationResolver = ClipboardKeyboardNavigationResolver()
     private let keyboardNavigationCoordinator = ClipboardKeyboardNavigationCoordinator()
-    private let settledScrollExecutor = ClipboardSettledScrollExecutor()
 
     func jumpScrollTaskKey(
         request: HistoryJumpToHistoryRequest?,
@@ -59,12 +62,10 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         )
     }
 
-    func currentRequestID() -> UInt {
-        scrollRequestID
-    }
-
-    func cancelAll(measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator) {
-        measuredScrollCoordinator.cancel()
+    func cancelAll() {
+        scrollRequestID &+= 1
+        activeJumpScrollRequest = nil
+        keyboardNavigationCoordinator.invalidateCurrentRequest()
     }
 
     func syncJumpScrollRequest(_ newRequest: HistoryJumpToHistoryRequest?) {
@@ -87,9 +88,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
             return
         }
 
-        guard items[safe: newRequest.targetIndex]?.id == newRequest.itemID else {
-            return
-        }
+        guard items[safe: newRequest.targetIndex]?.id == newRequest.itemID else { return }
 
         let result = keyboardNavigationCoordinator.scrollSelectedItemIntoView(
             request: newRequest,
@@ -111,87 +110,50 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         )
     }
 
-    func handleMeasuredTargetFrameChange(
-        _ frame: CGRect?,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
-        scrollController: ScrollController,
-        context: ClipboardListScrollContext
-    ) {
-        measuredScrollCoordinator.handleMeasuredTargetFrameChange(
-            frame,
-            scrollController: scrollController,
-            context: measuredScrollContext(for: context)
-        )
-    }
-
     func waitAndStartJumpScrollIfReady(
         _ request: HistoryJumpToHistoryRequest,
         currentJumpScrollRequest: @escaping () -> HistoryJumpToHistoryRequest?,
         isShowingFullHistory: @escaping () -> Bool,
-        using scrollProxy: ScrollViewProxy,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
         scrollController: ScrollController,
-        context: ClipboardListScrollContext,
-        rebuildListCache: @escaping () -> Void
+        context: ClipboardListScrollContext
     ) async {
         let token = BufferPerformanceDiagnostics.begin(.jumpScroll)
         defer { BufferPerformanceDiagnostics.end(token) }
+        scrollRequestID &+= 1
+        let requestID = scrollRequestID
 
         for attempt in 0..<12 {
-            guard currentJumpScrollRequest() == request else {
-                return
-            }
+            guard requestID == scrollRequestID,
+                currentJumpScrollRequest() == request
+            else { return }
 
             if attempt == 0 {
                 await Task.yield()
             } else {
-                try? await Task.sleep(nanoseconds: 70_000_000)
+                try? await Task.sleep(for: .milliseconds(70))
             }
+            guard !Task.isCancelled, requestID == scrollRequestID else { return }
 
-            guard !Task.isCancelled else {
-                return
-            }
-
-            rebuildListCache()
-            if attempt == 0 {
-                scrollController.syncMetricsImmediately()
-            } else {
-                scrollController.syncMetrics()
-            }
+            scrollController.syncMetricsImmediately()
 
             let targetExists = context.itemExists(request.itemID)
             let fullHistoryReady = isShowingFullHistory()
-
             context.log(
-                "Jump list check item=\(request.itemID.uuidString) generation=\(request.generation) attempt=\(attempt) fullHistoryReady=\(fullHistoryReady) targetExists=\(targetExists)"
+                "Jump list check item=\(request.itemID.uuidString) generation=\(request.generation) "
+                    + "attempt=\(attempt) fullHistoryReady=\(fullHistoryReady) targetExists=\(targetExists)"
             )
 
-            guard fullHistoryReady else {
-                continue
-            }
-
-            guard targetExists else {
-                continue
-            }
+            guard fullHistoryReady, targetExists else { continue }
 
             activeJumpScrollRequest = request
             context.onJumpScrollStarted(request)
-
-            scheduleMeasuredScroll(
-                request: ClipboardMeasuredScrollRequest(
-                    itemID: request.itemID,
-                    alignment: .centered,
-                    requestID: nextRequestID()
-                ),
-                using: scrollProxy,
-                measuredScrollCoordinator: measuredScrollCoordinator,
+            let succeeded = scrollToItem(
+                request.itemID,
+                alignment: .centered,
                 scrollController: scrollController,
-                context: context,
-                completion: { [weak self] succeeded in
-                    self?.finishJumpScroll(request, succeeded: succeeded, context: context)
-                }
+                context: context
             )
-
+            finishJumpScroll(request, succeeded: succeeded, context: context)
             return
         }
 
@@ -201,27 +163,20 @@ final class ClipboardListScrollCoordinator: ObservableObject {
     func selectFirstItemAndScrollToTop(
         preferredTopItemID: UUID?,
         firstItemID: UUID?,
-        using scrollProxy: ScrollViewProxy,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
         scrollController: ScrollController,
         context: ClipboardListScrollContext
     ) {
         guard let preferredTopItemID else {
-            scheduleOpenScrollToTop(scrollController: scrollController)
+            scrollToTop(scrollController: scrollController)
             return
         }
 
         if firstItemID == preferredTopItemID {
-            scheduleOpenScrollToTop(scrollController: scrollController)
+            scrollToTop(scrollController: scrollController)
         } else {
-            scheduleMeasuredScroll(
-                request: ClipboardMeasuredScrollRequest(
-                    itemID: preferredTopItemID,
-                    alignment: .visible,
-                    requestID: nextRequestID()
-                ),
-                using: scrollProxy,
-                measuredScrollCoordinator: measuredScrollCoordinator,
+            _ = scrollToItem(
+                preferredTopItemID,
+                alignment: .visible,
                 scrollController: scrollController,
                 context: context
             )
@@ -231,39 +186,21 @@ final class ClipboardListScrollCoordinator: ObservableObject {
     func applyOpenScrollRequestIfNeeded(
         request: HistoryOpenListScrollRequest?,
         requestToken: Int,
-        using scrollProxy: ScrollViewProxy,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
         scrollController: ScrollController,
         context: ClipboardListScrollContext
     ) {
-        guard requestToken != lastAppliedOpenScrollRequestToken else {
-            return
-        }
-
+        guard requestToken != lastAppliedOpenScrollRequestToken else { return }
         lastAppliedOpenScrollRequestToken = requestToken
 
-        guard let command = ClipboardListOpenScrollCommand(request: request) else {
-            return
-        }
-
-        isAwaitingInitialOpenScroll = Self.shouldHideDuringInitialOpenScroll(
-            for: command,
-            currentScrollOffset: scrollController.scrollOffset
-        )
+        guard let command = ClipboardListOpenScrollCommand(request: request) else { return }
 
         switch command {
         case .scrollToTop:
-            scheduleOpenScrollToTop(scrollController: scrollController)
-
+            scrollToTop(scrollController: scrollController)
         case .scrollToItem(let itemID):
-            scheduleMeasuredScroll(
-                request: ClipboardMeasuredScrollRequest(
-                    itemID: itemID,
-                    alignment: .centered,
-                    requestID: nextRequestID()
-                ),
-                using: scrollProxy,
-                measuredScrollCoordinator: measuredScrollCoordinator,
+            _ = scrollToItem(
+                itemID,
+                alignment: .centered,
                 scrollController: scrollController,
                 context: context
             )
@@ -272,61 +209,43 @@ final class ClipboardListScrollCoordinator: ObservableObject {
 
     func restoreScrollOffsetForReopen(
         _ offset: CGFloat,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
         scrollController: ScrollController
     ) {
-        isAwaitingInitialOpenScroll = offset > 1
-        scheduleSettledScroll(
-            .offset(offset),
-            measuredScrollCoordinator: measuredScrollCoordinator,
-            scrollController: scrollController
-        )
-        isAwaitingInitialOpenScroll = false
+        applyProgrammaticScroll(to: offset, scrollController: scrollController)
     }
 
-    nonisolated static func shouldHideDuringInitialOpenScroll(
-        for command: ClipboardListOpenScrollCommand?,
-        currentScrollOffset: CGFloat
-    ) -> Bool {
-        guard let command else {
-            return false
-        }
-
-        switch command {
-        case .scrollToTop:
-            return currentScrollOffset > 1
-        case .scrollToItem:
-            return false
-        }
-    }
-
-    private func scheduleMeasuredScroll(
-        request: ClipboardMeasuredScrollRequest,
-        using scrollProxy: ScrollViewProxy,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator,
+    private func scrollToItem(
+        _ itemID: UUID,
+        alignment: ItemAlignment,
         scrollController: ScrollController,
-        context: ClipboardListScrollContext,
-        completion: ((Bool) -> Void)? = nil
-    ) {
-        measuredScrollCoordinator.schedule(
-            request,
-            using: scrollProxy,
-            scrollController: scrollController,
-            context: measuredScrollContext(for: context),
-            completion: completion
-        )
-    }
+        context: ClipboardListScrollContext
+    ) -> Bool {
+        guard let frame = context.layoutIndex.frame(for: itemID) else { return false }
 
-    private func measuredScrollContext(for context: ClipboardListScrollContext) -> ClipboardMeasuredScrollContext {
-        ClipboardMeasuredScrollContext(
-            currentRequestID: { [weak self] in
-                self?.scrollRequestID ?? 0
-            },
-            itemExists: context.itemExists,
-            displayRows: { context.displayRows },
-            layoutIndex: { context.layoutIndex },
-            log: context.log
-        )
+        scrollController.syncMetricsImmediately()
+
+        let metrics = scrollController.currentMetrics()
+        let viewportHeight = max(1, metrics.viewportHeight)
+        let maxOffset = max(0, context.layoutIndex.contentHeight - viewportHeight)
+        let targetOffset: CGFloat?
+
+        switch alignment {
+        case .centered:
+            targetOffset = (frame.midY - viewportHeight / 2).clamped(to: 0...maxOffset)
+        case .visible:
+            targetOffset =
+                keyboardNavigationResolver.resolveMetrics(
+                    for: itemID,
+                    layoutIndex: context.layoutIndex,
+                    scrollMetrics: metrics
+                )?.targetOffset
+        }
+
+        if let targetOffset {
+            scrollController.scrollTo(offset: targetOffset)
+            scrollController.syncMetricsImmediately()
+        }
+        return true
     }
 
     private func finishJumpScroll(
@@ -334,10 +253,7 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         succeeded: Bool,
         context: ClipboardListScrollContext
     ) {
-        guard activeJumpScrollRequest == request else {
-            return
-        }
-
+        guard activeJumpScrollRequest == request else { return }
         activeJumpScrollRequest = nil
         context.onJumpScrollCompleted(request, succeeded)
     }
@@ -355,46 +271,16 @@ final class ClipboardListScrollCoordinator: ObservableObject {
         }
     }
 
-    private func scheduleOpenScrollToTop(scrollController: ScrollController) {
-        scrollController.scrollToTopImmediately()
-        scrollController.syncMetrics()
-        isAwaitingInitialOpenScroll = false
-        scheduleSettledScroll(.top, measuredScrollCoordinator: nil, scrollController: scrollController)
+    private func scrollToTop(scrollController: ScrollController) {
+        applyProgrammaticScroll(to: 0, scrollController: scrollController)
     }
 
-    private enum SettledScrollCommand {
-        case top
-        case bottom
-        case offset(CGFloat)
-    }
-
-    private func scheduleSettledScroll(
-        _ command: SettledScrollCommand,
-        measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator?,
+    private func applyProgrammaticScroll(
+        to offset: CGFloat,
         scrollController: ScrollController
     ) {
-        nextRequestID()
-        settledScrollExecutor.execute(
-            settledScrollCommand(for: command),
-            measuredScrollCoordinator: measuredScrollCoordinator,
-            scrollController: scrollController
-        )
-    }
-
-    private func settledScrollCommand(for command: SettledScrollCommand) -> ClipboardSettledScrollExecutor.Command {
-        switch command {
-        case .top:
-            return .top
-        case .bottom:
-            return .bottom
-        case .offset(let offset):
-            return .offset(offset)
-        }
-    }
-
-    @discardableResult
-    private func nextRequestID() -> UInt {
         scrollRequestID &+= 1
-        return scrollRequestID
+        scrollController.scrollTo(offset: offset)
+        scrollController.syncMetricsImmediately()
     }
 }

@@ -116,10 +116,7 @@ struct HistoryPanelConfigurator {
         )
     }
 
-    func configure(
-        _ panel: HistoryPanel,
-        onDidBecomeKey: @escaping @MainActor @Sendable () -> Void
-    ) -> NSObjectProtocol {
+    func configure(_ panel: HistoryPanel) {
         // AppKit resets the level when a panel becomes floating, so set the
         // popup level afterward and keep that ordering covered by tests.
         panel.isFloatingPanel = true
@@ -153,15 +150,6 @@ struct HistoryPanelConfigurator {
         restoreAndConstrainFrame(of: panel)
         panel.center()
 
-        return NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
-            object: panel,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                onDidBecomeKey()
-            }
-        }
     }
 
     private func restoreAndConstrainFrame(of panel: HistoryPanel) {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		APPENV100000000000000001 /* AppLaunchEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPENV200000000000000001 /* AppLaunchEnvironment.swift */; };
 		AAA00001 /* BufferApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00001 /* BufferApp.swift */; };
 		AAA00002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00002 /* AppDelegate.swift */; };
 		AAA00003 /* ClipboardItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00003 /* ClipboardItem.swift */; };
@@ -115,7 +116,6 @@
 		AAA00166 /* HistoryDetailViewStateProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00180 /* HistoryDetailViewStateProjector.swift */; };
 		AAA00167 /* ClipboardKeyboardNavigationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */; };
 		AAA00168 /* ScrollControllerMetricsObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00182 /* ScrollControllerMetricsObserver.swift */; };
-		AAA00169 /* ScrollControllerSettledScrollScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00183 /* ScrollControllerSettledScrollScheduler.swift */; };
 		AAA00170 /* SettingsFormBindings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00184 /* SettingsFormBindings.swift */; };
 		AAA00171 /* HistorySelectionRangeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00185 /* HistorySelectionRangeController.swift */; };
 		AAA00172 /* HistoryDeleteSelectionResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00186 /* HistoryDeleteSelectionResolver.swift */; };
@@ -125,14 +125,12 @@
 		AAA00176 /* ClipboardStoreRetentionScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00190 /* ClipboardStoreRetentionScheduler.swift */; };
 		AAA00178 /* ClipboardListSectionBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00192 /* ClipboardListSectionBuilder.swift */; };
 		AAA00179 /* ClipboardListRowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00193 /* ClipboardListRowGeometry.swift */; };
-		AAA0017A /* ClipboardSettledScrollExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00194 /* ClipboardSettledScrollExecutor.swift */; };
 		AAA0017B /* ClipboardListLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00195 /* ClipboardListLifecycleCoordinator.swift */; };
 		AAA0017C /* StatusBarMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00196 /* StatusBarMenuBuilder.swift */; };
 		AAA0017D /* StatusBarClearHistoryConfirmationPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00197 /* StatusBarClearHistoryConfirmationPresenter.swift */; };
 		AAA0017E /* SettingsLoadedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00198 /* SettingsLoadedState.swift */; };
 		AAA0017F /* HistorySelectionQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00199 /* HistorySelectionQuery.swift */; };
 		AAA00180 /* ClipboardListDisplayState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00200 /* ClipboardListDisplayState.swift */; };
-		AAA00181 /* ClipboardMeasuredScrollGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00201 /* ClipboardMeasuredScrollGeometry.swift */; };
 		AAA00100 /* ClipboardItemTypeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00102 /* ClipboardItemTypeRegistry.swift */; };
 		AAA00101 /* SettingsValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00103 /* SettingsValues.swift */; };
 		AAA00102 /* SettingsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00104 /* SettingsKeys.swift */; };
@@ -163,8 +161,9 @@
 		AAA00127 /* ClipboardListOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00129 /* ClipboardListOverlays.swift */; };
 		AAA00128 /* ClipboardListRowsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00130 /* ClipboardListRowsSection.swift */; };
 		CPR10001 /* ClipboardPinnedReordering.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPR20001 /* ClipboardPinnedReordering.swift */; };
-		AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */; };
 		AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00132 /* ClipboardListScrollCoordinator.swift */; };
+		D00D10000000000000000002 /* ClipboardListViewportPreserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00D20000000000000000002 /* ClipboardListViewportPreserver.swift */; };
+		D00D10000000000000000004 /* ClipboardListViewportTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00D20000000000000000004 /* ClipboardListViewportTestSupport.swift */; };
 		AAA00131 /* ScrollActivityTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00133 /* ScrollActivityTracker.swift */; };
 		AAA00132 /* SmoothWheelScroller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00134 /* SmoothWheelScroller.swift */; };
 		AAA00133 /* ScrollViewConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB00135 /* ScrollViewConfigurator.swift */; };
@@ -234,6 +233,8 @@
 		ABC10020 /* HistoryItemMutationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20020 /* HistoryItemMutationControllerTests.swift */; };
 		ABC10021 /* HistoryListScrollRestorationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */; };
 		ABC10022 /* HistoryPanelConfiguratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20022 /* HistoryPanelConfiguratorTests.swift */; };
+		D00D10000000000000000001 /* HistoryWindowLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00D20000000000000000001 /* HistoryWindowLifecycleTests.swift */; };
+		D00D10000000000000000003 /* ClipboardListViewportPreservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D00D20000000000000000003 /* ClipboardListViewportPreservationTests.swift */; };
 		ABC10023 /* ClipboardIconLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20023 /* ClipboardIconLoaderTests.swift */; };
 		ABC10024 /* ClipboardWebsiteIconLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20024 /* ClipboardWebsiteIconLoaderTests.swift */; };
 		ABC10025 /* ClipboardImageAssetLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20025 /* ClipboardImageAssetLoaderTests.swift */; };
@@ -264,12 +265,13 @@
 		ABC1003F /* ClipboardItemSourceApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC2003F /* ClipboardItemSourceApplicationTests.swift */; };
 		ABC10040 /* HistorySelectionQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20040 /* HistorySelectionQueryTests.swift */; };
 		ABC10041 /* ClipboardListDisplayStateProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */; };
-		ABC10042 /* ClipboardMeasuredScrollGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */; };
 		ABC10043 /* ClipboardWatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20043 /* ClipboardWatcherTests.swift */; };
 		ABC10044 /* PasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20044 /* PasteControllerTests.swift */; };
 		ABC10045 /* ClipboardWebsiteIconCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20045 /* ClipboardWebsiteIconCacheTests.swift */; };
 		ABC10046 /* SelectableMonospacedTextViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC20046 /* SelectableMonospacedTextViewTests.swift */; };
 		ABC10005 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABC20005 /* XCTest.framework */; };
+		UIT10001 /* HistoryDeletionScrollUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UIT20001 /* HistoryDeletionScrollUITests.swift */; };
+		UIT10002 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ABC20005 /* XCTest.framework */; };
 		D87736122F8ECC6B00392A0B /* ClickDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87736112F8ECC6B00392A0B /* ClickDetector.swift */; };
 /* End PBXBuildFile section */
 
@@ -281,10 +283,20 @@
 			remoteGlobalIDString = EEE00001;
 			remoteInfo = Buffer;
 		};
+		UIT50001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = GGG00001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EEE00001;
+			remoteInfo = Buffer;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		APPENV200000000000000001 /* AppLaunchEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchEnvironment.swift; sourceTree = "<group>"; };
 		ABC20000 /* BufferTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BufferTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		UIT20000 /* BufferUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BufferUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		UIT20001 /* HistoryDeletionScrollUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDeletionScrollUITests.swift; sourceTree = "<group>"; };
 		ABC20001 /* SettingsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManagerTests.swift; sourceTree = "<group>"; };
 		ABC20002 /* ClipboardHistoryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardHistoryPersistenceTests.swift; sourceTree = "<group>"; };
 		ABC20004 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
@@ -318,6 +330,8 @@
 		ABC20020 /* HistoryItemMutationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryItemMutationControllerTests.swift; sourceTree = "<group>"; };
 		ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryListScrollRestorationCoordinatorTests.swift; sourceTree = "<group>"; };
 		ABC20022 /* HistoryPanelConfiguratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPanelConfiguratorTests.swift; sourceTree = "<group>"; };
+		D00D20000000000000000001 /* HistoryWindowLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowLifecycleTests.swift; sourceTree = "<group>"; };
+		D00D20000000000000000003 /* ClipboardListViewportPreservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListViewportPreservationTests.swift; sourceTree = "<group>"; };
 		ABC20023 /* ClipboardIconLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardIconLoaderTests.swift; sourceTree = "<group>"; };
 		ABC20024 /* ClipboardWebsiteIconLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconLoaderTests.swift; sourceTree = "<group>"; };
 		ABC20025 /* ClipboardImageAssetLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardImageAssetLoaderTests.swift; sourceTree = "<group>"; };
@@ -348,7 +362,6 @@
 		ABC2003F /* ClipboardItemSourceApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemSourceApplicationTests.swift; sourceTree = "<group>"; };
 		ABC20040 /* HistorySelectionQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionQueryTests.swift; sourceTree = "<group>"; };
 		ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListDisplayStateProjectorTests.swift; sourceTree = "<group>"; };
-		ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollGeometryTests.swift; sourceTree = "<group>"; };
 		ABC20043 /* ClipboardWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWatcherTests.swift; sourceTree = "<group>"; };
 		ABC20044 /* PasteControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteControllerTests.swift; sourceTree = "<group>"; };
 		ABC20045 /* ClipboardWebsiteIconCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardWebsiteIconCacheTests.swift; sourceTree = "<group>"; };
@@ -464,7 +477,6 @@
 		BBB00180 /* HistoryDetailViewStateProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDetailViewStateProjector.swift; sourceTree = "<group>"; };
 		BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardKeyboardNavigationCoordinator.swift; sourceTree = "<group>"; };
 		BBB00182 /* ScrollControllerMetricsObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollControllerMetricsObserver.swift; sourceTree = "<group>"; };
-		BBB00183 /* ScrollControllerSettledScrollScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollControllerSettledScrollScheduler.swift; sourceTree = "<group>"; };
 		BBB00184 /* SettingsFormBindings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFormBindings.swift; sourceTree = "<group>"; };
 		BBB00185 /* HistorySelectionRangeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionRangeController.swift; sourceTree = "<group>"; };
 		BBB00186 /* HistoryDeleteSelectionResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryDeleteSelectionResolver.swift; sourceTree = "<group>"; };
@@ -474,14 +486,12 @@
 		BBB00190 /* ClipboardStoreRetentionScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStoreRetentionScheduler.swift; sourceTree = "<group>"; };
 		BBB00192 /* ClipboardListSectionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListSectionBuilder.swift; sourceTree = "<group>"; };
 		BBB00193 /* ClipboardListRowGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListRowGeometry.swift; sourceTree = "<group>"; };
-		BBB00194 /* ClipboardSettledScrollExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardSettledScrollExecutor.swift; sourceTree = "<group>"; };
 		BBB00195 /* ClipboardListLifecycleCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListLifecycleCoordinator.swift; sourceTree = "<group>"; };
 		BBB00196 /* StatusBarMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarMenuBuilder.swift; sourceTree = "<group>"; };
 		BBB00197 /* StatusBarClearHistoryConfirmationPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarClearHistoryConfirmationPresenter.swift; sourceTree = "<group>"; };
 		BBB00198 /* SettingsLoadedState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLoadedState.swift; sourceTree = "<group>"; };
 		BBB00199 /* HistorySelectionQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistorySelectionQuery.swift; sourceTree = "<group>"; };
 		BBB00200 /* ClipboardListDisplayState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListDisplayState.swift; sourceTree = "<group>"; };
-		BBB00201 /* ClipboardMeasuredScrollGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollGeometry.swift; sourceTree = "<group>"; };
 		BBB00102 /* ClipboardItemTypeRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardItemTypeRegistry.swift; sourceTree = "<group>"; };
 		BBB00103 /* SettingsValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsValues.swift; sourceTree = "<group>"; };
 		BBB00104 /* SettingsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeys.swift; sourceTree = "<group>"; };
@@ -512,8 +522,9 @@
 		BBB00129 /* ClipboardListOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListOverlays.swift; sourceTree = "<group>"; };
 		BBB00130 /* ClipboardListRowsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListRowsSection.swift; sourceTree = "<group>"; };
 		CPR20001 /* ClipboardPinnedReordering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPinnedReordering.swift; sourceTree = "<group>"; };
-		BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardMeasuredScrollCoordinator.swift; sourceTree = "<group>"; };
 		BBB00132 /* ClipboardListScrollCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListScrollCoordinator.swift; sourceTree = "<group>"; };
+		D00D20000000000000000002 /* ClipboardListViewportPreserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListViewportPreserver.swift; sourceTree = "<group>"; };
+		D00D20000000000000000004 /* ClipboardListViewportTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardListViewportTestSupport.swift; sourceTree = "<group>"; };
 		BBB00133 /* ScrollActivityTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollActivityTracker.swift; sourceTree = "<group>"; };
 		BBB00134 /* SmoothWheelScroller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmoothWheelScroller.swift; sourceTree = "<group>"; };
 		BBB00135 /* ScrollViewConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollViewConfigurator.swift; sourceTree = "<group>"; };
@@ -560,6 +571,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				ABC10005 /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UIT30001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UIT10002 /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -613,6 +632,8 @@
 				ABC2002C /* HistoryKeyboardCommandHandlerTests.swift */,
 				ABC20021 /* HistoryListScrollRestorationCoordinatorTests.swift */,
 				ABC20022 /* HistoryPanelConfiguratorTests.swift */,
+				D00D20000000000000000001 /* HistoryWindowLifecycleTests.swift */,
+				D00D20000000000000000003 /* ClipboardListViewportPreservationTests.swift */,
 				ABC2001F /* HistoryPreviewStateControllerTests.swift */,
 				ABC2001B /* HistoryQuickPasteControllerTests.swift */,
 				ABC20029 /* HistorySessionControllerTests.swift */,
@@ -638,7 +659,6 @@
 				ABC2003F /* ClipboardItemSourceApplicationTests.swift */,
 				ABC20040 /* HistorySelectionQueryTests.swift */,
 				ABC20041 /* ClipboardListDisplayStateProjectorTests.swift */,
-				ABC20042 /* ClipboardMeasuredScrollGeometryTests.swift */,
 				ABC20043 /* ClipboardWatcherTests.swift */,
 				ABC20044 /* PasteControllerTests.swift */,
 				ABC20045 /* ClipboardWebsiteIconCacheTests.swift */,
@@ -655,11 +675,20 @@
 			path = BufferTests;
 			sourceTree = "<group>";
 		};
+		UIT60001 /* BufferUITests */ = {
+			isa = PBXGroup;
+			children = (
+				UIT20001 /* HistoryDeletionScrollUITests.swift */,
+			);
+			path = BufferUITests;
+			sourceTree = "<group>";
+		};
 		DDD00000 = {
 			isa = PBXGroup;
 			children = (
 				DDD00001 /* Buffer */,
 				ABC60001 /* BufferTests */,
+				UIT60001 /* BufferUITests */,
 				DDD00005 /* Products */,
 				176E74C52FAB7451005AF619 /* Recovered References */,
 			);
@@ -740,6 +769,7 @@
 			children = (
 				BBB00000 /* Buffer.app */,
 				ABC20000 /* BufferTests.xctest */,
+				UIT20000 /* BufferUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -845,6 +875,7 @@
 		DDD00021 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				APPENV200000000000000001 /* AppLaunchEnvironment.swift */,
 				BBB00051 /* AppContainer.swift */,
 				BBB00113 /* AppStartupService.swift */,
 			);
@@ -971,15 +1002,14 @@
 				CPR20001 /* ClipboardPinnedReordering.swift */,
 				BBB00192 /* ClipboardListSectionBuilder.swift */,
 				BBB00132 /* ClipboardListScrollCoordinator.swift */,
+				D00D20000000000000000002 /* ClipboardListViewportPreserver.swift */,
+				D00D20000000000000000004 /* ClipboardListViewportTestSupport.swift */,
 				BBB00163 /* ClipboardKeyboardNavigationResolver.swift */,
 				BBB00181 /* ClipboardKeyboardNavigationCoordinator.swift */,
 				BBB00164 /* ClipboardListContent.swift */,
 				BBB00193 /* ClipboardListRowGeometry.swift */,
 				BBB00047 /* ClipboardListStructure.swift */,
 				BBB00126 /* ClipboardListViewSupport.swift */,
-				BBB00201 /* ClipboardMeasuredScrollGeometry.swift */,
-				BBB00131 /* ClipboardMeasuredScrollCoordinator.swift */,
-				BBB00194 /* ClipboardSettledScrollExecutor.swift */,
 				BBB00026 /* ClipboardScrollInfrastructure.swift */,
 				BBB00030 /* ClipboardScrollbarComponents.swift */,
 				BBB00044 /* ClipboardScrollbarGeometry.swift */,
@@ -987,7 +1017,6 @@
 				BBB00045 /* ClipboardScrollbarInteractionView.swift */,
 				BBB00133 /* ScrollActivityTracker.swift */,
 				BBB00182 /* ScrollControllerMetricsObserver.swift */,
-				BBB00183 /* ScrollControllerSettledScrollScheduler.swift */,
 				BBB00134 /* SmoothWheelScroller.swift */,
 			);
 			path = Infrastructure;
@@ -1157,6 +1186,24 @@
 			productReference = ABC20000 /* BufferTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		UIT40001 /* BufferUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = UIT70003 /* Build configuration list for PBXNativeTarget "BufferUITests" */;
+			buildPhases = (
+				UIT30002 /* Sources */,
+				UIT30001 /* Frameworks */,
+				UIT30003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				UIT50002 /* PBXTargetDependency */,
+			);
+			name = BufferUITests;
+			productName = BufferUITests;
+			productReference = UIT20000 /* BufferUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		EEE00001 /* Buffer */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FFF00003 /* Build configuration list for PBXNativeTarget "Buffer" */;
@@ -1188,6 +1235,10 @@
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = EEE00001;
 					};
+					UIT40001 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = EEE00001;
+					};
 					EEE00001 = {
 						CreatedOnToolsVersion = 15.0;
 					};
@@ -1208,12 +1259,20 @@
 			targets = (
 				EEE00001 /* Buffer */,
 				ABC40001 /* BufferTests */,
+				UIT40001 /* BufferUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		ABC30003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		UIT30003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -1264,6 +1323,8 @@
 				ABC1002C /* HistoryKeyboardCommandHandlerTests.swift in Sources */,
 				ABC10021 /* HistoryListScrollRestorationCoordinatorTests.swift in Sources */,
 				ABC10022 /* HistoryPanelConfiguratorTests.swift in Sources */,
+				D00D10000000000000000001 /* HistoryWindowLifecycleTests.swift in Sources */,
+				D00D10000000000000000003 /* ClipboardListViewportPreservationTests.swift in Sources */,
 				ABC1001F /* HistoryPreviewStateControllerTests.swift in Sources */,
 				ABC1001B /* HistoryQuickPasteControllerTests.swift in Sources */,
 				ABC10029 /* HistorySessionControllerTests.swift in Sources */,
@@ -1289,7 +1350,6 @@
 				ABC1003F /* ClipboardItemSourceApplicationTests.swift in Sources */,
 				ABC10040 /* HistorySelectionQueryTests.swift in Sources */,
 				ABC10041 /* ClipboardListDisplayStateProjectorTests.swift in Sources */,
-				ABC10042 /* ClipboardMeasuredScrollGeometryTests.swift in Sources */,
 				ABC10043 /* ClipboardWatcherTests.swift in Sources */,
 				ABC10044 /* PasteControllerTests.swift in Sources */,
 				ABC10045 /* ClipboardWebsiteIconCacheTests.swift in Sources */,
@@ -1305,10 +1365,19 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		UIT30002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				UIT10001 /* HistoryDeletionScrollUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		EEE00002 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				APPENV100000000000000001 /* AppLaunchEnvironment.swift in Sources */,
 				AAA00001 /* BufferApp.swift in Sources */,
 				AAA00002 /* AppDelegate.swift in Sources */,
 				AAA00003 /* ClipboardItem.swift in Sources */,
@@ -1367,8 +1436,9 @@
 				AAA00127 /* ClipboardListOverlays.swift in Sources */,
 				AAA00128 /* ClipboardListRowsSection.swift in Sources */,
 				CPR10001 /* ClipboardPinnedReordering.swift in Sources */,
-				AAA00129 /* ClipboardMeasuredScrollCoordinator.swift in Sources */,
 				AAA00130 /* ClipboardListScrollCoordinator.swift in Sources */,
+				D00D10000000000000000002 /* ClipboardListViewportPreserver.swift in Sources */,
+				D00D10000000000000000004 /* ClipboardListViewportTestSupport.swift in Sources */,
 				AAA00167 /* ClipboardKeyboardNavigationCoordinator.swift in Sources */,
 				AAA00150 /* ClipboardListContent.swift in Sources */,
 				AAA0017B /* ClipboardListLifecycleCoordinator.swift in Sources */,
@@ -1382,8 +1452,6 @@
 				AAA00141 /* ClipboardWebsiteIconLoader.swift in Sources */,
 				AAA00179 /* ClipboardListRowGeometry.swift in Sources */,
 				AAA00168 /* ScrollControllerMetricsObserver.swift in Sources */,
-				AAA00169 /* ScrollControllerSettledScrollScheduler.swift in Sources */,
-				AAA0017A /* ClipboardSettledScrollExecutor.swift in Sources */,
 				AAA00012 /* StatusBarController.swift in Sources */,
 				AAA0017D /* StatusBarClearHistoryConfirmationPresenter.swift in Sources */,
 				AAA0017C /* StatusBarMenuBuilder.swift in Sources */,
@@ -1495,7 +1563,6 @@
 				AAA00044 /* Comparable+Clamped.swift in Sources */,
 				AAA00045 /* ClipboardListStructure.swift in Sources */,
 				AAA00046 /* ClipboardScrollbarInteractionState.swift in Sources */,
-				AAA00181 /* ClipboardMeasuredScrollGeometry.swift in Sources */,
 				AAA00049 /* AppContainer.swift in Sources */,
 				AAA00050 /* BufferLogger.swift in Sources */,
 				AAA00175 /* ClipboardStoreSettingsCoordinator.swift in Sources */,
@@ -1514,6 +1581,11 @@
 			isa = PBXTargetDependency;
 			target = EEE00001 /* Buffer */;
 			targetProxy = ABC50001 /* PBXContainerItemProxy */;
+		};
+		UIT50002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EEE00001 /* Buffer */;
+			targetProxy = UIT50001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1569,6 +1641,60 @@
 				TEST_TARGET_NAME = Buffer;
 			};
 			name = Release;
+		};
+		UIT70001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RN8RYUV55Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.floxyi.BufferUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Buffer;
+			};
+			name = Debug;
+		};
+		UIT70002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RN8RYUV55Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.floxyi.BufferUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Buffer;
+			};
+			name = Release;
+		};
+		UIT70004 /* UIValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RN8RYUV55Y;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.floxyi.BufferUIValidationTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Buffer;
+			};
+			name = UIValidation;
 		};
 		FFF00002 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1693,6 +1819,71 @@
 			};
 			name = Release;
 		};
+		FFF00007 /* UIValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = RN8RYUV55Y;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = "$(RECOMMENDED_MACOSX_DEPLOYMENT_TARGET)";
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = UIValidation;
+		};
 		FFF00005 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1783,6 +1974,52 @@
 			};
 			name = Release;
 		};
+		FFF00008 /* UIValidation */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = Buffer.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = RN8RYUV55Y;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Buffer UI Validation";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.floxyi.buffer.ui-validation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG BUFFER_UI_VALIDATION $(inherited)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = UIValidation;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1795,11 +2032,22 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		UIT70003 /* Build configuration list for PBXNativeTarget "BufferUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				UIT70001 /* Debug */,
+				UIT70002 /* Release */,
+				UIT70004 /* UIValidation */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FFF00001 /* Build configuration list for PBXProject "Buffer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FFF00002 /* Debug */,
 				FFF00004 /* Release */,
+				FFF00007 /* UIValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1809,6 +2057,7 @@
 			buildConfigurations = (
 				FFF00005 /* Debug */,
 				FFF00006 /* Release */,
+				FFF00008 /* UIValidation */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

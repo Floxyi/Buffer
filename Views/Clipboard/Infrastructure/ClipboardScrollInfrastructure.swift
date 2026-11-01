@@ -34,27 +34,30 @@ final class ScrollController: ObservableObject {
     let activityTracker = ScrollActivityTracker()
     let presentationState = ScrollPresentationState()
     var onMetricsChanged: ((SmoothWheelScroller.Metrics) -> Void)?
+    var onUserScrollStarted: (() -> Void)?
 
     weak var scrollView: NSScrollView?
 
     private let metricsObserver = ScrollControllerMetricsObserver()
-    private let settledScrollScheduler = ScrollControllerSettledScrollScheduler()
     private let smoothWheelScroller = SmoothWheelScroller()
+    private let viewportLock = ScrollControllerViewportLock()
 
     deinit {
         MainActor.assumeIsolated {
             metricsObserver.removeObservers()
-            settledScrollScheduler.cancel()
         }
     }
 
     func configure(scrollView: NSScrollView, interactionMode: InteractionMode = .smoothWheel) {
-        if self.scrollView !== scrollView {
-            settledScrollScheduler.cancel()
-        }
         self.scrollView = scrollView
         metricsObserver.configure(
             scrollView: scrollView,
+            onUserInteractionStarted: { [weak self] in
+                self?.handleUserScrollStarted()
+            },
+            onBoundsChanged: { [weak self] scrollView in
+                self?.restoreLockedViewportIfNeeded(in: scrollView)
+            },
             onSyncRequested: { [weak self] scrollView in
                 self?.syncMetricsNow(from: scrollView)
             }
@@ -64,6 +67,7 @@ final class ScrollController: ObservableObject {
             smoothWheelScroller.configure(
                 scrollView: scrollView,
                 onScroll: { [weak self] targetOffset in
+                    self?.handleUserScrollStarted()
                     self?.scrollToOffset(targetOffset)
                 },
                 metrics: { [weak self] in
@@ -76,7 +80,7 @@ final class ScrollController: ObservableObject {
     }
 
     func scroll(to progress: CGFloat) {
-        settledScrollScheduler.cancel()
+        handleUserScrollStarted()
         guard let scrollView,
             let documentView = scrollView.documentView
         else {
@@ -114,19 +118,27 @@ final class ScrollController: ObservableObject {
     }
 
     func scrollTo(offset: CGFloat) {
-        settledScrollScheduler.cancel()
         scrollToOffset(offset)
     }
 
-    func settleScroll(to offset: CGFloat, retryCount: Int = 4) {
-        settledScrollScheduler.schedule(retryCount: retryCount) { [weak self] in
-            self?.scrollToOffset(offset)
-        }
+    func beginViewportUpdate(at offset: CGFloat) {
+        // A content mutation exclusively owns programmatic navigation until
+        // its deterministic target is installed or native user input cancels it.
+        viewportLock.lock(at: offset)
+    }
+
+    func cancelViewportUpdate() {
+        viewportLock.unlock()
+    }
+
+    func completeViewportUpdate(at offset: CGFloat) {
+        viewportLock.lock(at: offset)
+        scrollToOffset(offset, duringViewportUpdate: true)
     }
 
     @discardableResult
     func scrollBy(deltaY: CGFloat) -> Bool {
-        settledScrollScheduler.cancel()
+        handleUserScrollStarted()
         guard abs(deltaY) > 0.5,
             let scrollView
         else {
@@ -138,26 +150,8 @@ final class ScrollController: ObservableObject {
         return abs(scrollView.contentView.bounds.minY - currentOffset) > 0.5
     }
 
-    func scrollToTop(retryCount: Int = 4) {
-        settledScrollScheduler.schedule(retryCount: retryCount) { [weak self] in
-            self?.scrollToTopNow()
-        }
-    }
-
     func scrollToTopImmediately() {
-        settledScrollScheduler.cancel()
-        scrollToTopNow()
-    }
-
-    func scrollToBottom(retryCount: Int = 4) {
-        settledScrollScheduler.schedule(retryCount: retryCount) { [weak self] in
-            self?.scrollToBottomNow()
-        }
-    }
-
-    func scrollToBottomImmediately() {
-        settledScrollScheduler.cancel()
-        scrollToBottomNow()
+        scrollToOffset(0)
     }
 
     func syncMetrics() {
@@ -198,57 +192,47 @@ final class ScrollController: ObservableObject {
         return scrollView.contentView.bounds.minY.clamped(to: 0...maxOffset)
     }
 
-    private func scrollToTopNow() {
-        guard let scrollView, scrollView.documentView != nil else { return }
-
-        let proposedBounds = NSRect(
-            x: scrollView.contentView.bounds.minX,
-            y: 0,
-            width: scrollView.contentView.bounds.width,
-            height: scrollView.contentView.bounds.height
-        )
-
-        let constrainedBounds = scrollView.contentView.constrainBoundsRect(proposedBounds)
-
-        scrollView.contentView.scroll(to: constrainedBounds.origin)
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-
-        syncMetricsNow(from: scrollView)
-    }
-
-    private func scrollToBottomNow() {
-        guard let scrollView,
-            let documentView = scrollView.documentView
-        else {
-            return
+    func currentViewportHeightSnapshot() -> CGFloat {
+        guard let scrollView else {
+            return viewportHeight
         }
 
-        let viewportHeight = max(
+        return max(
             scrollView.contentView.bounds.height,
             scrollView.contentView.frame.height
         )
-        let contentHeight = measuredContentHeight(
-            scrollView: scrollView,
-            documentView: documentView
-        )
-        let maxOffset = max(0, contentHeight - viewportHeight)
-
-        let proposedBounds = NSRect(
-            x: scrollView.contentView.bounds.minX,
-            y: maxOffset,
-            width: scrollView.contentView.bounds.width,
-            height: scrollView.contentView.bounds.height
-        )
-
-        let constrainedBounds = scrollView.contentView.constrainBoundsRect(proposedBounds)
-
-        scrollView.contentView.scroll(to: constrainedBounds.origin)
-        scrollView.reflectScrolledClipView(scrollView.contentView)
-
-        syncMetricsNow(from: scrollView)
     }
 
-    private func scrollToOffset(_ targetOffset: CGFloat) {
+    private func handleUserScrollStarted() {
+        viewportLock.unlock()
+        onUserScrollStarted?()
+    }
+
+    /// AppKit may clamp an `NSClipView` while SwiftUI replaces the document
+    /// geometry. Bounds-change notifications arrive before the next display
+    /// pass, so restoring the mutation-owned offset here keeps that transient
+    /// clamp from ever becoming a visible frame.
+    private func restoreLockedViewportIfNeeded(in scrollView: NSScrollView) {
+        guard let lockedOffset = viewportLock.offset,
+            !viewportLock.isRestoring,
+            abs(scrollView.contentView.bounds.minY - lockedOffset) > 0.5
+        else { return }
+
+        viewportLock.withRestoration {
+            let proposedOrigin = NSPoint(
+                x: scrollView.contentView.bounds.minX,
+                y: lockedOffset
+            )
+            scrollView.contentView.scroll(to: proposedOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+    }
+
+    private func scrollToOffset(
+        _ targetOffset: CGFloat,
+        duringViewportUpdate: Bool = false
+    ) {
+        guard duringViewportUpdate || !viewportLock.isLocked else { return }
         guard let scrollView else {
             return
         }
@@ -362,5 +346,28 @@ final class ScrollController: ObservableObject {
 
     func currentMetrics() -> SmoothWheelScroller.Metrics {
         metricsSnapshot()
+    }
+}
+
+@MainActor
+private final class ScrollControllerViewportLock {
+    private(set) var offset: CGFloat?
+    private(set) var isRestoring = false
+
+    var isLocked: Bool { offset != nil }
+
+    func lock(at offset: CGFloat) {
+        self.offset = offset
+    }
+
+    func unlock() {
+        offset = nil
+    }
+
+    func withRestoration(_ restore: () -> Void) {
+        guard !isRestoring else { return }
+        isRestoring = true
+        defer { isRestoring = false }
+        restore()
     }
 }

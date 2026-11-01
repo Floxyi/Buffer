@@ -47,7 +47,7 @@ final class HistoryItemMutationControllerTests: XCTestCase {
                 selectionController: selectionController
             )
         )
-        let preferredSelectionID = try await controller.delete(
+        try await controller.delete(
             request,
             store: store
         )
@@ -56,7 +56,7 @@ final class HistoryItemMutationControllerTests: XCTestCase {
             store.items.count == 2
         }
         XCTAssertEqual(Set(store.items.map(\.id)), [first.id, third.id])
-        XCTAssertEqual(preferredSelectionID, first.id)
+        XCTAssertEqual(request.preferredSelectionID, first.id)
     }
 
     func testDeleteRequestFiltersProtectedItemsAtTheDomainBoundary() throws {

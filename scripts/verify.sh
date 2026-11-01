@@ -15,7 +15,8 @@ xcrun swift-format lint --strict -r \
     Services \
     Support \
     Views \
-    BufferTests
+    BufferTests \
+    BufferUITests
 
 xcodebuild test \
     -quiet \

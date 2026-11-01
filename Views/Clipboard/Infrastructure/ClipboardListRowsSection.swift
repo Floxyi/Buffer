@@ -52,7 +52,12 @@ final class ClipboardListHoverCoordinator {
 }
 
 struct ClipboardListRowsSection: View {
+    #if DEBUG
+        @Environment(\.clipboardListViewportProbe) private var viewportProbe
+    #endif
+
     let rows: [ClipboardListStructure.DisplayRow]
+    let renderingWindow: ClipboardListRenderingWindow
     let items: [ClipboardItem]
     let pinnedItemIDs: [UUID]
     let websitePreviewsEnabled: Bool
@@ -74,7 +79,6 @@ struct ClipboardListRowsSection: View {
     let onReorderPinnedItems: (ClipboardPinnedReorderRequest) async -> Bool
 
     @ObservedObject var contextMenuState: ClipboardListContextMenuState
-    @ObservedObject var measuredScrollCoordinator: ClipboardMeasuredScrollCoordinator
     @ObservedObject var pinnedReorderCoordinator: ClipboardPinnedReorderCoordinator
     let scrollController: ScrollController
     let hoverCoordinator: ClipboardListHoverCoordinator
@@ -86,10 +90,20 @@ struct ClipboardListRowsSection: View {
     @ViewBuilder
     var body: some View {
         let highlightPlan = queryText.isEmpty ? nil : ClipboardQueryPlan(queryText)
-        if allowsPinnedReordering, !pinnedItemIDs.isEmpty {
-            reorderableRows(highlightPlan: highlightPlan)
-        } else {
-            standardRows(highlightPlan: highlightPlan)
+        VStack(spacing: 0) {
+            if renderingWindow.leadingSpacerHeight > 0 {
+                Color.clear.frame(height: renderingWindow.leadingSpacerHeight)
+            }
+            VStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
+                if allowsPinnedReordering, !pinnedItemIDs.isEmpty {
+                    reorderableRows(highlightPlan: highlightPlan)
+                } else {
+                    standardRows(highlightPlan: highlightPlan)
+                }
+            }
+            if renderingWindow.trailingSpacerHeight > 0 {
+                Color.clear.frame(height: renderingWindow.trailingSpacerHeight)
+            }
         }
     }
 
@@ -104,10 +118,6 @@ struct ClipboardListRowsSection: View {
         }
     }
 
-    private var rowsAfterPinnedSection: ArraySlice<ClipboardListStructure.DisplayRow> {
-        rows.dropFirst(min(rows.count, pinnedItemIDs.count + 1))
-    }
-
     private var usesPinnedDragInteraction: Bool {
         allowsPinnedReordering && pinnedItemIDs.count > 1
     }
@@ -116,19 +126,31 @@ struct ClipboardListRowsSection: View {
         usesPinnedDragInteraction && !pinnedReorderCoordinator.isCommitInFlight
     }
 
-    private func standardRows(highlightPlan: ClipboardQueryPlan?) -> some View {
-        LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
-            displayRows(rows, highlightPlan: highlightPlan)
-        }
+    private var renderedRows: ArraySlice<ClipboardListStructure.DisplayRow> {
+        let lowerBound = renderingWindow.range.lowerBound.clamped(to: 0...rows.count)
+        let upperBound = renderingWindow.range.upperBound.clamped(to: lowerBound...rows.count)
+        return rows[lowerBound..<upperBound]
     }
 
+    private func standardRows(highlightPlan: ClipboardQueryPlan?) -> some View {
+        displayRows(renderedRows, highlightPlan: highlightPlan)
+    }
+
+    @ViewBuilder
     private func reorderableRows(highlightPlan: ClipboardQueryPlan?) -> some View {
-        LazyVStack(spacing: ClipboardListStructure.LayoutMetrics.rowSpacing) {
+        let pinnedBlockEnd = min(rows.count, pinnedItemIDs.count + 1)
+        if renderingWindow.range.lowerBound < pinnedBlockEnd {
             pinnedHeader
             ForEach(pinnedDragItems) { dragItem in
                 pinnedItemRow(for: dragItem, highlightPlan: highlightPlan)
             }
-            displayRows(rowsAfterPinnedSection, highlightPlan: highlightPlan)
+            let remainderStart = max(pinnedBlockEnd, renderingWindow.range.lowerBound)
+            let remainderEnd = min(rows.count, renderingWindow.range.upperBound)
+            if remainderStart < remainderEnd {
+                displayRows(rows[remainderStart..<remainderEnd], highlightPlan: highlightPlan)
+            }
+        } else {
+            displayRows(renderedRows, highlightPlan: highlightPlan)
         }
     }
 
@@ -208,15 +230,10 @@ struct ClipboardListRowsSection: View {
         ForEach(displayRows) { row in
             switch row.kind {
             case .header(let title, let systemImage):
-                ClipboardSectionHeader(
-                    title: title,
-                    systemImage: systemImage
-                )
-                .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
-
+                ClipboardSectionHeader(title: title, systemImage: systemImage)
+                    .padding(.leading, ClipboardListStructure.LayoutMetrics.contentPadding)
             case .divider:
                 ClipboardSectionDivider()
-
             case .item(let item):
                 itemRow(for: item, highlightPlan: highlightPlan)
             }
@@ -350,7 +367,7 @@ struct ClipboardListRowsSection: View {
             displayedText = searchSnippet?.text ?? primaryLabelText(item)
         }
 
-        return ClipboardInteractiveItemRow(
+        let row = ClipboardInteractiveItemRow(
             item: item,
             index: index,
             websitePreviewsEnabled: websitePreviewsEnabled,
@@ -384,17 +401,22 @@ struct ClipboardListRowsSection: View {
             }
         )
         .id(clipboardListScrollID(for: item.id))
-        .background {
-            if measuredScrollCoordinator.pendingItemID == item.id {
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: ClipboardScrollTargetFramePreferenceKey.self,
-                        value: proxy.frame(in: .named(ClipboardListCoordinateSpace.content))
+        .accessibilityIdentifier("historyItem.\(item.id.uuidString)")
+        .transition(rowTransition(index: index))
+
+        #if DEBUG
+            return row.background {
+                if let viewportProbe {
+                    ClipboardListViewportRowTracker(
+                        itemID: item.id,
+                        viewportProbe: viewportProbe
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-        }
-        .transition(rowTransition(index: index))
+        #else
+            return row
+        #endif
     }
 
     private func rowTransition(index: Int) -> AnyTransition {
@@ -534,6 +556,16 @@ private struct ClipboardInteractiveItemRow: View {
                     }
                 )
                 .onAppear(perform: onSecondaryClick)
+            }
+            .accessibilityRepresentation {
+                Button(primaryLabelText) {
+                    handlePrimaryMouseDown(modifiers: [])
+                }
+                .accessibilityIdentifier("historyItem.\(item.id.uuidString)")
+                .accessibilityValue(
+                    isMultiSelected
+                        ? String(localized: "Selected") : String(localized: "Not selected")
+                )
             }
     }
 

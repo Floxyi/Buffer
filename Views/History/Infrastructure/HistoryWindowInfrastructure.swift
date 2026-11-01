@@ -401,12 +401,9 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
         coordinator.delegate = self
         return coordinator
     }()
-    nonisolated(unsafe) private var keyObserver: NSObjectProtocol?
-
     private let viewModel: HistoryViewModel
     private var focusSearchOnNextOpen = true
     private var suppressQuickPasteUntilModifiersReleasedOnNextOpen = false
-    private var shouldIgnoreNextDidBecomeKeyOpenHandling = false
 
     init(
         store: ClipboardStore,
@@ -453,12 +450,6 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
         fatalError("init(coder:) has not been implemented")
     }
 
-    deinit {
-        if let keyObserver {
-            NotificationCenter.default.removeObserver(keyObserver)
-        }
-    }
-
     override func showWindow(_ sender: Any?) {
         showWindow(
             sender,
@@ -491,7 +482,6 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
 
         window.center()
 
-        shouldIgnoreNextDidBecomeKeyOpenHandling = true
         viewModel.handleWindowOpen(
             focusSearch: focusSearchOnNextOpen,
             suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen
@@ -550,9 +540,7 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
     }
 
     private func setupPanel(_ panel: HistoryPanel) {
-        keyObserver = panelConfigurator.configure(panel) { [weak self] in
-            self?.handlePanelDidBecomeKey()
-        }
+        panelConfigurator.configure(panel)
     }
 
     private func setupContent() {
@@ -594,24 +582,6 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
 
         openAnimator.setAnimatedContentView(contentConfiguration.animatedContentView)
         window?.contentView = contentConfiguration.containerView
-    }
-
-    private func handlePanelDidBecomeKey() {
-        historyPanel?.dismissesWhenResigningKey = pasteCoordinator.state.failure == nil
-
-        if shouldIgnoreNextDidBecomeKeyOpenHandling {
-            shouldIgnoreNextDidBecomeKeyOpenHandling = false
-            return
-        }
-
-        viewModel.handleWindowOpen(
-            focusSearch: focusSearchOnNextOpen,
-            suppressQuickPasteUntilModifiersReleased: suppressQuickPasteUntilModifiersReleasedOnNextOpen
-        )
-
-        if settingsManager.historyWindowOpenBehavior == .keepLastSelection {
-            scrollRestorationCoordinator.restoreIfNeeded(for: settingsManager.historyWindowOpenBehavior)
-        }
     }
 
     private func setListScrollOffsetProvider(_ provider: (() -> CGFloat)?) {
@@ -699,7 +669,6 @@ final class HistoryWindowController: NSWindowController, HistoryPasteCoordinator
     func pasteCoordinatorShouldRestorePanel() {
         guard let window else { return }
         historyPanel?.dismissesWhenResigningKey = true
-        shouldIgnoreNextDidBecomeKeyOpenHandling = true
         NSRunningApplication.current.activate()
         window.makeKeyAndOrderFront(nil)
     }
