@@ -30,6 +30,7 @@ struct HistoryDetailPane: View {
     let actionsForItem: (ClipboardItem) -> [HistoryItemActionDescriptor]
     let onSelectItemAction: (ClipboardItem, HistoryItemAction) -> Void
     let onSelectAction: (HistoryItemAction) -> Void
+    let onCopySelection: () async -> Bool
     let onDownloadAllImages: () -> Void
     let onCopyOCRText: (String) -> Void
     let onCopyColorVariant: (String) -> Void
@@ -50,12 +51,15 @@ struct HistoryDetailPane: View {
                     sourceAppName: detailState.selectedItemSourceName,
                     copiedAtText: detailState.selectedItemCopiedAtText,
                     actions: detailState.actions,
+                    onCopy: onCopySelection,
                     onSelectAction: onSelectAction
                 )
             } else {
                 HistoryMultiSelectionHeader(
                     selectionCount: detailState.selectionCount,
+                    selectedItemIDs: detailState.selectedItems.map(\.id),
                     actions: detailState.actions,
+                    onCopy: onCopySelection,
                     onSelectAction: onSelectAction
                 )
             }

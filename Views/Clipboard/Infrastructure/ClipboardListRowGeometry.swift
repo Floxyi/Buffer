@@ -127,6 +127,24 @@ struct ClipboardListLayoutIndex: Sendable {
         ).map(\.id)
     }
 
+    /// Returns the number of item rows that have moved completely above the viewport.
+    /// The binary search keeps scroll-driven visibility checks independent of history size.
+    func itemCountAboveViewport(scrollOffset: CGFloat) -> Int {
+        guard scrollOffset > 0, !entries.isEmpty else { return 0 }
+
+        var lower = 0
+        var upper = entries.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if entries[middle].frame.maxY < scrollOffset {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        return lower
+    }
+
     func renderingWindow(
         scrollOffset: CGFloat,
         viewportHeight: CGFloat,

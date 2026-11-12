@@ -93,6 +93,7 @@ struct HistoryDetailHeader: View {
     let sourceAppName: String?
     let copiedAtText: String?
     let actions: [HistoryItemActionDescriptor]
+    let onCopy: () async -> Bool
     let onSelectAction: (HistoryItemAction) -> Void
 
     var body: some View {
@@ -102,6 +103,8 @@ struct HistoryDetailHeader: View {
                 sourceAppName: sourceAppName,
                 copiedAtText: copiedAtText,
                 actions: actions,
+                copyContextID: [item.id],
+                onCopy: onCopy,
                 onSelectAction: onSelectAction
             )
         case .image:
@@ -109,6 +112,8 @@ struct HistoryDetailHeader: View {
                 sourceAppName: sourceAppName,
                 copiedAtText: copiedAtText,
                 actions: actions,
+                copyContextID: [item.id],
+                onCopy: onCopy,
                 onSelectAction: onSelectAction
             )
         case .color:
@@ -116,6 +121,8 @@ struct HistoryDetailHeader: View {
                 originalText: item.colorPayload?.originalText ?? "",
                 copiedAtText: copiedAtText,
                 actions: actions,
+                copyContextID: [item.id],
+                onCopy: onCopy,
                 onSelectAction: onSelectAction
             )
         case .link:
@@ -123,6 +130,8 @@ struct HistoryDetailHeader: View {
                 websiteName: item.linkPayload?.websiteName ?? "Website",
                 copiedAtText: copiedAtText,
                 actions: actions,
+                copyContextID: [item.id],
+                onCopy: onCopy,
                 onSelectAction: onSelectAction
             )
         case .email:
@@ -130,6 +139,8 @@ struct HistoryDetailHeader: View {
                 sourceAppName: "Email",
                 copiedAtText: copiedAtText,
                 actions: actions,
+                copyContextID: [item.id],
+                onCopy: onCopy,
                 onSelectAction: onSelectAction
             )
         }
@@ -208,20 +219,30 @@ struct HistoryDetailHeaderButtonRow<Content: View>: View {
 
 struct HistoryDetailHeaderActionButtons: View {
     let actions: [HistoryItemActionDescriptor]
+    let copyContextID: [UUID]
+    let onCopy: () async -> Bool
     let onSelect: (HistoryItemAction) -> Void
 
     var body: some View {
         HistoryDetailHeaderButtonRow {
             ForEach(actions) { descriptor in
-                BufferGlassSymbolButton(
-                    help: descriptor.title,
-                    systemName: descriptor.systemImage,
-                    tint: symbolTint(for: descriptor),
-                    action: {
-                        onSelect(descriptor.action)
-                    }
-                )
-                .disabled(!descriptor.isEnabled)
+                if descriptor.action == .copy {
+                    HistoryCopyConfirmationButton(
+                        descriptor: descriptor,
+                        contextID: copyContextID,
+                        onCopy: onCopy
+                    )
+                } else {
+                    BufferGlassSymbolButton(
+                        help: descriptor.title,
+                        systemName: descriptor.systemImage,
+                        tint: symbolTint(for: descriptor),
+                        action: {
+                            onSelect(descriptor.action)
+                        }
+                    )
+                    .disabled(!descriptor.isEnabled)
+                }
             }
         }
     }
@@ -234,9 +255,108 @@ struct HistoryDetailHeaderActionButtons: View {
     }
 }
 
+private struct HistoryCopyConfirmationButton: View {
+    private static let confirmationDuration = Duration.milliseconds(1_100)
+    private static let transitionDuration = 0.001
+    private static let returnDuration = 0.16
+
+    let descriptor: HistoryItemActionDescriptor
+    let contextID: [UUID]
+    let onCopy: () async -> Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isConfirmed = false
+    @State private var copyTask: Task<Void, Never>?
+    @State private var resetTask: Task<Void, Never>?
+
+    private var title: String {
+        isConfirmed ? String(localized: "Copied") : descriptor.title
+    }
+
+    var body: some View {
+        BufferGlassSymbolButton(
+            help: title,
+            systemName: isConfirmed ? "checkmark" : descriptor.systemImage,
+            tint: .primary.opacity(0.82),
+            contentTransition: reduceMotion || !isConfirmed ? .opacity : .symbolEffect,
+            action: copy
+        )
+        .disabled(!descriptor.isEnabled || copyTask != nil)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("historyDetail.copy")
+        .onChange(of: contextID) {
+            reset()
+        }
+        .onDisappear {
+            cancelTasks()
+        }
+    }
+
+    private func copy() {
+        guard copyTask == nil else { return }
+        copyTask = Task { @MainActor in
+            let succeeded = await onCopy()
+            guard !Task.isCancelled else {
+                copyTask = nil
+                return
+            }
+            copyTask = nil
+            guard succeeded else { return }
+            showConfirmation()
+        }
+    }
+
+    private func showConfirmation() {
+        resetTask?.cancel()
+        withAnimation(transitionAnimation) {
+            isConfirmed = true
+        }
+        resetTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: Self.confirmationDuration)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            withAnimation(returnAnimation) {
+                isConfirmed = false
+            }
+            resetTask = nil
+        }
+    }
+
+    private var transitionAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.1)
+            : .snappy(duration: Self.transitionDuration, extraBounce: 0)
+    }
+
+    private var returnAnimation: Animation {
+        .easeOut(duration: reduceMotion ? 0.1 : Self.returnDuration)
+    }
+
+    private func reset() {
+        cancelTasks()
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isConfirmed = false
+        }
+    }
+
+    private func cancelTasks() {
+        copyTask?.cancel()
+        copyTask = nil
+        resetTask?.cancel()
+        resetTask = nil
+    }
+}
+
 struct HistoryMultiSelectionHeader: View {
     let selectionCount: Int
+    let selectedItemIDs: [UUID]
     let actions: [HistoryItemActionDescriptor]
+    let onCopy: () async -> Bool
     let onSelectAction: (HistoryItemAction) -> Void
 
     var body: some View {
@@ -245,7 +365,12 @@ struct HistoryMultiSelectionHeader: View {
                 HistorySelectionCountDetailHeaderMetadata(selectionCount: selectionCount)
             },
             actions: {
-                HistoryDetailHeaderActionButtons(actions: actions, onSelect: onSelectAction)
+                HistoryDetailHeaderActionButtons(
+                    actions: actions,
+                    copyContextID: selectedItemIDs,
+                    onCopy: onCopy,
+                    onSelect: onSelectAction
+                )
             }
         )
     }

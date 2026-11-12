@@ -22,6 +22,7 @@ struct ClipboardScrollToTopButton: View {
         .buttonStyle(.plain)
         .frame(height: 28)
         .bufferGlassSurface(cornerRadius: 14, interactive: true)
-        .padding(.bottom, 12)
+        .help(String(localized: "Back to top"))
+        .accessibilityLabel(String(localized: "Back to top"))
     }
 }

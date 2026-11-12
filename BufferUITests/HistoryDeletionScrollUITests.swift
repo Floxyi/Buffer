@@ -230,3 +230,56 @@ final class HistoryCalendarPagingUITests: XCTestCase {
         return predicate()
     }
 }
+
+final class HistoryCopyFeedbackUITests: XCTestCase {
+    @MainActor
+    func testSuccessfulDetailCopyShowsConfirmationAndReturnsToCopy() async {
+        continueAfterFailure = false
+
+        let application = XCUIApplication(
+            bundleIdentifier: "de.floxyi.buffer.ui-validation"
+        )
+        application.terminate()
+        application.launch()
+
+        let copyButton = application.buttons["historyDetail.copy"]
+        let copyButtonIsReady = await waitForValue(timeout: .seconds(10)) {
+            copyButton.exists
+        }
+        XCTAssertTrue(copyButtonIsReady, application.debugDescription)
+
+        copyButton.click()
+
+        let confirmationAppeared = await waitForValue(timeout: .seconds(2)) {
+            copyButton.label == "Copied"
+        }
+        XCTAssertTrue(
+            confirmationAppeared,
+            "A successful copy did not expose its confirmation state"
+        )
+
+        let confirmationReset = await waitForValue(timeout: .seconds(3)) {
+            copyButton.label == "Copy"
+        }
+        XCTAssertTrue(
+            confirmationReset,
+            "The copy confirmation did not return to its idle state"
+        )
+    }
+
+    @MainActor
+    private func waitForValue(
+        timeout: Duration,
+        predicate: () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            if predicate() {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        return predicate()
+    }
+}

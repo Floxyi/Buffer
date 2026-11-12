@@ -4,6 +4,7 @@ struct BufferGlassSymbolButton: View {
     let help: String
     let systemName: String
     var tint: Color = .secondary
+    var contentTransition: ContentTransition = .identity
     let action: () -> Void
 
     var body: some View {
@@ -14,6 +15,7 @@ struct BufferGlassSymbolButton: View {
                 .scaledToFit()
                 .foregroundStyle(tint)
                 .frame(width: 14, height: 14, alignment: .center)
+                .contentTransition(contentTransition)
         }
     }
 }

@@ -149,6 +149,7 @@ struct HistoryContentView: View {
                 actionHandler.performContextMenuAction(item.id, action)
             },
             onSelectAction: actionHandler.performDetailAction,
+            onCopySelection: actionHandler.performDetailCopyAction,
             onDownloadAllImages: actionHandler.downloadAllImages,
             onCopyOCRText: actionHandler.copyOCRText,
             onCopyColorVariant: actionHandler.copyPlainText,

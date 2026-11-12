@@ -40,6 +40,13 @@ struct HistoryActionHandler {
         performAction(action, items: currentSelectionSnapshot())
     }
 
+    func performDetailCopyAction() async -> Bool {
+        let items = currentSelectionSnapshot()
+        guard !items.isEmpty, await onCopy(items) else { return false }
+        viewModel.clearSearchAfterCommittedAction()
+        return true
+    }
+
     func performContextMenuAction(_ clickedItemID: UUID, _ action: HistoryItemAction) {
         performAction(action, items: viewModel.contextMenuTargetItems(for: clickedItemID))
     }

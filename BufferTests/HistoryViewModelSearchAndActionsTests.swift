@@ -408,6 +408,53 @@ final class HistoryViewModelSearchAndActionsTests: XCTestCase {
         XCTAssertEqual(events, ["copy", "dismiss", "restore"])
     }
 
+    func testDetailCopyReportsSuccessAndClearsSearchAfterClipboardCommit() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let item = ClipboardItem.text("copy me")
+        await populateStore(store, with: [item])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "copy"
+        await waitForHistorySearch(viewModel)
+        var copiedItemIDs: [UUID] = []
+        let actionHandler = makeActionHandler(
+            viewModel: viewModel,
+            store: store,
+            settings: settings,
+            onCopy: { items in
+                copiedItemIDs = items.map(\.id)
+                return true
+            }
+        )
+
+        let succeeded = await actionHandler.performDetailCopyAction()
+
+        XCTAssertTrue(succeeded)
+        XCTAssertEqual(copiedItemIDs, [item.id])
+        XCTAssertEqual(viewModel.searchText, "")
+    }
+
+    func testDetailCopyReportsFailureWithoutShowingCommittedState() async {
+        let settings = makeHistoryTestSettings()
+        let store = makeHistoryTestStore(settings: settings)
+        let item = ClipboardItem.text("copy me")
+        await populateStore(store, with: [item])
+        let viewModel = makeHistoryTestViewModel(store: store, settings: settings)
+        viewModel.searchText = "copy"
+        await waitForHistorySearch(viewModel)
+        let actionHandler = makeActionHandler(
+            viewModel: viewModel,
+            store: store,
+            settings: settings,
+            onCopy: { _ in false }
+        )
+
+        let succeeded = await actionHandler.performDetailCopyAction()
+
+        XCTAssertFalse(succeeded)
+        XCTAssertEqual(viewModel.searchText, "copy")
+    }
+
     func testEscapeDismissesBeforeRestoringPreviousApplicationFocus() {
         let settings = makeHistoryTestSettings()
         let store = makeHistoryTestStore(settings: settings)

@@ -52,6 +52,25 @@ final class ClipboardListStructureTests: XCTestCase {
         XCTAssertEqual(cache.pinnedItemIDs, [pinned.id])
     }
 
+    func testScrollToTopVisibilityUsesAbsoluteItemsAboveViewport() throws {
+        let items = (0..<12).map { ClipboardItem.text("item-\($0)") }
+        let layoutIndex = ClipboardListStructure.makeDisplayCache(from: items).layoutIndex
+        let policy = ClipboardScrollToTopVisibilityPolicy.standard
+        let seventhItemFrame = try XCTUnwrap(layoutIndex.frame(for: items[7].id))
+        let eighthItemFrame = try XCTUnwrap(layoutIndex.frame(for: items[8].id))
+
+        XCTAssertEqual(
+            layoutIndex.itemCountAboveViewport(scrollOffset: seventhItemFrame.minY),
+            7
+        )
+        XCTAssertFalse(policy.shouldShow(itemCountAboveViewport: 7))
+        XCTAssertEqual(
+            layoutIndex.itemCountAboveViewport(scrollOffset: eighthItemFrame.minY),
+            8
+        )
+        XCTAssertTrue(policy.shouldShow(itemCountAboveViewport: 8))
+    }
+
     func testRebuildsCacheWhenWeekBoundaryChanges() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

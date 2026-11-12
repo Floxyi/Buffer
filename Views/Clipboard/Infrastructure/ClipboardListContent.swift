@@ -12,6 +12,7 @@ struct ClipboardListContent: View {
     let pinnedItemIDs: [UUID]
     let displayRowsForRendering: [ClipboardListStructure.DisplayRow]
     let renderingWindow: ClipboardListRenderingWindow
+    let layoutIndex: ClipboardListLayoutIndex
     let contentHeight: CGFloat
     let viewportTransition: ClipboardListViewportTransition
     let contentTrailingPadding: CGFloat
@@ -109,8 +110,11 @@ struct ClipboardListContent: View {
             }
         }
         .accessibilityIdentifier("historyList.scrollView")
-        .overlay(alignment: .bottom) {
-            ClipboardScrollToTopOverlay(scrollController: scrollController) {
+        .overlay(alignment: .top) {
+            ClipboardScrollToTopOverlay(
+                scrollController: scrollController,
+                layoutIndex: layoutIndex
+            ) {
                 onMenuTrackingEnded()
                 onScrollToTopRequested()
             }

@@ -65,6 +65,7 @@ struct ClipboardListView: View {
             pinnedItemIDs: currentDisplayState.cache.pinnedItemIDs,
             displayRowsForRendering: currentDisplayState.displayRows,
             renderingWindow: renderingWindow,
+            layoutIndex: currentDisplayState.layoutIndex,
             contentHeight: currentDisplayState.layoutIndex.contentHeight,
             viewportTransition: viewportTransition,
             contentTrailingPadding: currentDisplayState.contentTrailingPadding,
