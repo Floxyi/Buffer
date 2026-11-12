@@ -133,3 +133,100 @@ final class HistoryDeletionScrollUITests: XCTestCase {
         return "historyItem.10000000-0000-4000-8000-\(suffix)"
     }
 }
+
+final class HistoryCalendarPagingUITests: XCTestCase {
+    @MainActor
+    func testCalendarPagerChangesMonthAndKeepsPopoverOpen() async {
+        continueAfterFailure = false
+
+        let application = XCUIApplication(
+            bundleIdentifier: "de.floxyi.buffer.ui-validation"
+        )
+        application.terminate()
+        application.launch()
+
+        let dateFilter = application.buttons["historyFilter.date"]
+        let dateFilterExists = await waitForExistence(
+            of: dateFilter,
+            timeout: .seconds(10)
+        )
+        XCTAssertTrue(
+            dateFilterExists,
+            application.debugDescription
+        )
+        dateFilter.click()
+
+        let monthTitle = application.staticTexts["historyDatePicker.monthTitle"]
+        let monthTitleExists = await waitForExistence(
+            of: monthTitle,
+            timeout: .seconds(5)
+        )
+        XCTAssertTrue(
+            monthTitleExists,
+            application.debugDescription
+        )
+        let initialMonth = accessibilityText(of: monthTitle)
+
+        let visibleDays = application.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH %@",
+                "historyDatePicker.day."
+            )
+        )
+        XCTAssertTrue(
+            visibleDays.allElementsBoundByIndex.contains(where: \.isHittable),
+            "The visible calendar page does not expose any interactive days"
+        )
+
+        application.buttons["Previous month"].click()
+        let revealedPreviousMonth = await waitForValue(timeout: .seconds(3)) {
+            monthTitle.exists && accessibilityText(of: monthTitle) != initialMonth
+        }
+        XCTAssertTrue(
+            revealedPreviousMonth,
+            "The calendar did not reveal the previous month"
+        )
+
+        application.buttons["Next month"].click()
+        let returnedToInitialMonth = await waitForValue(timeout: .seconds(3)) {
+            monthTitle.exists && accessibilityText(of: monthTitle) == initialMonth
+        }
+        XCTAssertTrue(
+            returnedToInitialMonth,
+            "The calendar did not return to the initial month"
+        )
+        XCTAssertTrue(monthTitle.exists, "The date popover closed during month paging")
+    }
+
+    @MainActor
+    private func accessibilityText(of element: XCUIElement) -> String {
+        if let value = element.value as? String, !value.isEmpty {
+            return value
+        }
+        return element.label
+    }
+
+    @MainActor
+    private func waitForExistence(
+        of element: XCUIElement,
+        timeout: Duration
+    ) async -> Bool {
+        await waitForValue(timeout: timeout) { element.exists }
+    }
+
+    @MainActor
+    private func waitForValue(
+        timeout: Duration,
+        predicate: () -> Bool
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            if predicate() {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return predicate()
+    }
+}

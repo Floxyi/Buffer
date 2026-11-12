@@ -1,4 +1,105 @@
+import Observation
 import SwiftUI
+
+@MainActor
+@Observable
+private final class HistoryCalendarSwipePresentation {
+    private(set) var progress = CGFloat.zero
+
+    func update(progress: CGFloat) {
+        guard self.progress != progress else { return }
+        self.progress = progress
+    }
+
+    func reset() {
+        progress = 0
+    }
+}
+
+private struct HistoryCalendarSwipePageStrip<Content: View>: View {
+    let presentation: HistoryCalendarSwipePresentation
+    let pageWidth: CGFloat
+    let reduceMotion: Bool
+    let content: Content
+
+    init(
+        presentation: HistoryCalendarSwipePresentation,
+        pageWidth: CGFloat,
+        reduceMotion: Bool,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.presentation = presentation
+        self.pageWidth = pageWidth
+        self.reduceMotion = reduceMotion
+        self.content = content()
+    }
+
+    var body: some View {
+        // Observation invalidates only this render transform during a swipe.
+        content
+            .offset(
+                x: -pageWidth
+                    + (reduceMotion ? 0 : presentation.progress * pageWidth)
+            )
+    }
+}
+
+@MainActor
+private final class HistoryDatePickerTextCache {
+    private let calendar: Calendar
+    private let monthFormatter: DateFormatter
+    private let fullDateFormatter: DateFormatter
+    let weekdaySymbols: [String]
+    private var monthTitles: [HistoryCalendarDay: String] = [:]
+    private var accessibilityDates: [HistoryCalendarDay: String] = [:]
+
+    init(calendar: Calendar) {
+        self.calendar = calendar
+
+        let monthFormatter = DateFormatter()
+        monthFormatter.calendar = calendar
+        monthFormatter.locale = .autoupdatingCurrent
+        monthFormatter.timeZone = calendar.timeZone
+        monthFormatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        self.monthFormatter = monthFormatter
+
+        let fullDateFormatter = DateFormatter()
+        fullDateFormatter.calendar = calendar
+        fullDateFormatter.locale = .autoupdatingCurrent
+        fullDateFormatter.timeZone = calendar.timeZone
+        fullDateFormatter.dateStyle = .full
+        fullDateFormatter.timeStyle = .none
+        self.fullDateFormatter = fullDateFormatter
+
+        let symbols = monthFormatter.veryShortStandaloneWeekdaySymbols ?? []
+        guard symbols.count == 7 else {
+            weekdaySymbols = symbols
+            return
+        }
+        let startIndex = max(0, min(6, calendar.firstWeekday - 1))
+        weekdaySymbols = Array(symbols[startIndex...] + symbols[..<startIndex])
+    }
+
+    func monthTitle(for month: HistoryCalendarMonth) -> String {
+        if let cachedTitle = monthTitles[month.firstDay] {
+            return cachedTitle
+        }
+        guard let date = month.firstDay.date(in: calendar) else { return "" }
+        let title = monthFormatter.string(from: date)
+        monthTitles[month.firstDay] = title
+        return title
+    }
+
+    func accessibilityDate(for day: HistoryCalendarDay) -> String {
+        if let cachedDate = accessibilityDates[day] {
+            return cachedDate
+        }
+        guard let date = day.date(in: calendar) else { return "" }
+        let formattedDate = fullDateFormatter.string(from: date)
+        accessibilityDates[day] = formattedDate
+        return formattedDate
+    }
+}
 
 struct HistoryDateFilterControl: View {
     let title: String
@@ -135,11 +236,14 @@ private struct HistoryDatePickerPopover: View {
     let calendar: Calendar
     let onCancel: @MainActor @Sendable () -> Void
     let onApply: @MainActor @Sendable (HistoryDateFilterSelection) -> Void
+    private let textCache: HistoryDatePickerTextCache
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var draft: HistoryDatePickerDraft
     @State private var visibleMonth: HistoryCalendarMonth
     @State private var hoveredDay: HistoryCalendarDay?
+    @State private var swipePresentation = HistoryCalendarSwipePresentation()
+    @State private var isSwipeActive = false
     @FocusState private var focusedDay: HistoryCalendarDay?
 
     init(
@@ -154,6 +258,7 @@ private struct HistoryDatePickerPopover: View {
         self.calendar = calendar
         self.onCancel = onCancel
         self.onApply = onApply
+        textCache = HistoryDatePickerTextCache(calendar: calendar)
 
         let initialDay =
             committedSelection?.endDay
@@ -189,11 +294,7 @@ private struct HistoryDatePickerPopover: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            monthHeader
-            weekdayHeader
-                .padding(.top, 10)
-            calendarGrid
-                .padding(.top, 4)
+            calendarPager
             Divider()
                 .padding(.top, 10)
             footer
@@ -217,16 +318,12 @@ private struct HistoryDatePickerPopover: View {
         .accessibilityElement(children: .contain)
     }
 
-    private var monthHeader: some View {
+    private var monthNavigationControls: some View {
         HStack(spacing: 8) {
-            Text(monthTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-
             HistoryDatePickerNavigationButton(
                 symbolName: "chevron.left",
                 accessibilityLabel: String(localized: "Previous month"),
-                isEnabled: canNavigateBackward
+                isEnabled: canNavigateBackward && !isSwipeActive
             ) {
                 navigateMonth(by: -1)
             }
@@ -234,28 +331,125 @@ private struct HistoryDatePickerPopover: View {
             HistoryDatePickerNavigationButton(
                 symbolName: "chevron.right",
                 accessibilityLabel: String(localized: "Next month"),
-                isEnabled: canNavigateForward
+                isEnabled: canNavigateForward && !isSwipeActive
             ) {
                 navigateMonth(by: 1)
             }
         }
+        .frame(height: HistoryDatePickerLayout.monthHeaderHeight)
         .foregroundStyle(.primary)
     }
 
     private var weekdayHeader: some View {
         HStack(spacing: 2) {
-            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+            ForEach(Array(textCache.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
         }
+        .frame(height: HistoryDatePickerLayout.weekdayHeaderHeight)
     }
 
-    private var calendarGrid: some View {
+    private var calendarPager: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                HistoryCalendarSwipePageStrip(
+                    presentation: swipePresentation,
+                    pageWidth: proxy.size.width,
+                    reduceMotion: reduceMotion
+                ) {
+                    HStack(spacing: 0) {
+                        calendarPage(
+                            visibleMonth.addingMonths(-1, calendar: calendar),
+                            isCurrent: false,
+                            width: proxy.size.width
+                        )
+                        calendarPage(
+                            visibleMonth,
+                            isCurrent: true,
+                            width: proxy.size.width
+                        )
+                        calendarPage(
+                            visibleMonth.addingMonths(1, calendar: calendar),
+                            isCurrent: false,
+                            width: proxy.size.width
+                        )
+                    }
+                    .frame(width: proxy.size.width * 3, alignment: .leading)
+                }
+
+                monthNavigationControls
+                    .frame(
+                        width: proxy.size.width,
+                        height: HistoryDatePickerLayout.monthHeaderHeight,
+                        alignment: .trailing
+                    )
+            }
+            .frame(
+                width: proxy.size.width,
+                height: proxy.size.height,
+                alignment: .topLeading
+            )
+            .clipped()
+        }
+        .frame(height: HistoryDatePickerLayout.pageHeight)
+        .clipped()
+        .background {
+            HistoryCalendarSwipeBridge(
+                isEnabled: !isSwipeActive,
+                canNavigateBackward: canNavigateBackward,
+                canNavigateForward: canNavigateForward,
+                onBegan: beginSwipe,
+                onProgress: updateSwipeProgress(_:),
+                onReleased: settleSwipe(_:)
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("historyDatePicker.swipeArea")
+    }
+
+    @ViewBuilder
+    private func calendarPage(
+        _ month: HistoryCalendarMonth?,
+        isCurrent: Bool,
+        width: CGFloat
+    ) -> some View {
+        if let month {
+            VStack(spacing: 0) {
+                Text(monthTitle(for: month))
+                    .font(.system(size: 13, weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: HistoryDatePickerLayout.monthHeaderHeight)
+                    .padding(.trailing, HistoryDatePickerLayout.navigationControlsWidth)
+                    .accessibilityIdentifier(
+                        isCurrent ? "historyDatePicker.monthTitle" : ""
+                    )
+
+                weekdayHeader
+                    .padding(.top, 10)
+                calendarGrid(
+                    for: month,
+                    allowsInteraction: isCurrent && !isSwipeActive
+                )
+                .padding(.top, 4)
+            }
+            .frame(width: width)
+            .accessibilityHidden(!isCurrent)
+        } else {
+            Color.clear
+                .frame(width: width)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func calendarGrid(
+        for month: HistoryCalendarMonth,
+        allowsInteraction: Bool
+    ) -> some View {
         ZStack {
-            HistoryDateRangeLayer(segments: rangeSegments)
+            HistoryDateRangeLayer(segments: rangeSegments(in: month))
 
             LazyVGrid(
                 columns: Array(
@@ -267,9 +461,9 @@ private struct HistoryDatePickerPopover: View {
                 ),
                 spacing: HistoryDatePickerLayout.rowSpacing
             ) {
-                ForEach(visibleMonth.days.indices, id: \.self) { index in
-                    if let day = visibleMonth.days[index] {
-                        dayButton(day)
+                ForEach(month.days.indices, id: \.self) { index in
+                    if let day = month.days[index] {
+                        dayButton(day, allowsInteraction: allowsInteraction)
                     } else {
                         Color.clear
                             .frame(height: HistoryDatePickerLayout.dayHeight)
@@ -280,20 +474,21 @@ private struct HistoryDatePickerPopover: View {
         }
         .frame(height: HistoryDatePickerLayout.gridHeight)
         .onHover { isInside in
-            if !isInside {
+            if allowsInteraction, !isInside {
                 hoveredDay = nil
             }
         }
+        .allowsHitTesting(allowsInteraction)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.14), value: previewSelection)
     }
 
-    private var rangeSegments: [HistoryDateRangeSegment] {
+    private func rangeSegments(in month: HistoryCalendarMonth) -> [HistoryDateRangeSegment] {
         guard let selection = previewSelection else { return [] }
 
         return (0..<HistoryDatePickerLayout.rowCount).compactMap { row in
             let startIndex = row * HistoryDatePickerLayout.columnCount
             let endIndex = startIndex + HistoryDatePickerLayout.columnCount
-            let selectedDays = visibleMonth.days[startIndex..<endIndex].enumerated().compactMap {
+            let selectedDays = month.days[startIndex..<endIndex].enumerated().compactMap {
                 column,
                 day -> (column: Int, day: HistoryCalendarDay)? in
                 guard let day, selection.contains(day) else { return nil }
@@ -312,11 +507,15 @@ private struct HistoryDatePickerPopover: View {
         }
     }
 
-    private func dayButton(_ day: HistoryCalendarDay) -> some View {
+    private func dayButton(
+        _ day: HistoryCalendarDay,
+        allowsInteraction: Bool
+    ) -> some View {
         let isAvailable = availability.copiedDays.contains(day)
         let isInRange = previewSelection?.contains(day) == true
         let isEndpoint = previewSelection?.startDay == day || previewSelection?.endDay == day
         let isHovered = hoveredDay == day && isAvailable
+        let accessibilityDate = textCache.accessibilityDate(for: day)
 
         return ZStack {
             Button {
@@ -375,7 +574,7 @@ private struct HistoryDatePickerPopover: View {
                 .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .disabled(!isAvailable)
+            .disabled(!isAvailable || !allowsInteraction)
             .focused($focusedDay, equals: day)
             .focusEffectDisabled()
             .clipShape(Circle())
@@ -383,11 +582,14 @@ private struct HistoryDatePickerPopover: View {
         }
         .contentShape(Rectangle())
         .onHover { isHovering in
-            guard isHovering, isAvailable else { return }
+            guard allowsInteraction, isHovering, isAvailable else { return }
             hoveredDay = day
         }
-        .help(accessibilityDate(for: day))
-        .accessibilityLabel(accessibilityDate(for: day))
+        .help(accessibilityDate)
+        .accessibilityIdentifier(
+            "historyDatePicker.day.\(day.era).\(day.year).\(day.month).\(day.day)"
+        )
+        .accessibilityLabel(accessibilityDate)
         .accessibilityValue(accessibilityValue(for: day, isAvailable: isAvailable))
         .accessibilityHint(
             isAvailable
@@ -418,24 +620,8 @@ private struct HistoryDatePickerPopover: View {
         }
     }
 
-    private var monthTitle: String {
-        guard let date = visibleMonth.firstDay.date(in: calendar) else { return "" }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = .autoupdatingCurrent
-        formatter.timeZone = calendar.timeZone
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-        return formatter.string(from: date)
-    }
-
-    private var weekdaySymbols: [String] {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = .autoupdatingCurrent
-        let symbols = formatter.veryShortStandaloneWeekdaySymbols ?? []
-        guard symbols.count == 7 else { return symbols }
-        let startIndex = max(0, min(6, calendar.firstWeekday - 1))
-        return Array(symbols[startIndex...] + symbols[..<startIndex])
+    private func monthTitle(for month: HistoryCalendarMonth) -> String {
+        textCache.monthTitle(for: month)
     }
 
     private func dayForegroundStyle(
@@ -453,17 +639,6 @@ private struct HistoryDatePickerPopover: View {
             return AnyShapeStyle(Color.primary.opacity(0.62))
         }
         return AnyShapeStyle(Color.secondary.opacity(0.38))
-    }
-
-    private func accessibilityDate(for day: HistoryCalendarDay) -> String {
-        guard let date = day.date(in: calendar) else { return "" }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = .autoupdatingCurrent
-        formatter.timeZone = calendar.timeZone
-        formatter.dateStyle = .full
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
     }
 
     private func accessibilityValue(for day: HistoryCalendarDay, isAvailable: Bool) -> String {
@@ -484,14 +659,84 @@ private struct HistoryDatePickerPopover: View {
     }
 
     private func navigateMonth(by value: Int) {
+        guard !isSwipeActive else { return }
+        commitMonthChange(by: value, animated: true)
+    }
+
+    private func commitMonthChange(by value: Int, animated: Bool) {
         guard value < 0 ? canNavigateBackward : canNavigateForward,
             let nextMonth = visibleMonth.addingMonths(value, calendar: calendar)
         else { return }
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+
+        let update = {
             visibleMonth = nextMonth
             hoveredDay = nil
+            focusedDay = nearestAvailableDay(in: nextMonth)
         }
-        focusedDay = nearestAvailableDay(in: nextMonth)
+        guard animated, !reduceMotion else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction, update)
+            return
+        }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) {
+            update()
+        }
+    }
+
+    private func beginSwipe() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            hoveredDay = nil
+            isSwipeActive = true
+            swipePresentation.reset()
+        }
+    }
+
+    private func updateSwipeProgress(_ progress: CGFloat) {
+        guard isSwipeActive else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            swipePresentation.update(progress: progress)
+        }
+    }
+
+    private func settleSwipe(_ direction: HistoryCalendarSwipeDirection?) {
+        guard isSwipeActive else { return }
+        let currentProgress = swipePresentation.progress
+        let targetProgress = direction?.settledProgress ?? 0
+
+        guard !reduceMotion, currentProgress != targetProgress else {
+            finishSwipe(direction)
+            return
+        }
+        let duration = HistoryCalendarSwipePolicy.settlementDuration(
+            from: currentProgress,
+            to: targetProgress
+        )
+        withAnimation(
+            .snappy(duration: duration, extraBounce: 0),
+            completionCriteria: .logicallyComplete
+        ) {
+            swipePresentation.update(progress: targetProgress)
+        } completion: {
+            finishSwipe(direction)
+        }
+    }
+
+    private func finishSwipe(_ direction: HistoryCalendarSwipeDirection?) {
+        guard isSwipeActive else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if let direction {
+                commitMonthChange(by: direction.monthDelta, animated: false)
+            }
+            swipePresentation.reset()
+            isSwipeActive = false
+        }
     }
 
     private func moveFocus(_ direction: MoveCommandDirection) {
@@ -623,12 +868,17 @@ private enum HistoryDatePickerLayout {
     static let rowCount = 6
     static let columnSpacing: CGFloat = 2
     static let rowSpacing: CGFloat = 2
+    static let monthHeaderHeight: CGFloat = 26
+    static let weekdayHeaderHeight: CGFloat = 12
+    static let navigationControlsWidth: CGFloat = 62
     static let dayHeight: CGFloat = 32
     static let selectionDiameter: CGFloat = 27
     static let rangeHeight = selectionDiameter
     static let gridHeight =
         CGFloat(rowCount) * dayHeight
         + CGFloat(rowCount - 1) * rowSpacing
+    static let pageHeight =
+        monthHeaderHeight + 10 + weekdayHeaderHeight + 4 + gridHeight
 }
 
 private struct HistoryDateRangeSegment: Identifiable {
